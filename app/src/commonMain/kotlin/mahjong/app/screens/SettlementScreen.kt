@@ -43,6 +43,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import mahjong.app.audio.GameAudio
 import mahjong.app.game.SettlementUi
 import mahjong.app.game.WindNames
 import mahjong.app.game.WinnerUi
@@ -169,7 +171,16 @@ private fun ResultCard(settlement: SettlementUi, winner: WinnerUi?) {
     // 首次出现从 0 滚到终值（Compose 的 animateIntAsState 默认直接取初值，不会滚）；
     // 减少动态下 0ms 直接显示终值。
     var shown by remember { mutableStateOf(if (reduceMotion) rawDelta else 0) }
-    LaunchedEffect(rawDelta) { shown = rawDelta }
+    LaunchedEffect(rawDelta) {
+        shown = rawDelta
+        // 与 600ms 的分数滚动同步播颗粒音，滚动结束即停。
+        if (!reduceMotion && rawDelta != 0) {
+            repeat(18) {
+                GameAudio.playScoreTick()
+                delay(33)
+            }
+        }
+    }
     val delta by animateIntAsState(
         targetValue = shown,
         animationSpec = tween(if (reduceMotion) 0 else 600),

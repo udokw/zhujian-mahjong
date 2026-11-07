@@ -1,16 +1,6 @@
 package mahjong.app.online
 
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.IntVar
-import kotlinx.cinterop.UIntVar
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.alloc
-import kotlinx.cinterop.convert
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.ptr
-import kotlinx.cinterop.reinterpret
-import kotlinx.cinterop.sizeOf
-import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.time.TimeSource
@@ -21,10 +11,7 @@ import platform.posix.SO_BROADCAST
 import platform.posix.SO_RCVTIMEO
 import platform.posix.SOL_SOCKET
 import platform.posix.close
-import platform.posix.htons
-import platform.posix.inet_addr
 import platform.posix.memset
-import platform.posix.ntohl
 import platform.posix.recvfrom
 import platform.posix.sendto
 import platform.posix.setsockopt
@@ -61,8 +48,8 @@ actual suspend fun discoverNearbyRooms(
                     val target = alloc<sockaddr_in>()
                     memset(target.ptr, 0, sizeOf<sockaddr_in>().convert())
                     target.sin_family = AF_INET.convert()
-                    target.sin_port = htons(port.toUShort())
-                    target.sin_addr.s_addr = inet_addr(address)
+                    target.sin_port = htons(port)
+                    target.sin_addr.s_addr = inetAddr(address)
                     query.usePinned { pinned ->
                         sendto(
                             fd,
@@ -94,9 +81,7 @@ actual suspend fun discoverNearbyRooms(
                         )
                         if (read > 0) {
                             val text = buffer.decodeToString(0, read.toInt())
-                            val ip = ntohl(from.sin_addr.s_addr)
-                            val host = "${(ip shr 24) and 0xFFu}.${(ip shr 16) and 0xFFu}." +
-                                "${(ip shr 8) and 0xFFu}.${ip and 0xFFu}"
+                            val host = ipv4Text(from.sin_addr.s_addr)
                             parseDiscoveryRooms(text, host).forEach { room ->
                                 found["${room.serverHost}:${room.wsPort}/${room.code}"] = room
                             }
@@ -111,3 +96,21 @@ actual suspend fun discoverNearbyRooms(
             }
         }
     }
+
+// Darwin 的 htons/inet_addr/ntohl 在头文件里是宏或内联函数，Kotlin/Native 没有导出，
+// 这里按小端设备（所有 iPhone）手工换算网络字节序，避免依赖平台宏。
+private fun htons(value: Int): UShort =
+    (((value and 0xFF) shl 8) or ((value shr 8) and 0xFF)).toUShort()
+
+private fun inetAddr(address: String): UInt {
+    val parts = address.split('.').map { it.trim().toUIntOrNull() ?: 0u }
+    if (parts.size != 4) return 0u
+    return ((parts[3] and 0xFFu) shl 24) or
+        ((parts[2] and 0xFFu) shl 16) or
+        ((parts[1] and 0xFFu) shl 8) or
+        (parts[0] and 0xFFu)
+}
+
+/** sin_addr.s_addr 的内存布局本身就是网络序的四个字节，小端下最低位就是第一个八位组。 */
+private fun ipv4Text(raw: UInt): String =
+    "${raw and 0xFFu}.${(raw shr 8) and 0xFFu}.${(raw shr 16) and 0xFFu}.${(raw shr 24) and 0xFFu}"

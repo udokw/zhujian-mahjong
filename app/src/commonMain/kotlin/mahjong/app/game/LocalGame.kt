@@ -32,8 +32,6 @@ import mahjong.core.rules.RuleConfig
 import kotlin.random.Random
 
 private const val CLAIM_WINDOW_MS = 8_000L
-private const val AI_TURN_DELAY_MS = 520L
-private const val AI_CLAIM_DELAY_MS = 420L
 
 /**
  * 本地人机局：包一层 core 的 MahjongGame + 三个 AiBot，把引擎状态投影成 UI 模型。
@@ -106,11 +104,16 @@ class LocalGameSession(
         if (loopJob != null) return
         playSfx(SoundEffect.SHUFFLE)
         loopJob = scope.launch {
-            // 洗牌落定后连发几张发牌声，贴合“洗牌 → 发牌 → 开打”的节奏。
-            repeat(4) {
-                delay(45)
+            // 洗牌音 1.95s，自带起手/加速/收尾；收尾落牌后再发牌、
+            // 理牌，声音走完才开打，避免第一张出牌压住理牌声。
+            delay(1_800)
+            repeat(13) {
+                delay(55)
                 playSfx(SoundEffect.DEAL)
             }
+            delay(60)
+            playSfx(SoundEffect.SORT)
+            delay(880)
             runLoop()
         }
     }
@@ -195,7 +198,7 @@ class LocalGameSession(
             }
             if (actor == meSeat) {
                 if (autoPlay) {
-                    delay(220)
+                    delay(settings().aiSpeed.thinkMs)
                     applyAction(autoAction(legal))
                     continue
                 }
@@ -215,7 +218,8 @@ class LocalGameSession(
                     applyAction(action)
                 }
             } else {
-                delay(if (legal.any { it is Action.Discard }) AI_TURN_DELAY_MS else AI_CLAIM_DELAY_MS)
+                val speed = settings().aiSpeed
+                delay(if (legal.any { it is Action.Discard }) speed.thinkMs else speed.claimMs)
                 val bot = bots[actor]
                 if (bot == null) {
                     delay(80)
@@ -253,6 +257,8 @@ class LocalGameSession(
     }
 
     private fun handleEvents(events: List<GameEvent>) {
+        // 同一批事件里出现多次胡牌即一炮多响，用更厚的 hu_multi 替代普通胡牌音。
+        val multiWin = events.count { it is GameEvent.WinDeclared } > 1
         events.forEachIndexed { index, event ->
             when (event) {
                 is GameEvent.TileDrawn -> {
@@ -306,7 +312,7 @@ class LocalGameSession(
 
                 is GameEvent.WinDeclared -> {
                     // 胡牌不再用横幅提示，统一走完整演出链（亮牌→金框→压暗→番型浮层）。
-                    playSfx(SoundEffect.HU)
+                    playSfx(if (multiWin) SoundEffect.HU_MULTI else SoundEffect.HU)
                     announceVoice(
                         if (event.result.selfDraw) VoiceLine.ZIMO else VoiceLine.HU,
                         event.result.winner,
@@ -619,6 +625,12 @@ class LocalGameSession(
     private fun playSfx(effect: SoundEffect) {
         val s = settings()
         if (s.sound) GameAudio.playEffect(effect, s.volume)
+    }
+
+    /** 非法操作：短促提示音 + 轻震动，不打断当前等待。 */
+    private fun invalid() {
+        playSfx(SoundEffect.INVALID)
+        feedback(0)
     }
 
     private fun playDiscard(tile: Int, seat: Int) {

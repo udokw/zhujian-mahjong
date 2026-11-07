@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
+import platform.AVFAudio.setActive
 import platform.Foundation.NSBundle
 import platform.Foundation.NSLock
 import platform.Foundation.NSURL
@@ -61,7 +62,9 @@ private object IosAudio {
         runCatching {
             val session = AVAudioSession.sharedInstance()
             session.setCategory(AVAudioSessionCategoryPlayback, error = null)
-            session.setActive(true, error = null)
+            // setActive 在 Kotlin/Native 里是 AVAudioSession 的分类扩展，必须单独 import；
+            // 且只有 setActive(_:withOptions:error:) 这个重载被导出。
+            session.setActive(true, withOptions = 0uL, error = null)
         }
     }
 

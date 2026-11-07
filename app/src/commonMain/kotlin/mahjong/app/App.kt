@@ -192,6 +192,11 @@ fun App() {
         if (screen == Screen.SPLASH) screen = Screen.LOBBY
     }
 
+    // 设置里的音效开关/音量直接同步给播放层，UI 按钮无需再逐处传参。
+    LaunchedEffect(settings.sound, settings.volume) {
+        GameAudio.configure(settings.sound, settings.volume)
+    }
+
     LaunchedEffect(screen, onlineSession?.table) {
         if (screen == Screen.ONLINE && onlineSession?.table != null) {
             screen = Screen.TABLE
@@ -280,7 +285,7 @@ fun App() {
                         LaunchedEffect(ui) {
                             // 荒庄已由对局内播过“流局”，这里只给正常结算补收束音。
                             if (settings.sound && !ui.draw) {
-                                GameAudio.playEffect(SoundEffect.SETTLE, settings.volume)
+                                GameAudio.playEffect(SoundEffect.WIN_STING, settings.volume)
                             }
                         }
                         SettlementScreen(

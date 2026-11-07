@@ -51,6 +51,7 @@ class RoomManager(
         config: mahjong.core.rules.RuleConfig,
         ruleSetName: String,
         password: String?,
+        aiThinkMs: Long = 0L,
     ): Room {
         repeat(20) {
             val code = generateCode()
@@ -60,6 +61,7 @@ class RoomManager(
                 ruleSetName = ruleSetName,
                 passwordHash = password?.takeIf { it.isNotBlank() }?.let { Password.hash(it) },
                 settings = settings,
+                aiThinkMs = aiThinkMs.coerceIn(0L, 5_000L),
                 store = store,
                 scope = scope,
                 onClose = { rooms.remove(code, it) },

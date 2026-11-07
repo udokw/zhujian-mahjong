@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
+import mahjong.app.audio.GameAudio
 import mahjong.app.game.Banner
 import mahjong.app.game.BannerKind
 import mahjong.app.game.ClaimOption
@@ -244,6 +245,7 @@ fun TableScreen(
                         onDiscard(slot.tile)
                         selectedKey = null
                     } else {
+                        GameAudio.playPick()
                         selectedKey = slot.key
                         selectedDrawn = false
                     }
@@ -255,6 +257,7 @@ fun TableScreen(
                             onDiscard(drawn)
                             selectedDrawn = false
                         } else {
+                            GameAudio.playPick()
                             selectedDrawn = true
                             selectedKey = null
                         }
@@ -994,6 +997,15 @@ private fun ClaimCountdown(claim: ClaimUi, modifier: Modifier = Modifier) {
         }
     }
     val remaining = (claim.deadline - now).coerceAtLeast(0L)
+    // 响应倒计时：最后 5 秒每秒一声，提示玩家尽快决策。
+    LaunchedEffect(claim.deadline) {
+        while (true) {
+            val left = claim.deadline - Clock.now()
+            if (left <= 0L) break
+            if (left <= 5_000L) GameAudio.playCountdown()
+            delay(1_000L)
+        }
+    }
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         ProgressBar(
             fraction = remaining.toFloat() / claim.totalMs.toFloat(),

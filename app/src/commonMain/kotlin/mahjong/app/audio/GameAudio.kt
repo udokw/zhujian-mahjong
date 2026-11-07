@@ -1,14 +1,16 @@
 package mahjong.app.audio
 
 import mahjong.app.util.Clock
+import kotlin.random.Random
 
 /**
  * 牌局音效与报牌语音的统一入口。
  *
- * 资源全部是本地 WAV：敲桌/动作音效由 tools/sfx/generate_audio.py 程序化合成，
- * 牌名语音在生成阶段用中文神经网络 TTS 合成后打包，运行期完全离线。
+ * 敲桌/洗牌/摸牌/理牌等音效由 assets/audio/tools/generate_real_sfx.py
+ * 从可免费使用的真实麻将录音中切片与整形生成；牌名语音在生成阶段用中文
+ * 神经网络 TTS 合成后打包，运行期完全离线。
  *
- * 音量策略：敲桌声约 0.6 倍主音量，报牌语音 1.0 倍主音量，语音晚 60ms 起播，
+ * 音量策略：敲桌声约 0.7 倍主音量，报牌语音 1.0 倍主音量，语音晚 60ms 起播，
  * 保证“先磕桌、后念牌”且报牌不被敲桌声盖住。
  *
  * 报牌人声按座位绑定：0/1/2/3 号座位固定对应 voice1..voice4（两女两男），
@@ -26,7 +28,10 @@ enum class SoundEffect(
     /** 选牌 / 抬起手牌。 */
     PICK("tile_pick", 0.55f, 25L),
     DRAW("tile_draw", 0.60f, 40L),
+    /** 出牌落桌：tile_discard_1..5 随机，见 [GameAudio.playEffect]。 */
     DISCARD("tile_discard", 0.70f, 30L),
+    /** 理牌：手里挪牌、牌与牌轻碰的细碎声，开局一次。 */
+    SORT("tile_sort", 0.55f, 600L),
     CHI("chi", 0.82f, 120L),
     PENG("peng", 0.92f, 120L),
     GANG("gang", 0.95f, 120L),
@@ -78,6 +83,10 @@ object GameAudio {
     private val lastPlayed = HashMap<String, Long>()
     private val lastVoiced = HashMap<String, Long>()
 
+    /** 5 套真实落牌声，随机轮换且不与上一张重复。 */
+    private val discardClips = (1..5).map { "tile_discard_$it" }
+    private var lastDiscardIndex = -1
+
     /** 全局音效开关与主音量，由设置页同步进来，供 UI 层无参调用。 */
     private var soundEnabled = true
     private var masterVolume = 0.7f
@@ -110,7 +119,15 @@ object GameAudio {
         val last = lastPlayed[key]
         if (last != null && now - last < effect.throttleMs) return
         lastPlayed[key] = now
-        platformPlaySound(effect.clip, volume * effect.gain)
+        val clip = if (effect == SoundEffect.DISCARD) nextDiscardClip() else effect.clip
+        platformPlaySound(clip, volume * effect.gain)
+    }
+
+    private fun nextDiscardClip(): String {
+        var index = Random.nextInt(discardClips.size)
+        if (index == lastDiscardIndex) index = (index + 1) % discardClips.size
+        lastDiscardIndex = index
+        return discardClips[index]
     }
 
     /** 出牌：敲桌声立即响，牌名用该座位的音色紧随其后念出。 */

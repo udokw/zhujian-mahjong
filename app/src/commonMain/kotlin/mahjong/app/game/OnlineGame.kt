@@ -283,6 +283,8 @@ class OnlineGameSession(
     private var myDiscards = mutableListOf<Int>()
     private var finished = false
     private var closing = false
+    /** 上一次胡牌事件时间，用来识别一炮多响并切到 hu_multi。 */
+    private var lastHuAt = 0L
 
     /** 连接代号：只允许最新一次连接的回调改动状态，避免「离开后立刻建房」时旧连接的收尾把新房间冲掉。 */
     private var connectionId = 0
@@ -461,7 +463,14 @@ class OnlineGameSession(
 
     fun setReady(ready: Boolean) = send("room_ready", buildJsonObject { put("ready", ready) })
 
-    fun addAi(seat: Int = -1) = send("seat_add_ai", buildJsonObject { put("seat", seat) })
+    /** 房主设置 AI 座位；level 1..4 = 新手/普通/高手/大师，0 = 服务端默认。 */
+    fun addAi(seat: Int = -1, level: Int = 0) = send(
+        "seat_add_ai",
+        buildJsonObject {
+            put("seat", seat)
+            if (level > 0) put("level", level)
+        },
+    )
 
     fun removeAi(seat: Int) = send("seat_remove_ai", buildJsonObject { put("seat", seat) })
 
@@ -667,7 +676,10 @@ class OnlineGameSession(
 
             "action_ack" -> {
                 val dto = decode(ActionAckDto.serializer(), envelope.p) ?: return
-                if (!dto.ok) onMessage(dto.message ?: "操作未被接受")
+                if (!dto.ok) {
+                    playSfx(SoundEffect.INVALID)
+                    onMessage(dto.message ?: "操作未被接受")
+                }
             }
 
             "sync" -> {
@@ -746,6 +758,7 @@ class OnlineGameSession(
                     "room_create",
                     buildJsonObject {
                         put("ruleSet", action.ruleSet)
+                        put("aiThinkMs", settings().aiSpeed.thinkMs)
                         action.password?.takeIf { it.isNotBlank() }?.let { put("password", it) }
                     },
                 )
@@ -1033,7 +1046,15 @@ class OnlineGameSession(
 
     private fun handleEvent(event: EventDto) {
         when (event.type) {
-            "hand_started" -> playSfx(SoundEffect.START)
+            "hand_started" -> {
+                playSfx(SoundEffect.SHUFFLE)
+                scope.launch {
+                    repeat(4) {
+                        delay(45)
+                        playSfx(SoundEffect.DEAL)
+                    }
+                }
+            }
 
             "draw" -> {
                 if (event.seat == mySeat && event.tile != null) lastDrawn = event.tile
@@ -1066,7 +1087,11 @@ class OnlineGameSession(
             }
 
             "hu" -> {
-                playSfx(SoundEffect.HU)
+                // 900ms 内再次收到胡牌事件视为一炮多响 / 连续胡，换成更厚的 hu_multi。
+                val now = Clock.now()
+                val multi = lastHuAt != 0L && now - lastHuAt < 900L
+                lastHuAt = now
+                playSfx(if (multi) SoundEffect.HU_MULTI else SoundEffect.HU)
                 announceVoice(if (event.kind == "self_draw") VoiceLine.ZIMO else VoiceLine.HU, event.seat)
                 showBanner(Banner(if (event.from == null) "自摸" else "胡牌", nameOf(event.seat), event.seat, BannerKind.HU))
             }

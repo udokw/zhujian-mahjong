@@ -77,6 +77,7 @@ fun OnlineScreen(
     var scanning by remember { mutableStateOf(false) }
     var joinTarget by remember { mutableStateOf<DiscoveredRoom?>(null) }
     var kickTarget by remember { mutableStateOf<SeatInfoDto?>(null) }
+    var aiTarget by remember { mutableStateOf<SeatInfoDto?>(null) }
     val clipboard = LocalClipboardManager.current
 
     val room = session.room
@@ -240,6 +241,7 @@ fun OnlineScreen(
                         session = session,
                         room = room,
                         onKickRequest = { kickTarget = it },
+                        onAiRequest = { aiTarget = it },
                     )
 
                     Spacer(Modifier.height(16.dp))
@@ -276,6 +278,19 @@ fun OnlineScreen(
                     session.kick(target.seat)
                     kickTarget = null
                     onToast("已移出该玩家")
+                },
+            )
+        }
+
+        aiTarget?.let { target ->
+            AiLevelDialog(
+                seat = target.seat,
+                replacingHuman = target.kind == "human",
+                onCancel = { aiTarget = null },
+                onPick = { level ->
+                    session.addAi(target.seat, level)
+                    aiTarget = null
+                    onToast("${target.seat + 1} 座已设为 AI · ${aiLevelName(level)}")
                 },
             )
         }
@@ -405,6 +420,7 @@ private fun SeatGrid(
     session: OnlineGameSession,
     room: RoomStateDto,
     onKickRequest: (SeatInfoDto) -> Unit,
+    onAiRequest: (SeatInfoDto) -> Unit,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
@@ -422,6 +438,16 @@ private fun SeatGrid(
                         isHost = seat == room.hostSeat,
                         onKick = if (session.isHost && info.kind == "human" && seat != session.mySeat) {
                             { onKickRequest(info) }
+                        } else {
+                            null
+                        },
+                        onAddAi = if (session.isHost && info.kind == "empty") {
+                            { onAiRequest(info) }
+                        } else {
+                            null
+                        },
+                        onReplaceAi = if (session.isHost && info.kind == "human" && seat != session.mySeat) {
+                            { onAiRequest(info) }
                         } else {
                             null
                         },
@@ -444,6 +470,8 @@ private fun SeatCard(
     isHost: Boolean,
     modifier: Modifier = Modifier,
     onKick: (() -> Unit)? = null,
+    onAddAi: (() -> Unit)? = null,
+    onReplaceAi: (() -> Unit)? = null,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
@@ -520,12 +548,17 @@ private fun SeatCard(
                 Spacer(Modifier.width(4.dp))
             }
             Spacer(Modifier.weight(1f))
-            if (empty && session.isHost) {
-                SmallButton("加 AI", { session.addAi(seat) })
+            if (onAddAi != null) {
+                SmallButton("加 AI", onAddAi)
             } else if (info.kind == "ai" && session.isHost) {
                 SmallButton("移除", { session.removeAi(seat) })
             } else if (onKick != null) {
-                SmallButton("移出", onKick)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (onReplaceAi != null) {
+                        SmallButton("换AI", onReplaceAi)
+                    }
+                    SmallButton("移出", onKick)
+                }
             } else {
                 MjText("${info.score}", type.caption, colors.ink3)
             }
@@ -573,11 +606,13 @@ private fun RoomActions(
     }
 }
 
+/** 线上 AI 等级沿用 core `AiLevel` 的四档：1 新手 / 2 普通 / 3 高手 / 4 大师。 */
 private fun aiLevelName(level: Int): String = when (level) {
-    0 -> "新手"
-    1 -> "普通"
-    2 -> "高手"
-    else -> "大师"
+    1 -> "新手"
+    2 -> "普通"
+    3 -> "高手"
+    4 -> "大师"
+    else -> "AI"
 }
 
 @Composable
@@ -745,6 +780,58 @@ private fun KickConfirmDialog(
                 GhostButton("取消", onCancel, modifier = Modifier.weight(1f))
                 PrimaryButton("移出", onConfirm, modifier = Modifier.weight(1f))
             }
+        }
+    }
+}
+
+/** 房主给座位挑 AI 等级：1..4 = core AiLevel 的四档，和服务端/单机同一套。 */
+@Composable
+private fun AiLevelDialog(
+    seat: Int,
+    replacingHuman: Boolean,
+    onCancel: () -> Unit,
+    onPick: (Int) -> Unit,
+) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(onClick = onCancel),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth(0.86f)
+                .widthIn(max = 340.dp)
+                .clip(RoundedCornerShape(MjRadius.card))
+                .background(colors.surface)
+                .clickable(enabled = false) {}
+                .padding(20.dp),
+        ) {
+            MjText("${seat + 1} 座 · 设为 AI", type.bodyStrong, colors.ink)
+            Spacer(Modifier.height(8.dp))
+            MjText(
+                if (replacingHuman) {
+                    "这个座位上的玩家会被移出房间（收到提示），随后由 AI 顶替。"
+                } else {
+                    "AI 在服务端跑，其他玩家看到的手牌和分数都由服务端统一计算。"
+                },
+                type.caption,
+                colors.ink3,
+            )
+            Spacer(Modifier.height(14.dp))
+            for (level in 1..4) {
+                GhostButton(
+                    "AI · ${aiLevelName(level)}",
+                    { onPick(level) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.height(4.dp))
+            GhostButton("取消", onCancel, modifier = Modifier.fillMaxWidth())
         }
     }
 }

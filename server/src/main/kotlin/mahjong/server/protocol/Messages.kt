@@ -32,6 +32,8 @@ data class ErrorView(val code: String, val message: String)
 data class RoomCreateBody(
     val ruleSet: String = "MCR",
     val password: String? = null,
+    /** 房主设置的 AI 思考时长（毫秒），0 表示沿用服务端节奏。 */
+    val aiThinkMs: Long = 0L,
 )
 
 @Serializable
@@ -46,6 +48,16 @@ data class RoomReadyBody(val ready: Boolean = true)
 /** seat = -1 表示由服务端选择第一个空位。 */
 @Serializable
 data class SeatRefBody(val seat: Int = -1)
+
+/**
+ * 房主设置 AI 座位。
+ *
+ * - `seat`：0..3 指定座位；-1 表示自动取第一个空位。
+ * - `level`：1..4，对应 core `AiLevel`（1 新手 / 2 普通 / 3 高手 / 4 大师）；0 表示用服务端默认（普通）。
+ * - 指向真人座位时等价于「先移出该玩家再把座位设为 AI」。
+ */
+@Serializable
+data class AiSeatBody(val seat: Int = -1, val level: Int = 0)
 
 /** 房主移出玩家；reason 会原样展示给被踢者。 */
 @Serializable

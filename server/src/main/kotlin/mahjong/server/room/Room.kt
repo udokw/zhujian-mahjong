@@ -70,6 +70,8 @@ private class Seat(val index: Int) {
     var aiControlled = false
     var resigned = false
     var lastScore = 0
+    /** 该座位最近一次实际动作的时间，用于按客户端设置的思考时长放慢 AI 节奏。 */
+    var lastActionAt = 0L
 }
 
 /**
@@ -84,6 +86,8 @@ class Room(
     val ruleSetName: String,
     private val passwordHash: String?,
     private val settings: ServerConfig,
+    /** 房主客户端设置的 AI 思考时长；0 表示沿用服务端默认节奏。 */
+    private val aiThinkMs: Long = 0L,
     private val store: ReplayStore,
     private val scope: CoroutineScope,
     private val onClose: (Room) -> Unit,
@@ -166,19 +170,33 @@ class Room(
         broadcastRoomState()
     }
 
-    suspend fun addAi(session: RoomSession, seatHint: Int) = mutex.withLock {
-        requireHost(session)
+    /**
+     * 房主设置 AI 座位（等待阶段）。
+     *
+     * - [seatHint] 0..3 指定座位；-1 自动取第一个空位。
+     * - [level] 1..4 对应 core `AiLevel`（新手/普通/高手/大师），0 用服务端默认。
+     * - 指向真人座位时：先按踢人流程把该玩家移出（收到 `room_kicked`），再把座位设为 AI。
+     */
+    suspend fun addAi(session: RoomSession, seatHint: Int, level: Int = 0) = mutex.withLock {
+        val hostIndex = seatOf(session) ?: throw RoomError(ErrorCode.NOT_IN_ROOM, "不在房间内")
+        if (hostIndex != hostSeat) throw RoomError(ErrorCode.NOT_HOST, "只有房主可以设置 AI")
         if (roomPhase == RoomPhase.PLAYING) throw RoomError(ErrorCode.ALREADY_PLAYING, "对局进行中")
-        val seat = if (seatHint in 0..3 && seats[seatHint].kind == SeatKind.EMPTY) {
-            seatHint
-        } else {
-            seats.indexOfFirst { it.kind == SeatKind.EMPTY }
+
+        val hinted = seatHint.takeIf { it in 0..3 }
+        if (hinted != null && seats[hinted].kind == SeatKind.HUMAN) {
+            if (hinted == hostIndex) {
+                throw RoomError(ErrorCode.CANNOT_KICK_SELF, "不能把自己的座位换成 AI")
+            }
+            val name = ejectLocked(hinted, "房主把你的座位换成了 AI", hostIndex)
+            logger.info("房间 $code 座位 $hinted（$name）被房主改为 AI")
         }
+        val seat = hinted ?: seats.indexOfFirst { it.kind == SeatKind.EMPTY }
         if (seat < 0) throw RoomError(ErrorCode.ROOM_FULL, "房间已满")
         val s = seats[seat]
+        val lv = level.takeIf { it in 1..4 } ?: settings.autoplayAiLevel
         s.kind = SeatKind.AI
-        s.aiLevel = settings.autoplayAiLevel
-        s.nickname = "AI·普通"
+        s.aiLevel = lv
+        s.nickname = "AI·${aiLevelName(lv)}"
         s.ready = true
         s.online = true
         s.session = null
@@ -188,6 +206,7 @@ class Room(
         s.aiControlled = true
         s.resigned = false
         s.lastScore = scores[seat]
+        brains[seat] = AiBrain(lv)
         broadcastRoomState()
     }
 
@@ -221,28 +240,11 @@ class Room(
             throw RoomError(ErrorCode.NOT_A_PLAYER, "AI 座位请用「移除 AI」")
         }
 
-        val targetSession = target.session
-        val targetName = target.nickname.ifBlank { "玩家" }
-        val message = reason?.trim()?.takeIf { it.isNotEmpty() }?.take(40) ?: "你已被房主移出房间"
-
-        target.session = null
-        target.online = false
-        target.resumeToken = null
-        target.offlineSince = now()
-
-        if (targetSession != null) {
-            runCatching {
-                targetSession.sendEnvelope(
-                    MessageType.ROOM_KICKED,
-                    json(RoomKickedView(message, hostIndex)),
-                    sid = "",
-                    roomCode = code,
-                    seat = targetSeat,
-                    sseq = 0,
-                )
-            }
-            runCatching { targetSession.close(message) }
-        }
+        val targetName = ejectLocked(
+            targetSeat,
+            reason?.trim()?.takeIf { it.isNotEmpty() }?.take(40) ?: "你已被房主移出房间",
+            hostIndex,
+        )
 
         if (roomPhase == RoomPhase.PLAYING) {
             // 对局中：认输托管到本局结束，不打断牌局。
@@ -257,6 +259,42 @@ class Room(
             maybeClose()
             logger.info("房间 $code 移出座位 $targetSeat（$targetName）")
         }
+    }
+
+    /**
+     * 把真人座位「摘下来」：作废令牌、私发 `room_kicked` 并关闭连接。
+     * 只负责通知与离线标记；等待阶段/对局中的后续处理由调用方决定。
+     */
+    private suspend fun ejectLocked(targetSeat: Int, message: String, bySeat: Int): String {
+        val target = seats[targetSeat]
+        val name = target.nickname.ifBlank { "玩家" }
+        val targetSession = target.session
+        target.session = null
+        target.online = false
+        target.resumeToken = null
+        target.offlineSince = now()
+        if (targetSession != null) {
+            runCatching {
+                targetSession.sendEnvelope(
+                    MessageType.ROOM_KICKED,
+                    json(RoomKickedView(message, bySeat)),
+                    sid = "",
+                    roomCode = code,
+                    seat = targetSeat,
+                    sseq = 0,
+                )
+            }
+            runCatching { targetSession.close(message) }
+        }
+        return name
+    }
+
+    /** 1..4 与服务端 AI 等级（core 四档）对应。 */
+    private fun aiLevelName(level: Int): String = when (level) {
+        1 -> "新手"
+        2 -> "普通"
+        3 -> "高手"
+        else -> "大师"
     }
 
     suspend fun start(session: RoomSession) = mutex.withLock {
@@ -485,12 +523,16 @@ class Room(
 
     private fun shouldAutoPlay(seat: Int, timestamp: Long): Boolean {
         val s = seats[seat]
-        return when (s.kind) {
+        val controlled = when (s.kind) {
             SeatKind.AI -> true
             SeatKind.HUMAN -> !s.online &&
                 (s.aiControlled || (s.offlineSince > 0 && timestamp - s.offlineSince >= settings.autoplayDelayMs))
             SeatKind.EMPTY -> true
         }
+        if (!controlled) return false
+        // 思考时长 > 0 时，同一座位的两次动作至少间隔这么久；
+        // 于是「摸牌 → 停顿 → 出牌」整条链自然放慢，而不是只在某一帧加延迟。
+        return aiThinkMs <= 0L || timestamp - s.lastActionAt >= aiThinkMs
     }
 
     private suspend fun applyInternal(action: Action) {
@@ -511,6 +553,7 @@ class Room(
         if (legal.none { it == safe }) return
         try {
             val events = currentGame.apply(safe)
+            seats[seat].lastActionAt = now()
             actions.add(recordOf(safe))
             broadcastEvents(events)
             afterStateChange()

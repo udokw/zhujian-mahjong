@@ -5,7 +5,9 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import mahjong.core.rules.RuleConfig
 import mahjong.core.rules.RulePreset
+import mahjong.server.protocol.ActionAckView
 import mahjong.server.protocol.ActionBody
+import mahjong.server.protocol.AiSeatBody
 import mahjong.server.protocol.Envelope
 import mahjong.server.protocol.ErrorCode
 import mahjong.server.protocol.ErrorView
@@ -105,7 +107,7 @@ class MessageRouter(
         val body = Wire.payload<RoomCreateBody>(envelope)
         val rule = ruleOf(body.ruleSet)
         leaveCurrentRoom(session)
-        val room = rooms.create(rule.config, rule.name, body.password)
+        val room = rooms.create(rule.config, rule.name, body.password, body.aiThinkMs)
         session.room = room
         room.join(session, body.password)
         log.info("房间创建 code=${room.code} rule=${rule.name} by=${session.nickname}")
@@ -136,8 +138,9 @@ class MessageRouter(
 
     private suspend fun handleSeatAddAi(session: ClientSession, envelope: Envelope) {
         val room = requireRoom(session, envelope)
-        val body = Wire.payload<SeatRefBody>(envelope)
-        room.addAi(session, body.seat)
+        val body = Wire.payload<AiSeatBody>(envelope)
+        room.addAi(session, body.seat, body.level)
+        reply(session, MessageType.ACTION_ACK, json(ActionAckView(envelope.sid, true)), envelope.sid)
     }
 
     private suspend fun handleSeatRemoveAi(session: ClientSession, envelope: Envelope) {

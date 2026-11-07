@@ -14,12 +14,21 @@ import mahjong.app.theme.ThemeMode
 @Serializable
 enum class TileScale { STANDARD, LARGE }
 
+/** AI 出牌节奏：摸牌后停顿 → 出牌 → 敲桌报牌整链一起放慢，不是只延后一个音。 */
+@Serializable
+enum class AiSpeed(val label: String, val thinkMs: Long, val claimMs: Long) {
+    SLOW("慢", 1_700L, 1_100L),
+    NORMAL("正常", 950L, 650L),
+    FAST("快", 420L, 320L),
+}
+
 @Serializable
 data class AppSettings(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val skin: TableSkin = TableSkin.CLASSIC,
     val tileScale: TileScale = TileScale.STANDARD,
     val aiLevelId: String = AiLevel.NORMAL.id,
+    val aiSpeed: AiSpeed = AiSpeed.NORMAL,
     val sound: Boolean = true,
     val voice: Boolean = true,
     val haptics: Boolean = true,

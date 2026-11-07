@@ -23,7 +23,9 @@ private val EFFECT_CLIPS = buildList {
     add("deal")
     add("tile_pick")
     add("tile_draw")
-    add("tile_discard")
+    // 5 套真实落牌声，由 assets/audio/tools/generate_real_sfx.py 生成。
+    for (i in 1..5) add("tile_discard_$i")
+    add("tile_sort")
     for (i in 1..6) add("sfx_discard_$i")
     add("chi")
     add("peng")

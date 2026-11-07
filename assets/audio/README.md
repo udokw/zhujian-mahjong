@@ -1,6 +1,11 @@
-# 麻将游戏原创音效
+# 麻将游戏音效
 
-本目录所有音效均由 `tools/generate_audio.py` 程序化合成，**未使用任何现有游戏采样或版权音频库**，可安全用于本项目（国标 / 广东推倒胡 / 广东鸡平胡）。
+本目录的音效分两类：
+
+1. **真实录音采样**：落牌 5 套、洗牌、摸牌、理牌、发牌，由 `tools/generate_real_sfx.py` 从两段可免费使用的真实麻将录音中切段、去低频轰鸣、截断拖尾、等响归一而成，**没有变调、没有同一段复制**。素材来源与授权详见 [SOURCES.md](SOURCES.md)。
+2. **原创程序化合成**：选牌、吃碰杠、胡牌、结算等其余音效，由 `tools/generate_audio.py` 用 numpy 合成，不含第三方采样。
+
+可用范围：国标 / 广东推倒胡 / 广东鸡平胡。
 
 ## 规格
 
@@ -17,11 +22,16 @@
 | 文件 | 用途 | 时长 | 大小 | 峰值 | 响度* | 播放方式 |
 |---|---|---:|---:|---:|---:|---|
 | `tile_pick.wav` | 选牌 / 抬起手牌 | 0.070 s | 6.1 KB | -13.1 dBFS | -25.0 dBFS | 单次 |
-| `tile_discard.wav` | 出牌落桌，牌与桌面撞击 | 0.160 s | 13.8 KB | -3.6 dBFS | -20.0 dBFS | 单次 |
-| `tile_draw.wav` | 从牌墙摸牌 | 0.120 s | 10.4 KB | -10.1 dBFS | -23.0 dBFS | 单次 |
+| `tile_discard_1.wav` | 出牌落桌 · 厚实（真实录音） | 0.130 s | 11.4 KB | -1.7 dBFS | RMS -25.0 dBFS | 单次 |
+| `tile_discard_2.wav` | 出牌落桌 · 干净脆响（真实录音） | 0.100 s | 8.8 KB | -2.5 dBFS | RMS -26.0 dBFS | 单次 |
+| `tile_discard_3.wav` | 出牌落桌 · 明亮（真实录音） | 0.110 s | 9.3 KB | -1.2 dBFS | RMS -30.4 dBFS | 单次 |
+| `tile_discard_4.wav` | 出牌落桌 · 高频颗粒（真实录音） | 0.100 s | 8.7 KB | -1.2 dBFS | RMS -31.2 dBFS | 单次 |
+| `tile_discard_5.wav` | 出牌落桌 · 低沉叠牌（真实录音） | 0.120 s | 10.4 KB | -5.0 dBFS | RMS -26.0 dBFS | 单次 |
+| `tile_draw.wav` | 从牌墙摸牌（真实录音） | 0.170 s | 14.7 KB | -4.6 dBFS | RMS -27.3 dBFS | 单次 |
 | `tile_rub.wav` | 摸牌后摩牌（可选） | 0.170 s | 14.7 KB | -16.6 dBFS | -27.0 dBFS | 单次 |
-| `shuffle.wav` | 开局洗牌，成组摩擦 | 1.200 s | 103.4 KB | -8.9 dBFS | -21.0 dBFS | 单次 |
-| `deal.wav` | 发牌单张 | 0.090 s | 7.8 KB | -10.7 dBFS | -23.0 dBFS | 单次（可连续触发） |
+| `tile_sort.wav` | 开局理牌，细碎碰撞（真实录音） | 0.950 s | 81.9 KB | -7.5 dBFS | RMS -29.9 dBFS | 单次 |
+| `shuffle.wav` | 开局洗牌，起手→加速→收尾（真实录音） | 1.950 s | 168.0 KB | -2.2 dBFS | RMS -23.3 dBFS | 单次 |
+| `deal.wav` | 发牌单张（真实录音） | 0.070 s | 5.7 KB | -8.0 dBFS | RMS -32.8 dBFS | 单次（可连续触发） |
 | `chi.wav` | 吃 | 0.220 s | 19.0 KB | -8.5 dBFS | -21.0 dBFS | 单次 |
 | `peng.wav` | 碰 | 0.300 s | 25.9 KB | -4.0 dBFS | -19.0 dBFS | 单次 |
 | `gang.wav` | 杠 | 0.550 s | 47.4 KB | -1.8 dBFS | -18.0 dBFS | 单次 |
@@ -41,12 +51,12 @@
 
 ## 建议播放时机
 
-- `tile_pick`：手指按下 / 手牌抬起时，紧跟一次极短点击。
-- `tile_discard`：牌落到牌河、动画接触桌面的那一帧；建议每次随机 ±1 半音、±1 dB，避免连续出牌时机械重复。
+- `tile_discard_1..5`：牌落到牌河、动画接触桌面的那一帧；**每次随机取一套，且不与上一张相同**（`GameAudio` 已内置轮换），不要变调。
 - `tile_draw`：从牌墙取牌动作开始后约 30–40 ms 触发，贴合“先摩擦、后落手”的层次。
 - `tile_rub`：摸牌后摩牌动画开始时；只在开启摩牌表现时播放。
-- `shuffle`：进入对局、洗牌动画开始时**只播一次**，不要循环。
-- `deal`：每发一张播一次；连续发牌时间隔 40–60 ms，避免叠加成噪声。
+- `shuffle`：进入对局、洗牌动画开始时**只播一次**，不要循环；1.95 s 内含起手、加速与收尾落牌。
+- `deal`：洗牌收尾后每发一张播一次，间隔 55 ms 左右。
+- `tile_sort`：发牌结束后播一次（0.95 s），代表四家把牌立在手里理顺。
 - `chi` / `peng` / `gang`：对应动作成立、副露落到桌面时触发；`gang` 比 `peng` 更重，不要同时叠加 `peng`。
 - `hu`：胡牌判定成立、手牌定格时触发一次；随后再进结算页，不要与 `win_sting` 同时起播。
 - `hu_multi`：一炮多响或连续胡时**替代** `hu` 播放；若已播过 `hu`，可延迟 80–120 ms 再补 `hu_multi`。
@@ -58,28 +68,19 @@
 
 ## 生成脚本
 
-脚本位置：`assets/audio/tools/generate_audio.py`，仅依赖 Python 3 + numpy，不依赖 scipy。
+- 真实采样类：`assets/audio/tools/generate_real_sfx.py`，读取 `assets/audio/sources/` 下的原始录音，依赖 numpy + soundfile。
+- 合成类：`assets/audio/tools/generate_audio.py`，仅依赖 Python 3 + numpy，不依赖 scipy。
 
 ```bash
-# 在项目根目录执行，重新生成全部音效
-python assets/audio/tools/generate_audio.py
-
-# 指定输出目录
-python assets/audio/tools/generate_audio.py --out "g:\AI\麻将\assets\audio"
-
-# 只重生成某几个
-python assets/audio/tools/generate_audio.py --only hu,win_sting
+# 在项目根目录执行
+python assets/audio/tools/generate_real_sfx.py   # 落牌 / 洗牌 / 摸牌 / 理牌 / 发牌
+python assets/audio/tools/generate_audio.py     # 其余合成音效
 ```
 
-可调参数集中在脚本顶部与 `SPECS` 表：
+真实采样脚本会把同名 WAV 同时写入 `assets/audio/` 和 `app/src/androidMain/res/raw/`，
+两处内容保持一致；iOS 通过 Xcode 的 `raw` 文件夹引用直接复用 Android 的资源。
 
-- `SR`：采样率（默认 44100）
-- `CEILING_DB`：峰值上限（默认 -1.2 dBFS）
-- `MASTER_SEED`：随机种子，保证每次生成结果可复现
-- `SPECS` 中每个音效的第三个值：目标响度（A 加权 50 ms 最大 RMS，dBFS）
+## 授权
 
-修改后重新运行脚本即可覆盖同名 WAV，无需其他构建步骤。
-
-## 原创与授权
-
-全部波形由正弦模态、噪声脉冲、包络与频域滤波实时合成，不含任何第三方录音采样；生成脚本与音频文件均属于本项目原创资产。
+- **合成音效**（选牌、吃碰杠、胡牌、结算等）：本项目原创，波形由正弦模态、噪声脉冲与包络合成，不含第三方采样。
+- **真实录音采样**（落牌、洗牌、摸牌、理牌、发牌）：来自 Freesound 上分别以 CC BY 4.0 与 CC0 发布的真实麻将录音，本项目做了切段与整形。必须保留的署名与来源见 [SOURCES.md](SOURCES.md)。

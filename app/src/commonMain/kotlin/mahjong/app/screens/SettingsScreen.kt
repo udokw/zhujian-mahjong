@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import mahjong.app.platformAppVersion
 import mahjong.app.platformDefaultServerUrl
+import mahjong.app.settings.AiSpeed
 import mahjong.app.settings.AppSettings
 import mahjong.app.settings.SettingsRepository
 import mahjong.app.settings.TileScale
@@ -254,6 +255,17 @@ fun SettingsScreen(
                 MjText("体验", type.label.copy(fontWeight = FontWeight.SemiBold), colors.ink2)
                 Spacer(Modifier.height(8.dp))
                 MjCard {
+                    MjText("AI 出牌速度", type.bodyStrong, colors.ink)
+                    Spacer(Modifier.height(2.dp))
+                    MjText("摸牌停顿、出牌与报牌整链一起放慢，重启后保留", type.caption, colors.ink3)
+                    Spacer(Modifier.height(8.dp))
+                    Segmented(
+                        options = AiSpeed.entries.map { it.label },
+                        selectedIndex = AiSpeed.entries.indexOf(settings.aiSpeed),
+                        onSelect = { onChange(settings.copy(aiSpeed = AiSpeed.entries[it])) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(14.dp))
                     SettingRow("音效", "敲桌、摸牌、吃碰杠、胡牌与结算") {
                         MjSwitch(settings.sound, onChange = { onChange(settings.copy(sound = it)) })
                     }

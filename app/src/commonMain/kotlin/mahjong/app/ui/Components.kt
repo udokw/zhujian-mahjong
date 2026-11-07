@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import mahjong.app.audio.GameAudio
 import mahjong.app.theme.LocalMjColors
 import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.MjMotion
@@ -117,7 +118,10 @@ fun PrimaryButton(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(MjRadius.control))
             .background(if (enabled) colors.primary else colors.surface3)
-            .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick),
+            .clickable(interactionSource = source, indication = null, enabled = enabled) {
+                GameAudio.playButton()
+                onClick()
+            },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -156,7 +160,10 @@ fun GhostButton(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(MjRadius.control))
             .border(1.dp, colors.line, RoundedCornerShape(MjRadius.control))
-            .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick),
+            .clickable(interactionSource = source, indication = null, enabled = enabled) {
+                GameAudio.playButton()
+                onClick()
+            },
         contentAlignment = Alignment.Center,
     ) {
         MjText(label, type.title, if (enabled) colors.ink2 else colors.disabled)
@@ -177,7 +184,10 @@ fun SmallButton(
             .height(34.dp)
             .clip(RoundedCornerShape(MjRadius.small))
             .background(if (primary) colors.primary else colors.surface2)
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(enabled = enabled) {
+                GameAudio.playButton()
+                onClick()
+            }
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -228,7 +238,10 @@ fun TableActionButton(
                     Modifier
                 },
             )
-            .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
+            .clickable(interactionSource = source, indication = null, enabled = enabled) {
+                GameAudio.playButton()
+                onClick()
+            }
             .padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center,
     ) {
