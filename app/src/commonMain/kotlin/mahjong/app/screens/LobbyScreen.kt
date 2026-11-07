@@ -45,10 +45,13 @@ import mahjong.app.ui.MjCard
 import mahjong.app.ui.MjIcon
 import mahjong.app.ui.MjIconKind
 import mahjong.app.ui.MjText
+import mahjong.app.ui.MjTile
 import mahjong.app.ui.ModalSheet
 import mahjong.app.ui.PrimaryButton
 import mahjong.app.ui.Segmented
 import mahjong.app.ui.SheetTitle
+import mahjong.app.util.drawPageBackdrop
+import mahjong.app.util.drawTableFelt
 import mahjong.core.ai.AiLevel
 import mahjong.core.rules.RulePreset
 
@@ -95,7 +98,7 @@ fun LobbyScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(colors.bg)
+            .drawPageBackdrop(colors)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         Row(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -146,6 +149,9 @@ fun LobbyScreen(
                 RuleSummary("花牌", if (settings.flowerFan) "计番" else "不计")
                 RuleSummary("一炮多响", if (settings.multipleWinners) "允许" else "单响")
                 RuleSummary("买马", if (settings.preset == RulePreset.GD_TUIDAOHU) "开启" else "—")
+
+                Spacer(Modifier.height(14.dp))
+                TablePreview()
 
                 Spacer(Modifier.weight(1f))
                 MjText(
@@ -299,6 +305,36 @@ fun LobbyScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
+}
+
+/** 主页的牌桌缩略预览：木边 + 绒面 + 三张牌，让主题在进入牌桌之前就可见。 */
+@Composable
+private fun TablePreview() {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(104.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .drawTableFelt(colors)
+            .border(1.dp, colors.tableGold.copy(alpha = 0.30f), RoundedCornerShape(18.dp)),
+    ) {
+        Row(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            for (tile in listOf(4, 13, 22)) {
+                MjTile(tile, width = 24.dp)
+            }
+        }
+        MjText(
+            if (colors.isDark) "夜间 · 经典桌" else "日间 · 经典桌",
+            type.caption.copy(fontSize = 9.sp),
+            colors.onTable2,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 8.dp),
+        )
     }
 }
 

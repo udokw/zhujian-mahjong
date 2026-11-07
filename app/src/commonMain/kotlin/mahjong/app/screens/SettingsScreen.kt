@@ -59,6 +59,8 @@ import mahjong.app.ui.MjText
 import mahjong.app.ui.Segmented
 import mahjong.app.ui.SettingRow
 import mahjong.app.ui.SettingsGroup
+import mahjong.app.util.drawPageBackdrop
+import mahjong.app.util.drawTableFelt
 import mahjong.core.ai.AiLevel
 import mahjong.core.rules.GameMode
 import mahjong.core.rules.RulePreset
@@ -100,7 +102,7 @@ fun SettingsScreen(
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
-    Box(Modifier.fillMaxSize().background(colors.bg)) {
+    Box(Modifier.fillMaxSize().drawPageBackdrop(colors)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(
                 Modifier
@@ -148,6 +150,23 @@ fun SettingsScreen(
                         onSelect = { onChange(settings.copy(theme = ThemeMode.entries[it])) },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ThemeSwatch(
+                            mode = ThemeMode.DAY,
+                            skin = settings.skin,
+                            selected = settings.theme == ThemeMode.DAY,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onChange(settings.copy(theme = ThemeMode.DAY)) },
+                        )
+                        ThemeSwatch(
+                            mode = ThemeMode.NIGHT,
+                            skin = settings.skin,
+                            selected = settings.theme == ThemeMode.NIGHT,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onChange(settings.copy(theme = ThemeMode.NIGHT)) },
+                        )
+                    }
                     Spacer(Modifier.height(14.dp))
                     MjText("牌桌皮肤", type.bodyStrong, colors.ink)
                     Spacer(Modifier.height(8.dp))
@@ -396,6 +415,49 @@ private fun SkinSwatch(
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             MjText(skin.label, type.caption, if (selected) colors.primaryDeep else colors.ink2, maxLines = 1)
+            if (selected) {
+                Spacer(Modifier.width(3.dp))
+                MjIcon(MjIconKind.CHECK, size = 11.dp, tint = colors.primary)
+            }
+        }
+    }
+}
+
+/** 日间 / 夜间主题的实物预览：直接画一块缩小牌桌，而不是只有一个色块。 */
+@Composable
+private fun ThemeSwatch(
+    mode: ThemeMode,
+    skin: TableSkin,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    val preview = mjColors(mode == ThemeMode.NIGHT, skin)
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(MjRadius.small))
+            .background(colors.surface2)
+            .border(
+                if (selected) 1.5.dp else 1.dp,
+                if (selected) colors.primary else colors.line,
+                RoundedCornerShape(MjRadius.small),
+            )
+            .clickable { onClick() }
+            .padding(7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .drawTableFelt(preview),
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MjText(mode.label, type.caption, if (selected) colors.primaryDeep else colors.ink2, maxLines = 1)
             if (selected) {
                 Spacer(Modifier.width(3.dp))
                 MjIcon(MjIconKind.CHECK, size = 11.dp, tint = colors.primary)

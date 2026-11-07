@@ -508,11 +508,20 @@ private fun TopSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, height: D
         Spacer(Modifier.height(height))
         return
     }
+    Box(
+        Modifier.fillMaxWidth().height(height).padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
     Row(
         Modifier
-            .fillMaxWidth()
-            .height(height)
-            .padding(horizontal = 10.dp),
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.table3.copy(alpha = if (isCurrent) 0.62f else 0.40f))
+            .border(
+                1.dp,
+                if (isCurrent) colors.tableGold.copy(alpha = 0.80f) else colors.tableLine,
+                RoundedCornerShape(14.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
@@ -542,6 +551,7 @@ private fun TopSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, height: D
             }
         }
     }
+    }
 }
 
 @Composable
@@ -559,6 +569,18 @@ private fun SideSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, width: D
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(colors.table3.copy(alpha = if (isCurrent) 0.62f else 0.40f))
+                .border(
+                    1.dp,
+                    if (isCurrent) colors.tableGold.copy(alpha = 0.80f) else colors.tableLine,
+                    RoundedCornerShape(14.dp),
+                )
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Avatar(seat.name, size = 26.dp, dim = !seat.isAI)
         Spacer(Modifier.height(3.dp))
         MjText(seat.name, type.caption.copy(fontSize = 10.sp), colors.onTable, maxLines = 1)
@@ -581,6 +603,7 @@ private fun SideSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, width: D
                 colors.tableGold,
                 maxLines = 1,
             )
+        }
         }
     }
 }

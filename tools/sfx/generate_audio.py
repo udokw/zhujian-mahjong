@@ -11,9 +11,9 @@
 两类来源：
   1. 敲桌、摸牌、吃碰杠、胡牌、开局洗牌、结算等音效：本脚本用 numpy 程序化合成，
      不含任何第三方采样，无版权风险。
-  2. 34 种牌名与动作报牌：用 edge-tts 的 4 套中文神经网络音色
-     （2 女 2 男，见 VOICE_SETS）一次性合成，生成后打包为本地 WAV；
-     按座位绑定音色，运行期完全离线，不依赖设备 TTS。
+  2. 34 种牌名与动作报牌：用 edge-tts 的 9 套中文神经网络音色
+     （5 女 4 男，见 VOICE_SETS）一次性合成，生成后打包为本地 WAV；
+     每局开始时给四家随机分配互不相同的一整套音色，运行期完全离线。
 
 依赖：numpy、soundfile、edge-tts（生成时需要联网，仅生成阶段）。
 用法：python tools/sfx/generate_audio.py
@@ -35,13 +35,19 @@ SR = 44100
 ROOT = Path(__file__).resolve().parents[2]
 RAW = ROOT / "app" / "src" / "androidMain" / "res" / "raw"
 
-# 四家座位各用一个固定音色：0 女声温和、1 男声年轻、2 女声活泼、3 男声浑厚。
-# 每个音色单独调速，把各套语音时长压到同一量级，避免某一家的牌名拖慢节奏。
+# 9 套明显不同的人声：5 女 4 男，覆盖不同年龄与口音，靠换真人音色区分，
+# 不做变调。运行期不再按座位固定，而是每局开始时给四家随机分配互不相同的一整套。
+# 每个音色单独调速，把各套语音时长压到同一量级，避免某一家拖慢报牌节奏。
 VOICE_SETS = [
-    ("1", "zh-CN-XiaoxiaoNeural", "+55%"),
-    ("2", "zh-CN-YunxiNeural", "+70%"),
-    ("3", "zh-CN-XiaoyiNeural", "+50%"),
-    ("4", "zh-CN-YunjianNeural", "+60%"),
+    ("1", "zh-CN-XiaoxiaoNeural", "+55%"),    # 女 · 青年 · 温和标准
+    ("2", "zh-CN-XiaoyiNeural", "+50%"),      # 女 · 青年 · 活泼俏皮
+    ("3", "zh-CN-liaoning-XiaobeiNeural", "+52%"),  # 女 · 中年 · 东北口音
+    ("4", "zh-CN-shaanxi-XiaoniNeural", "+48%"),    # 女 · 中年 · 陕西口音，偏沉
+    ("5", "zh-CN-YunxiNeural", "+70%"),       # 男 · 青年 · 清亮
+    ("6", "zh-CN-YunjianNeural", "+60%"),     # 男 · 青年偏成熟 · 浑厚
+    ("7", "zh-CN-YunyangNeural", "+58%"),     # 男 · 中年 · 播音腔，端正
+    ("8", "zh-CN-YunxiaNeural", "+72%"),      # 男 · 少年 · 年龄感最小
+    ("9", "zh-TW-YunJheNeural", "+56%"),      # 男 · 青年 · 台湾腔
 ]
 
 # 引擎牌序号：0..8 万，9..17 筒，18..26 条，27 东 28 南 29 西 30 北 31 中 32 发 33 白

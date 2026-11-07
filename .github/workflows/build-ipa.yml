@@ -100,7 +100,7 @@ jobs:
           BUNDLE_COUNT=$(find "$RAWDIR" -name '*.wav' | wc -l | tr -d ' ')
           echo "源码 wav: $SRC_COUNT, bundle 内 wav: $BUNDLE_COUNT"
           test "$SRC_COUNT" = "$BUNDLE_COUNT"
-          for f in tile_discard.wav voice1_tile_00.wav voice4_tile_33.wav win_sting.wav; do
+          for f in tile_discard_1.wav voice1_tile_00.wav voice9_tile_33.wav win_sting.wav hu.wav; do
             test -f "$RAWDIR/$f" || { echo "bundle 缺失音频: $f"; exit 1; }
           done
           echo "音频资源校验通过"

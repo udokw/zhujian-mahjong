@@ -28,6 +28,7 @@ import mahjong.core.model.GameResult
 import mahjong.core.model.MeldType
 import mahjong.core.model.Phase
 import mahjong.core.rules.GameMode
+import mahjong.core.score.FanItem
 import mahjong.core.rules.RuleConfig
 import kotlin.random.Random
 
@@ -102,11 +103,13 @@ class LocalGameSession(
 
     fun start() {
         if (loopJob != null) return
+        // 一局开始给四家随机分配互不相同的人声套数，整局固定。
+        GameAudio.beginGame()
         playSfx(SoundEffect.SHUFFLE)
         loopJob = scope.launch {
-            // 洗牌音 1.95s，自带起手/加速/收尾；收尾落牌后再发牌、
+            // 洗牌音约 1.2s，自带起手/加速/收尾；收尾落牌后再发牌、
             // 理牌，声音走完才开打，避免第一张出牌压住理牌声。
-            delay(1_800)
+            delay(1_050)
             repeat(13) {
                 delay(55)
                 playSfx(SoundEffect.DEAL)
@@ -125,6 +128,124 @@ class LocalGameSession(
         analysisJob = null
         pending?.cancel()
         pending = null
+    }
+
+    /**
+     * 调试/截图专用：冻结主循环并注入一份静态桌面。
+     * mode: claim（胡 · N番 / 过）、multi（一炮多响）、rob（抢杠胡）。
+     */
+    fun debugInject(mode: String) {
+        loopJob?.cancel()
+        loopJob = null
+        bannerJob?.cancel()
+        bannerJob = null
+        pending?.cancel()
+        pending = null
+        val seats = names.mapIndexed { seat, name ->
+            SeatUi(
+                seat = seat,
+                name = name,
+                isAI = seat != meSeat,
+                seatWind = seat,
+                isDealer = seat == 0,
+                handCount = 13,
+                melds = emptyList(),
+                discards = debugDiscards(seat),
+                flowers = emptyList(),
+                score = 1_000,
+                online = false,
+            )
+        }
+        // 真实听牌形：123万 456万 78万 123筒 55筒，单钓 5 筒。
+        val hand = listOf(0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 13, 13)
+        val base = TableUi(
+            meSeat = meSeat,
+            hand = hand,
+            drawnTile = null,
+            melds = emptyList(),
+            flowers = emptyList(),
+            seats = seats,
+            wallRemaining = 68,
+            roundWind = currentRoundWind,
+            dealer = currentDealer,
+            currentPlayer = meSeat,
+            lastDiscardTile = 13,
+            lastDiscardSeat = 1,
+            claim = null,
+            turnOptions = TurnOptions(),
+            canDiscard = false,
+            hint = "",
+            banner = null,
+            modeLabel = modeLabel,
+            handNumber = handNumber,
+            minFan = if (config.mode == GameMode.MCR) 8 else 0,
+            huFan = 5,
+            huMeetsMin = true,
+            hintsAvailable = true,
+        )
+        table = when (mode) {
+            "claim" -> base.copy(
+                claim = ClaimUi(
+                    options = listOf(ClaimOption.Hu, ClaimOption.Pass),
+                    deadline = Clock.now() + 6_000L,
+                    totalMs = 8_000L,
+                    tile = 13,
+                    fromSeat = 1,
+                ),
+            )
+
+            "multi" -> base.copy(
+                winShow = WinShowUi(
+                    winners = listOf(debugWinner(0), debugWinner(2)),
+                    index = 1,
+                    stage = WinStage.FAN,
+                    multi = true,
+                ),
+            )
+
+            "rob" -> base.copy(
+                winShow = WinShowUi(
+                    winners = listOf(debugWinner(0, robKong = true)),
+                    stage = WinStage.FAN,
+                ),
+            )
+
+            else -> base
+        }
+    }
+
+    private fun debugDiscards(seat: Int): List<Int> = when (seat) {
+        0 -> listOf(12, 14, 15)
+        1 -> listOf(18, 19, 20, 13)
+        2 -> listOf(27, 28, 29)
+        else -> listOf(30, 31, 32)
+    }
+
+    private fun debugWinner(seat: Int, robKong: Boolean = false): WinnerUi {
+        val fans = if (robKong) {
+            listOf(FanItem("qiangganghu", "抢杠胡", 8))
+        } else {
+            listOf(
+                FanItem("pinghu", "平胡", 1),
+                FanItem("duanyaojiu", "断幺九", 1),
+                FanItem("menqianqing", "门前清", 2),
+                FanItem("zimo", "自摸", 1),
+            )
+        }
+        return WinnerUi(
+            seat = seat,
+            name = names.getOrElse(seat) { "" },
+            selfDraw = false,
+            fromSeat = 1,
+            winningTile = 13,
+            handTiles = listOf(0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 13, 13, 13),
+            melds = emptyList(),
+            fans = fans,
+            totalFan = fans.sumOf { it.totalFan },
+            thresholdFan = if (config.mode == GameMode.MCR) 8 else 0,
+            points = 24,
+            robKong = robKong,
+        )
     }
 
     // ------------------------------------------------------------ 玩家操作

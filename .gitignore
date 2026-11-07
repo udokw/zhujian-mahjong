@@ -36,6 +36,16 @@ local.properties
 .DS_Store
 Thumbs.db
 
+# ---------- 脚本与数据生成物 ----------
+__pycache__/
+*.py[cod]
+server/data/
+*.db
+*.db-journal
+
+# ---------- 音效素材校验截图 ----------
+/assets/audio/verify_*.png
+
 # ---------- 调试/截图等非源码产物 ----------
 .screenshots/
 .tmp/

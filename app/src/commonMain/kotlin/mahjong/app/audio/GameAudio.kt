@@ -13,8 +13,8 @@ import kotlin.random.Random
  * 音量策略：敲桌声约 0.7 倍主音量，报牌语音 1.0 倍主音量，语音晚 60ms 起播，
  * 保证“先磕桌、后念牌”且报牌不被敲桌声盖住。
  *
- * 报牌人声按座位绑定：0/1/2/3 号座位固定对应 voice1..voice4（两女两男），
- * 这样四家出牌能靠声音分辨是谁，而不是同一个人重复念。
+ * 报牌人声按玩家绑定：每局开始时给四家随机分配互不相同的一整套音色
+ * （见 [beginGame]），整局固定不变，AI 与真人同一规则；重开一局重新随机。
  */
 enum class SoundEffect(
     internal val clip: String,
@@ -73,15 +73,21 @@ expect fun platformPlayVoice(
     urgent: Boolean = false,
 )
 
+/** 立即静音：清空待播队列并停掉正在播的声音，用于关闭音效或把音量拉到 0。 */
+expect fun platformStopAllSounds()
+
 object GameAudio {
     /** 报牌语音比敲桌声晚 60ms，形成“敲桌 → 念牌”的两层声音。 */
     private const val TILE_VOICE_DELAY_MS = 60L
 
     /** 人声套数，与 tools/sfx/generate_audio.py 的 VOICE_SETS 保持一致。 */
-    private const val VOICE_SET_COUNT = 4
+    internal const val VOICE_SET_COUNT = 9
 
     private val lastPlayed = HashMap<String, Long>()
     private val lastVoiced = HashMap<String, Long>()
+
+    /** 每局开始时为四家分到的整套音色，下标为座位，值为 1..VOICE_SET_COUNT。 */
+    private val seatVoiceSets = IntArray(4) { it + 1 }
 
     /** 5 套真实落牌声，随机轮换且不与上一张重复。 */
     private val discardClips = (1..5).map { "tile_discard_$it" }
@@ -91,13 +97,29 @@ object GameAudio {
     private var soundEnabled = true
     private var masterVolume = 0.7f
 
-    /** 座位 0..3 固定映射到 voice1..voice4，负座位（如流局）回落到 1 号音色。 */
-    internal fun voiceSetForSeat(seat: Int): Int =
-        ((seat % VOICE_SET_COUNT) + VOICE_SET_COUNT) % VOICE_SET_COUNT + 1
+    /**
+     * 一局开始时给四家分配音色：把全部套数洗牌后按座位依次取，
+     * 保证同一局内四家互不撞音色（套数 9 > 座位 4），AI 与真人同一规则。
+     * 重开一局会重新洗牌，因此每局听感都可能换人。
+     */
+    fun beginGame() {
+        val order = (1..VOICE_SET_COUNT).shuffled()
+        for (seat in seatVoiceSets.indices) {
+            seatVoiceSets[seat] = order[seat]
+        }
+    }
+
+    /** 取某座位本局分到的音色编号；越界座位回落到 0 号座位。 */
+    internal fun voiceSetForSeat(seat: Int): Int {
+        val index = if (seat in seatVoiceSets.indices) seat else 0
+        return seatVoiceSets[index]
+    }
 
     fun configure(sound: Boolean, volume: Float) {
         soundEnabled = sound
         masterVolume = volume.coerceIn(0f, 1f)
+        // 关掉音效或静音时立即掐断，避免已排队的报牌继续念出来。
+        if (!sound || masterVolume <= 0f) platformStopAllSounds()
     }
 
     /** UI 层无参播放：按钮、选牌、倒计时、分数滚动都在这里统一过开关。 */

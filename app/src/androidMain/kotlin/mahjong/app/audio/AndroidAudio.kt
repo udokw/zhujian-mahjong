@@ -7,14 +7,16 @@ import android.util.Log
 import mahjong.app.PlatformContext
 import java.io.InputStream
 import java.util.ArrayDeque
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 private const val TAG = "MJSound"
 private const val MAX_EFFECT_STREAMS = 8
 private const val MAX_PENDING_VOICE = 2
+private const val MAX_TRACKED_EFFECTS = 24
 private const val VOICE_GAP_MS = 55L
 private const val FALLBACK_VOICE_MS = 420
-private const val VOICE_SET_COUNT = 4
+private const val VOICE_SET_COUNT = 9
 
 private val ACTION_VOICES = listOf("chi", "peng", "gang", "hu", "zimo", "liuju")
 
@@ -26,7 +28,6 @@ private val EFFECT_CLIPS = buildList {
     // 5 套真实落牌声，由 assets/audio/tools/generate_real_sfx.py 生成。
     for (i in 1..5) add("tile_discard_$i")
     add("tile_sort")
-    for (i in 1..6) add("sfx_discard_$i")
     add("chi")
     add("peng")
     add("gang")
@@ -38,18 +39,10 @@ private val EFFECT_CLIPS = buildList {
     add("button_tap")
     add("invalid")
     add("countdown")
-    // 旧版敲桌/动作资源仍保留在包内，避免历史版本缓存缺失时无声。
-    add("sfx_start")
-    add("sfx_draw")
-    add("sfx_chi")
-    add("sfx_peng")
-    add("sfx_gang")
-    add("sfx_hu")
-    add("sfx_settle")
 }
 
 private val VOICE_CLIPS = buildList {
-    // 4 套人声 × 34 种牌名 + 4 套动作语音，命名与 tools/sfx/generate_audio.py 一致。
+    // 9 套人声 × 34 种牌名 + 9 套动作语音，命名与 tools/sfx/generate_audio.py 一致。
     for (set in 1..VOICE_SET_COUNT) {
         for (i in 0..33) add("voice${set}_tile_" + i.toString().padStart(2, '0'))
         for (action in ACTION_VOICES) add("voice${set}_$action")
@@ -66,14 +59,20 @@ private data class VoiceItem(
 
 private object AndroidAudio {
     private val initLock = Any()
+    @Volatile
+    private var initStarted = false
+    @Volatile
     private var effectPool: SoundPool? = null
+    @Volatile
     private var voicePool: SoundPool? = null
-    private val effectIds = HashMap<String, Int>()
-    private val voiceIds = HashMap<String, Int>()
-    private val voiceDurations = HashMap<String, Int>()
+    private val effectIds = ConcurrentHashMap<String, Int>()
+    private val voiceIds = ConcurrentHashMap<String, Int>()
+    private val voiceDurations = ConcurrentHashMap<String, Int>()
 
     private val voiceLock = Any()
     private val voiceQueue = ArrayDeque<VoiceItem>()
+    /** 最近播放的音效 streamId，静音时逐个 stop，避免开关关了还有尾音。 */
+    private val recentEffectStreams = ArrayDeque<Int>()
     private var voiceWorkerRunning = false
     @Volatile
     private var currentVoiceStream = 0
@@ -83,60 +82,67 @@ private object AndroidAudio {
 
     fun init() {
         synchronized(initLock) {
-            if (effectPool != null) return
-            val context = runCatching { PlatformContext.app }.getOrNull() ?: return
-            val attributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_GAME)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            val effects = SoundPool.Builder()
-                .setMaxStreams(MAX_EFFECT_STREAMS)
-                .setAudioAttributes(attributes)
-                .build()
-            val voices = SoundPool.Builder()
-                .setMaxStreams(1)
-                .setAudioAttributes(attributes)
-                .build()
-
-            effects.setOnLoadCompleteListener { _, sampleId, status ->
-                if (status != 0) Log.w(TAG, "音效加载失败 sample=$sampleId status=$status")
-            }
-            voices.setOnLoadCompleteListener { _, sampleId, status ->
-                if (status != 0) Log.w(TAG, "报牌语音加载失败 sample=$sampleId status=$status")
-            }
-            EFFECT_CLIPS.forEach { name ->
-                val id = rawId(context, name)
-                if (id == 0) {
-                    Log.w(TAG, "缺少音效资源 $name")
-                    return@forEach
-                }
-                val sample = effects.load(context, id, 1)
-                if (sample == 0) Log.w(TAG, "音效加载返回 0：$name") else effectIds[name] = sample
-            }
-            VOICE_CLIPS.forEach { name ->
-                val id = rawId(context, name)
-                if (id == 0) {
-                    Log.w(TAG, "缺少报牌资源 $name")
-                    return@forEach
-                }
-                val sample = voices.load(context, id, 1)
-                if (sample == 0) {
-                    Log.w(TAG, "报牌语音加载返回 0：$name")
-                } else {
-                    voiceIds[name] = sample
-                    voiceDurations[name] = wavDurationMs(context, id)
-                }
-            }
-
-            effectPool = effects
-            voicePool = voices
-            val longest = voiceDurations.values.maxOrNull() ?: 0
-            Log.i(
-                TAG,
-                "音频就绪：敲桌/动作 ${effectIds.size} 条，报牌语音 ${voiceIds.size} 条" +
-                    "（${VOICE_SET_COUNT} 套人声，最长 ${longest}ms）",
-            )
+            if (initStarted) return
+            initStarted = true
         }
+        // 9 套人声共 360 条，逐条解码较慢；放后台线程加载，避免阻塞主线程触发 ANR。
+        Thread({ loadAll() }, "mj-audio-init").apply { isDaemon = true }.start()
+    }
+
+    private fun loadAll() {
+        val context = runCatching { PlatformContext.app }.getOrNull() ?: return
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        val effects = SoundPool.Builder()
+            .setMaxStreams(MAX_EFFECT_STREAMS)
+            .setAudioAttributes(attributes)
+            .build()
+        val voices = SoundPool.Builder()
+            .setMaxStreams(1)
+            .setAudioAttributes(attributes)
+            .build()
+
+        effects.setOnLoadCompleteListener { _, sampleId, status ->
+            if (status != 0) Log.w(TAG, "音效加载失败 sample=$sampleId status=$status")
+        }
+        voices.setOnLoadCompleteListener { _, sampleId, status ->
+            if (status != 0) Log.w(TAG, "报牌语音加载失败 sample=$sampleId status=$status")
+        }
+        // 先发布压力小的音效池：敲桌/洗牌/发牌在开局就要用，不能等 360 条人声加载完。
+        effectPool = effects
+        voicePool = voices
+        EFFECT_CLIPS.forEach { name ->
+            val id = rawId(context, name)
+            if (id == 0) {
+                Log.w(TAG, "缺少音效资源 $name")
+                return@forEach
+            }
+            val sample = effects.load(context, id, 1)
+            if (sample == 0) Log.w(TAG, "音效加载返回 0：$name") else effectIds[name] = sample
+        }
+        VOICE_CLIPS.forEach { name ->
+            val id = rawId(context, name)
+            if (id == 0) {
+                Log.w(TAG, "缺少报牌资源 $name")
+                return@forEach
+            }
+            val sample = voices.load(context, id, 1)
+            if (sample == 0) {
+                Log.w(TAG, "报牌语音加载返回 0：$name")
+            } else {
+                voiceIds[name] = sample
+                voiceDurations[name] = wavDurationMs(context, id)
+            }
+        }
+
+        val longest = voiceDurations.values.maxOrNull() ?: 0
+        Log.i(
+            TAG,
+            "音频就绪：敲桌/动作 ${effectIds.size} 条，报牌语音 ${voiceIds.size} 条" +
+                "（${VOICE_SET_COUNT} 套人声，最长 ${longest}ms）",
+        )
     }
 
     fun playEffect(clip: String, volume: Float) {
@@ -149,7 +155,26 @@ private object AndroidAudio {
             Log.w(TAG, "音效播放异常 $clip", error)
             0
         }
-        if (stream != 0) Log.d(TAG, "音效 $clip") else Log.w(TAG, "音效未就绪 $clip id=$id")
+        if (stream != 0) {
+            rememberEffectStream(stream)
+            Log.d(TAG, "音效 $clip")
+        } else {
+            Log.w(TAG, "音效未就绪 $clip id=$id")
+        }
+    }
+
+    fun stopAll() {
+        val streams: List<Int>
+        val voice: Int
+        synchronized(voiceLock) {
+            voiceQueue.clear()
+            streams = recentEffectStreams.toList()
+            recentEffectStreams.clear()
+            voice = currentVoiceStream
+            currentVoiceStream = 0
+        }
+        streams.forEach { id -> runCatching { effectPool?.stop(id) } }
+        if (voice != 0) runCatching { voicePool?.stop(voice) }
     }
 
     fun playVoice(clip: String, volume: Float, delayMs: Long, urgent: Boolean) {
@@ -221,6 +246,15 @@ private object AndroidAudio {
 
     private fun queueSize(): Int = synchronized(voiceLock) { voiceQueue.size }
 
+    private fun rememberEffectStream(stream: Int) {
+        synchronized(voiceLock) {
+            recentEffectStreams.addLast(stream)
+            while (recentEffectStreams.size > MAX_TRACKED_EFFECTS) {
+                recentEffectStreams.removeFirst()
+            }
+        }
+    }
+
     private fun rawId(context: Context, name: String): Int =
         context.resources.getIdentifier(name, "raw", context.packageName)
 
@@ -287,4 +321,8 @@ actual fun platformPlaySound(clip: String, volume: Float) {
 
 actual fun platformPlayVoice(clip: String, volume: Float, delayMs: Long, urgent: Boolean) {
     AndroidAudio.playVoice(clip, volume, delayMs, urgent)
+}
+
+actual fun platformStopAllSounds() {
+    AndroidAudio.stopAll()
 }

@@ -69,6 +69,39 @@ def fade(x: np.ndarray, ms_in: float, ms_out: float) -> np.ndarray:
     return y
 
 
+def denoise_light(x: np.ndarray, max_cut_db: float = -8.0) -> np.ndarray:
+    """分帧谱减的轻降噪：按每个频点的 25% 分位估计稳定底噪。
+
+    只压“一直在响”的成分（房间底噪、远处人声），单帧最大衰减由 [max_cut_db] 封顶，
+    所以牌面摩擦这类瞬态宽带噪声基本保留，不会因为降噪变成闷响。
+    """
+    n = len(x)
+    if n < 1024:
+        return x
+    win = 1024
+    hop = 256
+    pad = np.concatenate([x, np.zeros(win)])
+    frames = 1 + (len(pad) - win) // hop
+    idx = np.arange(win)[None, :] + hop * np.arange(frames)[:, None]
+    spec = np.fft.rfft(pad[idx] * np.hanning(win)[None, :], axis=1)
+    mag = np.abs(spec)
+    noise = np.percentile(mag, 25.0, axis=0)
+    gain = np.ones_like(mag)
+    floor = 10.0 ** (max_cut_db / 20.0)
+    np.divide(mag - noise[None, :], mag, out=gain, where=mag > 1e-9)
+    gain = np.clip(gain, floor, 1.0)
+    out = np.fft.irfft(spec * gain, n=win, axis=1)
+    y = np.zeros(len(pad))
+    wsum = np.zeros(len(pad))
+    window = np.hanning(win)
+    for i in range(frames):
+        y[i * hop: i * hop + win] += out[i] * window
+        wsum[i * hop: i * hop + win] += window ** 2
+    y /= np.maximum(wsum, 1e-6)
+    return y[:n]
+
+
+
 def peak_normalize(x: np.ndarray, peak_db: float) -> np.ndarray:
     m = float(np.max(np.abs(x)))
     if m <= 0:
@@ -155,23 +188,25 @@ def make_discards(rec: dict[str, np.ndarray]) -> list[np.ndarray]:
 # ------------------------------------------------------------------ 洗牌
 
 def make_shuffle(src: np.ndarray, rtb: np.ndarray, discards: list[np.ndarray]) -> np.ndarray:
-    """1.9s：真实连续摩擦为底，增益做出起手→加速→收尾，末尾补一记真实落牌。"""
-    total = 1.95
-    bed_dur = 1.72
+    """1.24s：真实连续摩擦为底，增益做出起手→加速→收尾，末尾补一记真实落牌。"""
+    total = 1.24
+    bed_dur = 1.05
     a = int(25.05 * SR)
     bed = src[a: a + int(bed_dur * SR)].copy()
     bed -= float(np.mean(bed))
     bed = fft_filter(bed, lo=180.0, hi=16000.0, order=2)
+    # 轻度降噪：只压稳定底噪/远处人声，最大衰减 8dB，避免把牌面摩擦也削平。
+    bed = denoise_light(bed, max_cut_db=-8.0)
 
     t = np.arange(len(bed)) / SR
-    # 起手 0.0-0.30 渐入；0.30-0.95 加速（增益抬升）；0.95-1.45 维持；1.45-1.72 收尾
+    # 起手 0.00-0.22 渐入；0.22-0.62 加速（增益抬升）；0.62-0.88 维持；0.88-1.05 收尾
     env = np.ones(len(bed))
-    ramp_in = int(0.30 * SR)
+    ramp_in = int(0.22 * SR)
     env[:ramp_in] = np.linspace(0.0, 0.62, ramp_in) ** 1.3
-    acc = (t >= 0.30) & (t < 0.95)
-    env[acc] = 0.62 + 0.38 * (t[acc] - 0.30) / 0.65
-    env[(t >= 0.95) & (t < 1.45)] = 1.0
-    tail = t >= 1.45
+    acc = (t >= 0.22) & (t < 0.62)
+    env[acc] = 0.62 + 0.38 * (t[acc] - 0.22) / 0.40
+    env[(t >= 0.62) & (t < 0.88)] = 1.0
+    tail = t >= 0.88
     env[tail] = np.linspace(1.0, 0.0, int(tail.sum())) ** 1.5
     bed *= env
 
@@ -179,14 +214,14 @@ def make_shuffle(src: np.ndarray, rtb: np.ndarray, discards: list[np.ndarray]) -
     out[: len(bed)] += bed
 
     # 起手：两下真实的单张牌被推入牌堆
-    for offset, gain, idx in ((0.045, 0.42, 4), (0.145, 0.30, 2)):
+    for offset, gain, idx in ((0.035, 0.42, 4), (0.115, 0.30, 2)):
         seg = discards[idx][: int(0.11 * SR)]
         at = int(offset * SR)
         out[at: at + len(seg)] += seg[: max(0, len(out) - at)] * gain
 
     # 收尾：最后一张牌落下，声音清晰可辨
     seg = discards[0][: int(0.16 * SR)]
-    at = int(1.74 * SR)
+    at = int(1.06 * SR)
     out[at: at + len(seg)] += seg[: max(0, len(out) - at)] * 0.72
 
     out = fade(out, 0.5, 8.0)

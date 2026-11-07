@@ -117,6 +117,7 @@ fun App() {
         )
         session = next
         next.start()
+        DebugScenario.consume()?.let { next.debugInject(it) }
         screen = Screen.TABLE
     }
 

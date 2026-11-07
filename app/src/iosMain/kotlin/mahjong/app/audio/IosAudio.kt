@@ -153,6 +153,19 @@ private object IosAudio {
         }
     }
 
+    /** 关闭音效或静音时清空待播队列并停掉正在播的声音。 */
+    fun stopAll() {
+        lock.lock()
+        voiceQueue.clear()
+        val voice = currentVoice
+        currentVoice = null
+        val effects = activeEffects.toList()
+        activeEffects.clear()
+        lock.unlock()
+        runCatching { voice?.stop() }
+        effects.forEach { runCatching { it.stop() } }
+    }
+
     private fun createPlayer(url: NSURL): AVAudioPlayer? =
         runCatching { AVAudioPlayer(contentsOfURL = url, error = null) }.getOrNull()
 
@@ -185,4 +198,8 @@ actual fun platformPlaySound(clip: String, volume: Float) {
 
 actual fun platformPlayVoice(clip: String, volume: Float, delayMs: Long, urgent: Boolean) {
     IosAudio.playVoice(clip, volume, delayMs, urgent)
+}
+
+actual fun platformStopAllSounds() {
+    IosAudio.stopAll()
 }

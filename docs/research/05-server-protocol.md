@@ -125,8 +125,8 @@ v1 无账号体系，用游客身份（`playerId` 由服务端按 `deviceId` 派
 | `room_join` | C→S | `{room, password?}` |
 | `room_leave` | C→S | `{}` |
 | `room_ready` | C→S | `{ready:true\|false}` |
-| `seat_add_ai` | C→S | `{}` 或 `{seat:0..3}`（房主） |
-| `seat_remove_ai` | C→S | `{seat:0..3}`（房主） |
+| `seat_add_ai` | C→S | `{seat:0..3, level:1..4}`（房主）；`seat=-1` 取第一个空位，`level=0` 用服务端默认（2=普通） |
+| `seat_remove_ai` | C→S | `{seat:0..3}`（房主，把 AI 座位改回等待真人） |
 | `seat_kick` | C→S | `{seat:0..3, reason?}`（房主，移出真人玩家） |
 | `game_start` | C→S | `{}`（房主，4 座满且全部真人已准备） |
 | `seat_granted` | S→C | `{seat, resumeToken}`（入座/换座后私发） |
@@ -194,7 +194,36 @@ v1 无账号体系，用游客身份（`playerId` 由服务端按 `deviceId` 派
 | 非房主踢人 | `E_NOT_HOST` |
 | 房主自己退出（`room_leave`） | 等待阶段：连接关闭并释放座位，房主转移给下一位在线真人；对局中：座位转 AI 打到本局结束，房主转移给其余在线真人，连接不关闭。房间最后一人离开后自动关闭。 |
 
-### 3.5 局域网自动发现（UDP）
+### 3.5 房主补 AI 座位（`seat_add_ai` / `seat_remove_ai`）
+
+房主在大厅座位列表里对任意**空位**点「加 AI」并选等级；服务端在同一把房间锁内把座位改成 AI，立即广播 `room_state`，房主可照常 `game_start`。
+
+座位模型（`room_state.seats[]`）：
+
+| 字段 | 取值 | 说明 |
+|---|---|---|
+| `kind` | `human` / `ai` / `empty` | 座位占用类型 |
+| `aiLevel` | `0`（非 AI）/ `1..4` | 与单机 `AiLevel` 同一套：1 新手、2 普通、3 高手、4 大师 |
+| `nickname` | `AI·新手` … `AI·大师` | 服务端生成，客户端直接显示即可 |
+| `ready` | `true` | AI 恒为已准备 |
+
+协议：`seat_add_ai{seat:0..3, level:1..4}`（`seat=-1` = 第一个空位，`level=0` = 服务端默认 2）；`seat_remove_ai{seat}` 把座位改回 `empty`（等待真人）。改等级等价于对同一 AI 座位再发一次 `seat_add_ai`（服务端重建 `AiBrain`）。
+
+**AI 在服务端执行**：每个座位对应一个 `AiBrain(level)`，`Room.tick()` 对 `kind==ai` 的座位恒走自动决策（`shouldAutoPlay`），动作与服务端校验用的是同一条 `applyInternal` 路径。AI 座位 `session=null`、不下发私有 `state`，所以不可能出现「多个客户端各自算一手」；客户端只被动接收 `state`/`event`/`game_over`。
+
+规则与边界：
+
+| 场景 | 行为 |
+|---|---|
+| 非房主设置 | `E_NOT_HOST` |
+| 对局进行中设置 | `E_ALREADY_PLAYING`，本局结束后再改 |
+| 房主把自己的座位换成 AI | `E_CANNOT_KICK_SELF`（房主必须留一个真人，否则房间无人可归） |
+| 对已有真人座位「换AI」 | 允许：先给该玩家私发 `room_kicked{reason:"房主把你的座位换成了 AI"}` 并关闭连接、作废 `resumeToken`，再就地改成 AI，不会被对方重新抢回 |
+| AI 座位被他人加入 | 不会被抢占：`room_join` 只落在 `empty` 座，没有空位时返回 `E_ROOM_FULL` |
+| 改回等待真人 | `seat_remove_ai` → `kind=empty`、`ready=false`，新玩家可立即加入 |
+| 房主退出/掉线 | AI 座位随房间一起销毁：房间没有真人后 `maybeClose()` 关房，AI 不计入真人，不存在孤儿对局 |
+
+### 3.6 局域网自动发现（UDP）
 
 服务端默认监听 **UDP 45231**（`MAHJONG_DISCOVERY_PORT`，`MAHJONG_DISCOVERY=off` 可关闭），无需 Bonjour/mDNS，纯 UDP 广播即可跨平台：
 
@@ -628,7 +657,10 @@ curl http://127.0.0.1:8080/health
 | `simulateFour -Prule=GD_JIPINGHU` | PASS，座位 2 点炮和牌，1 番，`deltaScores=[-2,0,2,0]`，32 条动作复现一致 |
 | `simulateResume`（MCR） | PASS，turn 13 断线，AI 托管 0.66s 接管，宽限期内重连回到座位 1，最终 82 手结束，83 条动作复现一致 |
 | `simulateLobby` | PASS，UDP 自动发现与踢人全部检查通过（含重复踢/离线踢/对局中踢/房主转移） |
-| `:app:compileDebugKotlinAndroid` | BUILD SUCCESSFUL（Android 客户端含发现/踢人 UI） |
+| AI 座位端到端（真实 WS 驱动） | PASS，房主 + 3 个 AI（新手/高手/大师）补齐座位后 `game_start` 成功，服务端 AI 打完整一局：座位 2 点炮和牌 1 番，`scores=[100,100,102,98]` |
+| 踢人跨客户端（真实 WS × 3） | PASS，被踢方先收到 `room_kicked{reason:"你已被房主移出房间", bySeat:0}` 再被断开，座位释放且新玩家可立刻加入，重复踢幂等，踢已断线玩家成功，房主退出房间关闭 |
+| 跨设备发现 | PASS，PC 服务端建房后 Android 模拟器大厅 2s 内自动出现房间卡片（房号/房主/人数），点「加入」直接进房 |
+| `:app:assembleDebug` | BUILD SUCCESSFUL（含发现、踢人、AI 座位 UI） |
 
 ---
 

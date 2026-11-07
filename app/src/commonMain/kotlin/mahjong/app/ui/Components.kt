@@ -28,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
@@ -77,8 +79,13 @@ fun MjCard(
     padding: Dp = MjSpace.cardPadding,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val dark = LocalMjColors.current.isDark
     Column(
         modifier = modifier
+            .shadow(
+                elevation = if (dark) 4.dp else 10.dp,
+                shape = RoundedCornerShape(radius),
+            )
             .clip(RoundedCornerShape(radius))
             .background(color)
             .border(1.dp, borderColor, RoundedCornerShape(radius))
@@ -116,8 +123,34 @@ fun PrimaryButton(
             .fillMaxWidth()
             .height(height)
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            .shadow(
+                elevation = if (enabled) 9.dp else 0.dp,
+                shape = RoundedCornerShape(MjRadius.control),
+            )
             .clip(RoundedCornerShape(MjRadius.control))
-            .background(if (enabled) colors.primary else colors.surface3)
+            .then(
+                if (enabled) {
+                    Modifier.background(
+                        Brush.horizontalGradient(
+                            if (colors.isDark) {
+                                // 夜间主色本身偏亮，渐变用深玉收尾，保证白字可读。
+                                listOf(colors.primary, colors.primarySoft)
+                            } else {
+                                listOf(colors.primary, colors.primaryDeep)
+                            },
+                        ),
+                    )
+                } else {
+                    Modifier.background(colors.surface3)
+                },
+            )
+            .then(
+                if (enabled) {
+                    Modifier.border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(MjRadius.control))
+                } else {
+                    Modifier
+                },
+            )
             .clickable(interactionSource = source, indication = null, enabled = enabled) {
                 GameAudio.playButton()
                 onClick()
@@ -159,7 +192,8 @@ fun GhostButton(
             .height(height)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(MjRadius.control))
-            .border(1.dp, colors.line, RoundedCornerShape(MjRadius.control))
+            .background(colors.surface.copy(alpha = if (colors.isDark) 0.55f else 0.72f))
+            .border(1.dp, colors.lineStrong, RoundedCornerShape(MjRadius.control))
             .clickable(interactionSource = source, indication = null, enabled = enabled) {
                 GameAudio.playButton()
                 onClick()
@@ -337,7 +371,18 @@ fun Avatar(name: String, size: Dp = 40.dp, large: Boolean = false, dim: Boolean 
         modifier = Modifier
             .size(size)
             .clip(RoundedCornerShape(if (large) 18.dp else MjRadius.small))
-            .background(if (dim) colors.surface3 else colors.primarySoft),
+            .background(
+                if (dim) {
+                    Brush.linearGradient(listOf(colors.surface3, colors.surface2))
+                } else {
+                    Brush.linearGradient(listOf(colors.primarySoft, colors.surface2))
+                },
+            )
+            .border(
+                1.dp,
+                if (dim) colors.line else colors.primary.copy(alpha = 0.35f),
+                RoundedCornerShape(if (large) 18.dp else MjRadius.small),
+            ),
         contentAlignment = Alignment.Center,
     ) {
         MjText(

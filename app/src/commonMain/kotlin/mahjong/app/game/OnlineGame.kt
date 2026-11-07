@@ -1047,6 +1047,8 @@ class OnlineGameSession(
     private fun handleEvent(event: EventDto) {
         when (event.type) {
             "hand_started" -> {
+                // 每局开始给四家随机分配互不相同的人声套数，整局固定。
+                GameAudio.beginGame()
                 playSfx(SoundEffect.SHUFFLE)
                 scope.launch {
                     repeat(4) {

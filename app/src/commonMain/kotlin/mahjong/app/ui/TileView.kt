@@ -68,14 +68,28 @@ fun MjBackStrip(width: Dp, height: Dp, modifier: Modifier = Modifier) {
     val colors = LocalMjColors.current
     Canvas(modifier.size(width, height)) {
         val radius = minOf(size.width, size.height) * 0.28f
+        // 牌背也做一层釉面：上亮下暗 + 内嵌细框，远看是实体牌的背面。
         drawRoundRect(
-            color = colors.tileBack,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    lerp(colors.tileBack, Color.White, 0.18f),
+                    colors.tileBack,
+                    lerp(colors.tileBack, Color.Black, 0.16f),
+                ),
+            ),
             cornerRadius = CornerRadius(radius),
         )
         drawRoundRect(
             color = colors.tileBackLine,
             cornerRadius = CornerRadius(radius),
             style = Stroke(width = 1f * density.coerceAtLeast(0.5f)),
+        )
+        drawRoundRect(
+            color = colors.tileBackLine.copy(alpha = 0.42f),
+            topLeft = Offset(size.width * 0.20f, size.height * 0.16f),
+            size = Size(size.width * 0.60f, size.height * 0.68f),
+            cornerRadius = CornerRadius(radius * 0.5f),
+            style = Stroke(width = 1f),
         )
     }
 }
