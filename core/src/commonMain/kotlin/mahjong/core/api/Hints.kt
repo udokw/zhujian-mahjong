@@ -235,7 +235,8 @@ object Hints {
             val win = ScoreEngine.score(config, hand, view.melds, ctx) ?: return
             val preview = preview(win, config, type == WinType.SELF_DRAW)
             val key = "$type-$tile-$fromPlayer"
-            result.putIfAbsent(key, WinHint(type, tile, fromPlayer, preview))
+            // putIfAbsent 是 JVM 专属扩展，Kotlin/Native 下不可用，这里用等价写法。
+            if (!result.containsKey(key)) result[key] = WinHint(type, tile, fromPlayer, preview)
         }
 
         if (view.canSelfDrawWin) {
