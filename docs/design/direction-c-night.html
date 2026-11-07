@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向 C · 暗夜牌桌 | 麻将视觉方向初稿</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --board-bg:#0B100E; --board-ink:#EFE9D9; --board-ink-2:#8D988E; --board-line:#243029;
+    --brass:#C9A227;
+    --sans:"HarmonyOS Sans SC","MiSans","PingFang SC","Source Han Sans SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    --serif:"Source Han Serif SC","Noto Serif SC","Songti SC","STSong",serif;
+    --mono:"SF Mono","JetBrains Mono",ui-monospace,monospace;
+  }
+  body{
+    background:
+      radial-gradient(900px 520px at 82% -8%, rgba(201,162,39,.12) 0%, rgba(201,162,39,0) 60%),
+      radial-gradient(700px 500px at 4% 100%, rgba(95,194,160,.05) 0%, rgba(95,194,160,0) 60%),
+      var(--board-bg);
+    color:var(--board-ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:30px 40px 34px;
+  }
+  .board-head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;max-width:1440px;margin:0 auto 22px}
+  .kicker{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--brass);text-transform:uppercase}
+  .board-head h1{font-size:31px;line-height:1.15;letter-spacing:.06em;margin:9px 0 7px;font-weight:300}
+  .board-head h1 em{font-style:normal;color:var(--brass);font-weight:500}
+  .mood{font-size:12px;color:var(--board-ink-2);letter-spacing:.06em}
+  .bh-right{display:flex;align-items:center;gap:22px}
+  .swatches{display:flex;gap:7px}
+  .sw{width:26px;height:26px;border-radius:50%;border:1px solid rgba(239,233,217,.2);position:relative}
+  .sw span{position:absolute;left:50%;transform:translateX(-50%);bottom:-17px;font-family:var(--mono);font-size:8.5px;color:var(--board-ink-2);white-space:nowrap}
+  .theme-toggle{display:flex;background:rgba(239,233,217,.04);border:1px solid var(--board-line);border-radius:999px;padding:3px}
+  .theme-toggle button{border:0;background:transparent;font-family:inherit;font-size:12px;color:var(--board-ink-2);padding:7px 15px;border-radius:999px;cursor:pointer;letter-spacing:.04em}
+  .theme-toggle button.on{background:var(--brass);color:#191405;font-weight:600}
+  .logic-tag{font-size:10px;line-height:1.55;color:var(--board-ink-2);border-left:1px solid var(--brass);padding-left:9px;max-width:190px;letter-spacing:.02em}
+  .board{display:flex;gap:26px;justify-content:center;align-items:flex-start;max-width:1440px;margin:0 auto}
+  .device-wrap{width:312px}
+  .device-wrap figcaption{display:flex;align-items:baseline;gap:7px;font-size:12px;color:var(--board-ink-2);margin-bottom:9px;padding-left:2px;letter-spacing:.04em}
+  .device-wrap figcaption b{font-family:var(--mono);font-size:10px;color:var(--brass);letter-spacing:.06em}
+  .device-wrap figcaption span{margin-left:auto;font-size:9.5px;color:#6F7A70;letter-spacing:.02em}
+  .scaler{width:390px;height:844px;transform:scale(.8);transform-origin:top left}
+  .scaler-wrap{width:312px;height:675.2px;border-radius:40px;overflow:hidden;background:#050806;border:1px solid rgba(201,162,39,.24)}
+  .phone{width:390px;height:844px;position:relative;overflow:hidden;background:var(--bg);border:8px solid #050806;border-radius:40px}
+  /* 主题 */
+  .phone[data-theme="night"]{
+    --bg:#0A0F0D; --surface:#121A16; --surface-2:#18241E; --surface-3:#1F2E26;
+    --ink:#ECE6D6; --ink-2:#AEB8AC; --ink-3:#879386; --disabled:#5B665D;
+    --line:#233029; --line-strong:#33453A;
+    --primary:#C9A227; --primary-deep:#E2C158; --primary-soft:#2A2413;
+    --jade:#5FC2A0; --jade-soft:#12281F;
+    --red:#D8705E; --red-soft:#2C1814;
+    --line-soft:#1B2620;
+    --table-1:#1C3C30; --table-2:#12281F; --table-3:#081510;
+    --on-table:#EDE7D6; --on-table-2:#AFC0B4; --table-line:rgba(201,162,39,.22);
+    --tile-face:#F5EFDD; --tile-edge:#A5946F; --tile-inner:#DED3B7;
+    --tile-ink:#1A211D; --tile-red:#B0473C; --tile-blue:#33617A; --tile-green:#2E6B52;
+    --tile-idx:#8B8168; --tile-back:#1A2A22; --tile-back-line:#7C6A3C;
+    --glyph:var(--sans); --nav-bg:#111814;
+  }
+  .phone[data-theme="day"]{
+    --bg:#E8E7E0; --surface:#F6F5EF; --surface-2:#E0E1D8; --surface-3:#D5D7CC;
+    --ink:#14201B; --ink-2:#4E5B54; --ink-3:#6E7A72; --disabled:#A0A79F;
+    --line:#D3D4C8; --line-strong:#BFC1B4;
+    --primary:#8A6B2F; --primary-deep:#6F5420; --primary-soft:#F1E8D1;
+    --jade:#2E7D62; --jade-soft:#E3EFE9;
+    --red:#B0473C; --red-soft:#F6E2DD;
+    --line-soft:#DEE0D5;
+    --table-1:#1C3C30; --table-2:#12281F; --table-3:#081510;
+    --on-table:#EDE7D6; --on-table-2:#AFC0B4; --table-line:rgba(201,162,39,.22);
+    --tile-face:#FCF8EB; --tile-edge:#C8BA99; --tile-inner:#E6DCC4;
+    --tile-ink:#1A211D; --tile-red:#B0473C; --tile-blue:#33617A; --tile-green:#2E6B52;
+    --tile-idx:#8B8168; --tile-back:#E4DBC4; --tile-back-line:#B7A67F;
+    --glyph:var(--sans); --nav-bg:#F2F1EA;
+  }
+  .phone *::-webkit-scrollbar{display:none}.phone *{scrollbar-width:none}
+  .status{position:absolute;z-index:9;top:0;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12.5px;font-weight:600;color:var(--ink);letter-spacing:.02em;pointer-events:none}
+  .status .sys{display:flex;align-items:center;gap:5px}
+  .phone[data-view="table"] .status{color:#EDE7D6}
+  .home-bar{position:absolute;z-index:9;bottom:8px;left:50%;transform:translateX(-50%);width:128px;height:5px;border-radius:3px;background:var(--ink);opacity:.26;pointer-events:none}
+  .phone[data-view="table"] .home-bar{background:#EDE7D6;opacity:.5}
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;padding-top:44px;background:var(--bg)}
+  .phone[data-view="lobby"] .screen--lobby,
+  .phone[data-view="table"] .screen--table,
+  .phone[data-view="settle"] .screen--settle,
+  .phone[data-view="settings"] .screen--settings{display:flex}
+  /* ===== 大厅 C ===== */
+  .c-top{display:flex;align-items:center;justify-content:space-between;padding:12px 22px 0}
+  .club{font-size:15px;font-weight:600;letter-spacing:.2em}
+  .club span{display:block;font-family:var(--mono);font-size:7px;letter-spacing:.22em;color:var(--ink-3);margin-top:3px;font-weight:400}
+  .member{text-align:right;font-size:10px;color:var(--ink-2);line-height:1.4;letter-spacing:.03em}
+  .member b{display:block;font-size:11.5px;color:var(--ink);font-weight:600}
+  .c-scroll{flex:1;overflow-y:auto;padding:0 20px 160px}
+  .c-greet{font-size:21px;font-weight:300;letter-spacing:.04em;margin:22px 0 3px}
+  .c-greet b{font-weight:600}
+  .c-sub{font-size:9.5px;color:var(--ink-3);letter-spacing:.05em}
+  .c-modes{display:flex;gap:18px;margin-top:16px}
+  .c-modes button{border:0;background:transparent;font-family:inherit;font-size:11.5px;color:var(--ink-3);letter-spacing:.06em;padding:0 0 6px;cursor:pointer;border-bottom:1px solid transparent}
+  .c-modes button.on{color:var(--primary);border-bottom-color:var(--primary)}
+  .carousel{display:flex;align-items:center;gap:8px;margin-top:14px;margin-left:-4px;margin-right:-4px}
+  .tcard{border-radius:22px;border:1px solid var(--line);background:var(--surface);flex:none}
+  .tcard.side{width:38px;height:196px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--ink-3);font-size:9px;letter-spacing:.12em;overflow:hidden}
+  .tcard.side b{writing-mode:vertical-rl;font-size:11px;font-weight:500;letter-spacing:.16em;color:var(--ink-2)}
+  .tcard.side .num{font-family:var(--mono);font-size:9px;color:var(--primary)}
+  .tcard.main{flex:1;height:236px;position:relative;overflow:hidden;border-color:rgba(201,162,39,.36);
+    background:
+      radial-gradient(150px 150px at 50% 42%, rgba(201,162,39,.17) 0%, rgba(201,162,39,0) 70%),
+      var(--surface);
+    padding:18px;display:flex;flex-direction:column}
+  .tcard.main::before{content:"";position:absolute;left:50%;top:44%;width:150px;height:150px;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(201,162,39,.30)}
+  .tcard.main::after{content:"";position:absolute;left:50%;top:44%;width:122px;height:122px;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(201,162,39,.14)}
+  .tc-eyebrow{font-family:var(--mono);font-size:7.5px;letter-spacing:.24em;color:var(--primary)}
+  .tc-main{position:relative;z-index:2;text-align:center;margin-top:6px}
+  .tc-base{font-size:58px;line-height:1;font-weight:200;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .tc-base small{display:block;font-size:8.5px;letter-spacing:.2em;color:var(--ink-3);margin-top:4px;font-weight:400}
+  .tc-name{font-size:13px;font-weight:600;letter-spacing:.16em;margin-top:2px}
+  .tc-meta{font-size:8.5px;color:var(--ink-3);margin-top:5px;letter-spacing:.03em;font-variant-numeric:tabular-nums}
+  .tc-ai{display:inline-flex;align-items:center;gap:5px;margin-top:9px;font-size:8px;color:var(--primary);border:1px solid rgba(201,162,39,.35);border-radius:999px;padding:2px 7px;letter-spacing:.08em}
+  .tc-foot{position:relative;z-index:2;margin-top:auto;display:flex;align-items:center;justify-content:space-between}
+  .tc-foot span{font-size:8.5px;color:var(--ink-3);letter-spacing:.04em}
+  .tc-enter{width:34px;height:34px;border-radius:50%;border:1px solid var(--primary);background:transparent;color:var(--primary);display:grid;place-items:center;cursor:pointer;font-size:14px}
+  .tier-dots{display:flex;justify-content:center;gap:6px;margin-top:11px}
+  .tier-dots i{width:5px;height:5px;border-radius:50%;background:var(--line-strong);display:block}
+  .tier-dots i.on{background:var(--primary);width:14px;border-radius:3px}
+  .c-quick{margin-top:14px;border-top:1px solid var(--line);padding-top:13px}
+  .chips{display:flex;gap:7px}
+  .chips button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 12px;font-family:inherit;font-size:10px;color:var(--ink-3);cursor:pointer;letter-spacing:.04em}
+  .chips button.on{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+  .c-ai{display:flex;align-items:center;justify-content:space-between;margin-top:13px}
+  .c-ai span{font-size:9.5px;color:var(--ink-3);letter-spacing:.04em}
+  .c-ai b{font-size:10px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .mini-bars{display:flex;gap:2px}
+  .mini-bars i{width:11px;height:3px;border-radius:2px;background:var(--line-strong);display:block}
+  .mini-bars i.on{background:var(--primary)}
+  .c-list{margin-top:14px;border-top:1px solid var(--line)}
+  .c-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .c-row .nm{font-size:10.5px;color:var(--ink-2);flex:1;letter-spacing:.04em}
+  .c-row .base{font-family:var(--mono);font-size:10px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .c-row .arr{color:var(--ink-3);font-size:11px}
+  .c-start{position:absolute;z-index:8;left:20px;right:20px;bottom:92px;height:52px;border:0;border-radius:999px;background:var(--primary);color:#191405;font-family:inherit;font-size:13.5px;font-weight:650;letter-spacing:.12em;cursor:pointer}
+  .c-nav{position:absolute;z-index:8;left:16px;right:16px;bottom:16px;height:62px;border-radius:999px;border:1px solid var(--line);background:var(--nav-bg);display:grid;grid-template-columns:repeat(4,1fr);align-items:center;padding:0 6px 6px}
+  .c-nav button{border:0;background:transparent;font-family:inherit;font-size:8.5px;color:var(--ink-3);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;letter-spacing:.04em;padding-top:7px}
+  .c-nav button svg{width:19px;height:19px}
+  .c-nav button.on{color:var(--primary)}
+  /* ===== 对局桌 C ===== */
+  .screen--table{color:var(--on-table);background:radial-gradient(110% 70% at 50% 38%,var(--table-1) 0%,var(--table-2) 50%,var(--table-3) 100%)}
+  .screen--table::before{content:"";position:absolute;left:50%;top:42%;width:322px;height:322px;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(201,162,39,.28);pointer-events:none}
+  .screen--table::after{content:"";position:absolute;left:50%;top:42%;width:286px;height:286px;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(201,162,39,.12);pointer-events:none}
+  .c-hud{position:relative;z-index:3;height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+  .c-room{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--on-table-2);border:1px solid var(--table-line);border-radius:999px;padding:4px 9px}
+  .c-room b{color:var(--primary);font-weight:600}
+  .c-round{text-align:center;line-height:1.25}
+  .c-round b{display:block;font-size:11.5px;font-weight:600;letter-spacing:.1em}
+  .c-round span{font-size:8.5px;color:var(--on-table-2);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+  .c-timer{font-family:var(--mono);font-size:10px;color:var(--primary);border:1px solid var(--table-line);border-radius:999px;padding:4px 9px;font-variant-numeric:tabular-nums}
+  .c-opp{position:absolute;z-index:2;display:flex;flex-direction:column;align-items:center;gap:5px}
+  .c-opp--top{top:0;left:50%;transform:translateX(-50%);width:200px}
+  .c-opp--left{left:2px;top:170px;width:62px}
+  .c-opp--right{right:2px;top:170px;width:62px}
+  .c-opp-line{display:flex;align-items:center;gap:6px;background:rgba(10,15,13,.42);border:1px solid var(--table-line);border-radius:999px;padding:3px 9px 3px 3px;position:relative;width:100%;justify-content:center}
+  .c-opp--left .c-opp-line,.c-opp--right .c-opp-line{flex-direction:column;border-radius:14px;padding:6px 4px;gap:2px}
+  .c-av{width:26px;height:26px;border-radius:50%;border:1px solid rgba(201,162,39,.4);display:grid;place-items:center;font-size:10px;font-weight:600;color:var(--on-table);flex:none;background:rgba(201,162,39,.08)}
+  .c-name{font-size:9.5px;white-space:nowrap;letter-spacing:.03em}
+  .c-score{font-size:8px;color:var(--on-table-2);font-family:var(--mono);margin-top:1px;white-space:nowrap}
+  .c-wind{position:absolute;top:-5px;right:-4px;width:15px;height:15px;border-radius:50%;background:var(--primary);color:#191405;font-size:8px;font-weight:700;display:grid;place-items:center}
+  .c-backs{display:flex;gap:1px}
+  .c-opp--left .c-backs,.c-opp--right .c-backs{position:absolute;top:4px;flex-direction:column}
+  .c-opp--left .c-backs{left:66px}
+  .c-opp--right .c-backs{right:66px}
+  .c-back{width:7px;height:21px;border-radius:1px;background:var(--tile-back);border:1px solid var(--tile-back-line);opacity:.92}
+  .c-opp--left .c-back,.c-opp--right .c-back{width:18px;height:5px}
+  .c-pool{position:absolute;z-index:2;left:50%;top:168px;transform:translateX(-50%);width:216px;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .c-pool-head{display:flex;align-items:center;gap:7px;font-size:8.5px;letter-spacing:.08em;color:var(--on-table-2);font-variant-numeric:tabular-nums}
+  .c-pool-head b{color:var(--primary);font-weight:600;letter-spacing:.14em}
+  .c-pool-head .sep{width:1px;height:7px;background:rgba(201,162,39,.35)}
+  .c-grid{display:grid;grid-template-columns:repeat(5,38px);grid-auto-rows:50px;gap:4px}
+  .c-grid .slot{width:38px;height:50px;border:1px solid rgba(201,162,39,.12);border-radius:3px}
+  .c-grid .tile-wrap{width:38px;height:50px}
+  .c-grid .tile-wrap.last{outline:1px solid var(--primary);outline-offset:2px}
+  .c-grid .tile-wrap.last::after{content:"刚打";position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:7.5px;color:var(--primary);white-space:nowrap;letter-spacing:.04em}
+  .tile-wrap{position:relative;display:block}
+  .tile{width:100%;height:100%;display:block}
+  .c-me{position:absolute;z-index:2;left:0;right:0;bottom:96px;padding:0 11px}
+  .c-meld{display:flex;align-items:center;gap:5px;margin-bottom:6px;padding-left:2px}
+  .c-meld .tag{font-size:7.5px;color:var(--primary);border:1px solid rgba(201,162,39,.45);border-radius:999px;padding:1px 5px;letter-spacing:.06em}
+  .c-meld .mini{width:21px;height:28px}
+  .c-myline{display:flex;align-items:flex-end;justify-content:space-between;gap:5px}
+  .c-me-info{width:50px;flex:none;font-size:8px;color:var(--on-table-2);line-height:1.4;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .c-me-info b{display:block;font-family:var(--sans);font-size:9.5px;color:var(--on-table);font-weight:600;letter-spacing:.02em}
+  .c-hand{display:flex;gap:1.5px;flex:1;justify-content:center;align-items:flex-end}
+  .c-hand .tile-wrap{width:24px;height:32px;transition:transform .16s}
+  .c-hand .tile-wrap.sel{transform:translateY(-7px)}
+  .c-hand .drawn{width:29px;height:38px;margin-left:6px}
+  .c-hand .drawn::after{content:"摸";position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:7.5px;color:var(--primary)}
+  .c-bottom{position:absolute;left:0;right:0;bottom:0;padding:8px 14px 20px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.4))}
+  .c-hint{text-align:center;font-size:8.5px;letter-spacing:.08em;color:#E2C158;margin-bottom:7px}
+  .c-actions{display:flex;gap:7px;justify-content:center;align-items:center}
+  .c-act{height:44px;min-width:50px;padding:0 13px;border-radius:999px;border:1px solid var(--table-line);background:rgba(10,15,13,.42);color:var(--on-table);font-family:inherit;font-size:13px;font-weight:600;letter-spacing:.06em;cursor:pointer;transition:transform .14s}
+  .c-act:active{transform:scale(.96)}
+  .c-act.hu{background:var(--primary);border-color:var(--primary);color:#191405}
+  .c-act.pass{border-color:transparent;background:transparent;color:var(--on-table-2);min-width:36px;padding:0 6px}
+  /* ===== 结算 C ===== */
+  .cs-head{height:54px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none}
+  .cs-head b{font-size:13px;font-weight:600;letter-spacing:.14em;flex:1;text-align:center}
+  .cs-head span{font-family:var(--mono);font-size:8.5px;color:var(--ink-3);letter-spacing:.08em}
+  .cs-body{flex:1;overflow-y:auto;padding:0 20px 110px}
+  .cs-hero{text-align:center;padding:8px 0 14px}
+  .cs-tag{display:inline-block;font-size:8.5px;letter-spacing:.18em;color:var(--primary);border:1px solid rgba(201,162,39,.4);border-radius:999px;padding:3px 9px}
+  .cs-name{font-size:19px;font-weight:300;letter-spacing:.08em;margin:11px 0 4px}
+  .cs-name b{font-weight:600}
+  .cs-sub{font-size:9px;color:var(--ink-3);letter-spacing:.06em}
+  .cs-delta{font-size:52px;line-height:1;font-weight:200;letter-spacing:-.03em;color:var(--primary);margin:10px 0 2px;font-variant-numeric:tabular-nums}
+  .cs-delta small{font-size:9px;font-family:var(--sans);font-weight:400;color:var(--ink-3);letter-spacing:.04em;margin-left:4px}
+  .cs-hand{display:flex;justify-content:center;align-items:flex-end;gap:4px;padding:14px 0 6px;border-top:1px solid var(--line)}
+  .cs-hand .grp{display:flex;gap:1.5px}
+  .cs-hand .tile-wrap{width:23px;height:31px}
+  .cs-hand .tile-wrap.win{outline:1px solid var(--primary);outline-offset:1px;border-radius:2px}
+  .cs-note{text-align:center;font-size:8px;color:var(--ink-3);letter-spacing:.05em;padding-bottom:14px}
+  .cs-board{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:2px}
+  .cs-pl{border:1px solid var(--line);border-radius:16px;padding:9px 6px;text-align:center;background:var(--surface)}
+  .cs-pl.me{border-color:var(--primary);background:var(--primary-soft)}
+  .cs-pl .av{width:28px;height:28px;border-radius:50%;border:1px solid var(--line-strong);display:grid;place-items:center;margin:0 auto 6px;font-size:10px;color:var(--ink-2)}
+  .cs-pl.me .av{border-color:var(--primary);color:var(--primary)}
+  .cs-pl .nm{font-size:9px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cs-pl .win{font-size:7.5px;color:var(--ink-3);margin-top:2px}
+  .cs-pl .dl{font-family:var(--mono);font-size:11px;margin-top:5px;font-variant-numeric:tabular-nums}
+  .cs-pl .dl.plus{color:var(--primary)}
+  .cs-pl .dl.minus{color:var(--red)}
+  .cs-sec{display:flex;align-items:baseline;justify-content:space-between;margin:18px 0 8px}
+  .cs-sec b{font-size:10px;font-weight:600;letter-spacing:.14em}
+  .cs-sec span{font-family:var(--mono);font-size:8px;color:var(--ink-3)}
+  .cs-fans{display:flex;flex-wrap:wrap;gap:6px}
+  .cs-chip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:9.5px;color:var(--ink-2)}
+  .cs-chip b{font-family:var(--mono);font-size:10px;color:var(--primary);font-weight:600}
+  .cs-chip.hi{border-color:rgba(201,162,39,.5);background:var(--primary-soft);color:var(--ink)}
+  .cs-total{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .cs-total span{font-size:9px;color:var(--ink-3);letter-spacing:.05em}
+  .cs-total b{font-size:13px;font-variant-numeric:tabular-nums}
+  .cs-cta{position:absolute;left:0;right:0;bottom:0;padding:12px 20px 22px;background:linear-gradient(180deg,rgba(10,15,13,0),var(--bg) 26%)}
+  .phone[data-theme="day"] .cs-cta{background:linear-gradient(180deg,rgba(232,231,224,0),var(--bg) 26%)}
+  .cs-cta button{width:100%;height:50px;border:0;border-radius:999px;background:var(--primary);color:#191405;font-family:inherit;font-size:13px;font-weight:650;letter-spacing:.12em;cursor:pointer}
+  .cs-cta .back{display:block;margin:8px auto 0;border:0;background:transparent;font-size:9.5px;letter-spacing:.08em;color:var(--ink-3);cursor:pointer}
+  /* ===== 设置 C ===== */
+  .ct-head{height:54px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none}
+  .ct-head h2{font-size:16px;font-weight:600;letter-spacing:.16em;flex:1;text-align:center}
+  .ct-head span{font-family:var(--mono);font-size:8.5px;color:var(--ink-3)}
+  .ct-body{flex:1;overflow-y:auto;padding:0 20px 40px}
+  .ct-grp{padding:14px 0 3px;border-top:1px solid var(--line)}
+  .ct-grp:first-child{border-top:0;padding-top:2px}
+  .ct-grp-title{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+  .ct-grp-title b{font-size:9px;font-weight:600;letter-spacing:.2em;color:var(--primary)}
+  .ct-grp-title span{font-size:8.5px;color:var(--ink-3);letter-spacing:.03em}
+  .ct-row{display:flex;align-items:center;gap:10px;min-height:46px;border-bottom:1px solid var(--line-soft)}
+  .ct-row:last-child{border-bottom:0}
+  .ct-label{font-size:11px;flex:1;line-height:1.35;letter-spacing:.02em}
+  .ct-label small{display:block;font-size:8.5px;color:var(--ink-3);margin-top:2px}
+  .ct-sw{width:44px;height:26px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;position:relative;cursor:pointer;flex:none;transition:background .2s,border-color .2s}
+  .ct-sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--ink-3);transition:transform .22s cubic-bezier(.22,1,.36,1),background .2s}
+  .ct-sw[aria-pressed="true"]{background:var(--primary);border-color:var(--primary)}
+  .ct-sw[aria-pressed="true"]::after{transform:translateX(18px);background:#191405}
+  .ct-seg{display:flex;gap:6px;padding:8px 0 4px;flex-wrap:wrap}
+  .ct-seg button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 11px;font-family:inherit;font-size:9.5px;color:var(--ink-3);cursor:pointer;letter-spacing:.04em}
+  .ct-seg button.on{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+  .ct-diff{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}
+  .ct-diff button{border:1px solid var(--line);background:transparent;border-radius:12px;padding:9px 4px;font-family:inherit;cursor:pointer;color:var(--ink-3);font-size:9px;letter-spacing:.04em}
+  .ct-diff button.on{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+  .ct-diff b{display:block;font-size:10px;font-weight:600;margin-bottom:3px;letter-spacing:.06em}
+  .ct-theme{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .ct-theme button{border:1px solid var(--line);background:transparent;border-radius:16px;padding:7px;cursor:pointer;font-family:inherit;font-size:9px;letter-spacing:.08em;color:var(--ink-2);display:flex;flex-direction:column;gap:6px;align-items:center}
+  .ct-theme button.on{border-color:var(--primary);background:var(--primary-soft);color:var(--ink)}
+  .ct-theme i{width:100%;height:44px;border-radius:9px;display:block;position:relative;overflow:hidden}
+  .ct-night{background:radial-gradient(40px 26px at 50% 55%,rgba(201,162,39,.24),transparent 70%),#0E1713}
+  .ct-night::after{content:"";position:absolute;left:50%;top:52%;width:24px;height:24px;border-radius:50%;border:1px solid rgba(201,162,39,.5);transform:translate(-50%,-50%)}
+  .ct-day{background:linear-gradient(180deg,#F6F5EF 0 62%,#E0E1D8 62% 100%)}
+  .ct-day::after{content:"";position:absolute;left:10px;right:10px;top:9px;height:4px;border-radius:2px;background:#8A6B2F;opacity:.6}
+  .ct-skins{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}
+  .ct-skins button{border:1px solid var(--line);background:transparent;border-radius:12px;padding:6px;cursor:pointer;font-family:inherit;font-size:8.5px;color:var(--ink-3);display:flex;flex-direction:column;gap:5px;align-items:center}
+  .ct-skins button.on{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+  .ct-skins i{width:100%;height:18px;border-radius:5px;display:block}
+  .note{font-size:8.5px;color:var(--ink-3);line-height:1.6;padding:12px 0 0}
+  .board-foot{max-width:1440px;margin:16px auto 0;display:flex;justify-content:space-between;font-size:10px;color:var(--board-ink-2);letter-spacing:.04em}
+  .board-foot b{font-weight:600;color:var(--board-ink)}
+</style>
+</head>
+<body>
+
+<header class="board-head">
+  <div>
+    <div class="kicker">Direction C / 03</div>
+    <h1>暗夜牌桌 · <em>Night Table</em></h1>
+    <div class="mood">墨绿绒面 / 黄铜描边 / 低照度长局 / 夜间优先</div>
+  </div>
+  <div class="bh-right">
+    <div class="logic-tag">逻辑三 · 最佳设计师<br>以「高端棋牌俱乐部」的空间体验为参照：低照度、绒面、黄铜，把牌桌当成一间房而不是一块屏幕。</div>
+    <div class="swatches">
+      <div class="sw" style="background:#0A0F0D"><span>0A0F0D</span></div>
+      <div class="sw" style="background:#12281F"><span>12281F</span></div>
+      <div class="sw" style="background:#C9A227"><span>C9A227</span></div>
+      <div class="sw" style="background:#5FC2A0"><span>5FC2A0</span></div>
+      <div class="sw" style="background:#F5EFDD"><span>F5EFDD</span></div>
+    </div>
+    <div class="theme-toggle" data-theme-toggle>
+      <button data-theme-set="day">日间</button>
+      <button class="on" data-theme-set="night">夜间</button>
+    </div>
+  </div>
+</header>
+
+<main class="board" id="board"></main>
+
+<div class="board-foot">
+  <span><b>麻将 · 视觉方向初稿 C</b> · 390 × 844 基准 · 可点击：场次、玩法、开关、主题、牌张、胡牌</span>
+  <span>docs/design/direction-c-night.html</span>
+</div>
+
+<template id="app-tpl">
+  <div class="status">
+    <span>9:41</span>
+    <span class="sys">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+      <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M1 3.8a9.5 9.5 0 0 1 13 0"/><path d="M3.6 6.4a5.7 5.7 0 0 1 7.8 0"/><circle cx="7.5" cy="9.3" r=".9" fill="currentColor" stroke="none"/></svg>
+      <svg width="23" height="11" viewBox="0 0 23 11" fill="none"><rect x=".5" y=".5" width="19" height="10" rx="2.6" stroke="currentColor" opacity=".45"/><rect x="2" y="2" width="14.5" height="7" rx="1.4" fill="currentColor"/><path d="M21.4 3.6v3.8c.9-.3 1.3-.9 1.3-1.9s-.4-1.6-1.3-1.9Z" fill="currentColor" opacity=".55"/></svg>
+    </span>
+  </div>
+
+  <section class="screen screen--lobby">
+    <div class="c-top">
+      <div class="club">雀 馆<span>THE MAHJONG ROOM</span></div>
+      <div class="member"><b>林知远</b>三段 · 12,800</div>
+    </div>
+    <div class="c-scroll">
+      <div class="c-greet">晚上好，<b>知远</b></div>
+      <div class="c-sub">今晚想坐哪一桌？</div>
+      <div class="c-modes"><button>国标麻将</button><button class="on">广东麻将</button><button>四人局</button></div>
+
+      <div class="carousel">
+        <div class="tcard side"><span class="num">20</span><b>高手场</b></div>
+        <div class="tcard main">
+          <div class="tc-eyebrow">FEATURED TABLE</div>
+          <div class="tc-main">
+            <div class="tc-base">100<small>底 分</small></div>
+            <div class="tc-name">大 师 场</div>
+            <div class="tc-meta">入场 200,000 · 大师 AI</div>
+            <div class="tc-ai">● 夜间优先 · 长局</div>
+          </div>
+          <div class="tc-foot"><span>东风 · 四人 · 广东</span><button class="tc-enter" data-go="table" aria-label="入座">→</button></div>
+        </div>
+        <div class="tcard side"><span class="num">5</span><b>进阶场</b></div>
+      </div>
+      <div class="tier-dots"><i></i><i></i><i class="on"></i><i></i></div>
+
+      <div class="c-quick">
+        <div class="chips"><button>单机练习</button><button class="on">联机匹配</button><button>好友房</button></div>
+        <div class="c-ai"><span>AI 强度</span><b><span class="mini-bars"><i class="on"></i><i class="on"></i><i></i><i></i></span>熟练</b></div>
+      </div>
+
+      <div class="c-list">
+        <div class="c-row"><span class="nm">新手场 · 入门 AI</span><span class="base">1 底分</span><span class="arr">→</span></div>
+        <div class="c-row"><span class="nm">进阶场 · 熟练 AI</span><span class="base">5 底分</span><span class="arr">→</span></div>
+        <div class="c-row"><span class="nm">高手场 · 老练 AI</span><span class="base">20 底分</span><span class="arr">→</span></div>
+      </div>
+    </div>
+    <button class="c-start" data-go="table">快 速 开 始</button>
+    <nav class="c-nav">
+      <button class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>大厅</button>
+      <button data-go="table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17"/></svg>牌桌</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h9l3.5 3.5v13.5h-12z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>战绩</button>
+      <button data-go="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c.7-3.6 3.7-5.6 7.5-5.6s6.8 2 7.5 5.6"/></svg>我的</button>
+    </nav>
+  </section>
+
+  <section class="screen screen--table">
+    <div class="c-hud">
+      <div class="c-room">房号 <b>8821</b></div>
+      <div class="c-round"><b>东 风 · 第 二 局</b><span>余 42 张 · 底分 1 · 广东</span></div>
+      <div class="c-timer">00:12</div>
+    </div>
+    <div style="position:relative;flex:1;z-index:2">
+      <div class="c-opp c-opp--top">
+        <div class="c-opp-line"><div class="c-av">周</div><div><div class="c-name">周叙</div><div class="c-score">24,580</div></div><span class="c-wind">北</span></div>
+        <div class="c-backs" data-backs="13"></div>
+      </div>
+      <div class="c-opp c-opp--left">
+        <div class="c-opp-line"><div class="c-av">陈</div><div><div class="c-name">陈见山</div><div class="c-score">18,240</div></div><span class="c-wind">西</span></div>
+        <div class="c-backs" data-backs="13"></div>
+      </div>
+      <div class="c-opp c-opp--right">
+        <div class="c-opp-line"><div class="c-av">苏</div><div><div class="c-name">苏晚</div><div class="c-score">31,900</div></div><span class="c-wind">南</span></div>
+        <div class="c-backs" data-backs="13"></div>
+      </div>
+
+      <div class="c-pool">
+        <div class="c-pool-head"><b>牌 河</b><span class="sep"></span><span>第 二 局</span><span class="sep"></span><span>剩 42</span></div>
+        <div class="c-grid" data-pool></div>
+      </div>
+
+      <div class="c-me">
+        <div class="c-meld">
+          <span class="tag">碰</span>
+          <span class="mini" data-tile="wan-5"></span><span class="mini" data-tile="wan-5"></span><span class="mini" data-tile="wan-5"></span>
+          <span style="font-size:8px;color:var(--on-table-2);letter-spacing:.04em">五万</span>
+        </div>
+        <div class="c-myline">
+          <div class="c-me-info"><b>林知远</b>22,460 · 东</div>
+          <div class="c-hand" data-hand></div>
+        </div>
+      </div>
+    </div>
+    <div class="c-bottom">
+      <div class="c-hint">可 胡 · 清一色 · 碰碰胡 · 10 番</div>
+      <div class="c-actions">
+        <button class="c-act pass">过</button>
+        <button class="c-act">吃</button>
+        <button class="c-act">碰</button>
+        <button class="c-act">杠</button>
+        <button class="c-act hu" data-go="settle">胡</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen screen--settle">
+    <div class="cs-head">
+      <button class="c-act" style="min-width:30px;width:30px;height:30px;padding:0;border-color:var(--line);background:transparent;color:var(--ink)" data-go="table" aria-label="返回">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <b>本 局 结 算</b><span>ROUND 02</span>
+    </div>
+    <div class="cs-body">
+      <div class="cs-hero">
+        <span class="cs-tag">自 摸</span>
+        <div class="cs-name"><b>林知远</b> 胡牌</div>
+        <div class="cs-sub">清一色 · 碰碰胡 · 门前清</div>
+        <div class="cs-delta">+30<small>底分 1 · 三家支付</small></div>
+      </div>
+
+      <div class="cs-hand" data-winhand></div>
+      <div class="cs-note">胡牌张 · 三万 · 已以黄铜线标出</div>
+
+      <div class="cs-board">
+        <div class="cs-pl me"><div class="av">林</div><div class="nm">林知远</div><div class="win">自摸</div><div class="dl plus">+30</div></div>
+        <div class="cs-pl"><div class="av">苏</div><div class="nm">苏晚</div><div class="win">未胡</div><div class="dl minus">−10</div></div>
+        <div class="cs-pl"><div class="av">陈</div><div class="nm">陈见山</div><div class="win">未胡</div><div class="dl minus">−10</div></div>
+        <div class="cs-pl"><div class="av">周</div><div class="nm">周叙</div><div class="win">未胡</div><div class="dl minus">−10</div></div>
+      </div>
+
+      <div class="cs-sec"><b>番 型 明 细</b><span>10 番 × 底分 1</span></div>
+      <div class="cs-fans">
+        <div class="cs-chip hi">清一色 <b>5</b></div>
+        <div class="cs-chip">碰碰胡 <b>3</b></div>
+        <div class="cs-chip">自摸 <b>1</b></div>
+        <div class="cs-chip">花牌 <b>1</b></div>
+      </div>
+      <div class="cs-total"><span>合计 · 每家支付</span><b>10 分</b></div>
+    </div>
+    <div class="cs-cta">
+      <button data-go="table">再 来 一 局</button>
+      <button class="back" data-go="lobby">返回大厅</button>
+    </div>
+  </section>
+
+  <section class="screen screen--settings">
+    <div class="ct-head">
+      <button class="c-act" style="min-width:30px;width:30px;height:30px;padding:0;border-color:var(--line);background:transparent;color:var(--ink)" data-go="lobby" aria-label="返回">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h2>设 置</h2><span>v1.0.0</span>
+    </div>
+    <div class="ct-body">
+      <div class="ct-grp">
+        <div class="ct-grp-title"><b>玩 法 规 则</b><span>当前 · 广东麻将</span></div>
+        <div class="ct-seg" data-seg="ruleMode"><button>国标</button><button class="on">广东</button><button>花牌</button><button>抢杠胡</button></div>
+        <div class="ct-row"><div class="ct-label">花牌计番<small>春夏秋冬、梅兰竹菊</small></div><button class="ct-sw" aria-pressed="true" data-switch></button></div>
+        <div class="ct-row"><div class="ct-label">抢杠胡<small>他人补杠时可抢胡</small></div><button class="ct-sw" aria-pressed="true" data-switch></button></div>
+        <div class="ct-row"><div class="ct-label">一炮多响<small>多方可同时胡同一张</small></div><button class="ct-sw" aria-pressed="false" data-switch></button></div>
+        <div class="ct-row"><div class="ct-label">荒庄流局<small>牌墙摸完即结束本局</small></div><button class="ct-sw" aria-pressed="true" data-switch></button></div>
+      </div>
+
+      <div class="ct-grp">
+        <div class="ct-grp-title"><b>对 局 偏 好</b><span>仅影响本地体验</span></div>
+        <div class="ct-row"><div class="ct-label">自动摸打<small>摸牌后自动打出建议张</small></div><button class="ct-sw" aria-pressed="false" data-switch></button></div>
+        <div class="ct-row"><div class="ct-label">可胡提示<small>听牌时在牌张上标记</small></div><button class="ct-sw" aria-pressed="true" data-switch></button></div>
+        <div class="ct-row"><div class="ct-label">音效</div><button class="ct-sw" aria-pressed="true" data-switch></button></div>
+        <div class="ct-row"><div class="ct-label">震动反馈</div><button class="ct-sw" aria-pressed="true" data-switch></button></div>
+      </div>
+
+      <div class="ct-grp">
+        <div class="ct-grp-title"><b>A I 难 度</b><span>单机 / 练习场</span></div>
+        <div class="ct-diff">
+          <button><b>入门</b>慢节奏</button>
+          <button class="on"><b>熟练</b>会防守</button>
+          <button><b>老练</b>会做牌</button>
+          <button><b>大师</b>会控场</button>
+        </div>
+      </div>
+
+      <div class="ct-grp">
+        <div class="ct-grp-title"><b>外 观</b><span>日间 / 夜间自动适配</span></div>
+        <div class="ct-theme">
+          <button data-theme-set="night" class="on"><i class="ct-night"></i>夜间牌桌</button>
+          <button data-theme-set="day"><i class="ct-day"></i>日间牌桌</button>
+        </div>
+        <div class="ct-row" style="margin-top:4px"><div class="ct-label">牌面字号<small>小屏与长辈模式</small></div>
+          <div class="ct-seg" style="padding:0;margin:0" data-seg="tileSize"><button class="on">标准</button><button>放大</button></div>
+        </div>
+        <div class="ct-grp-title" style="margin-top:8px"><b>牌 桌 皮 肤</b><span>三段可选</span></div>
+        <div class="ct-skins">
+          <button class="on"><i style="background:#1C3C30"></i>墨绿</button>
+          <button><i style="background:#3A2E22"></i>胡桃</button>
+          <button><i style="background:#1E2A38"></i>深靛</button>
+        </div>
+      </div>
+      <div class="note">牌局记录与账号安全在「我的 · 设置」二级页；本页仅保留对局相关项。</div>
+    </div>
+  </section>
+
+  <div class="home-bar"></div>
+</template>
+
+<script>
+const NUM = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+const HONOR = { E:'東', S:'南', W:'西', N:'北', Z:'中', F:'發', B:'白' };
+const HONOR_NAME = { E:'东风', S:'南风', W:'西风', N:'北风', Z:'红中', F:'发财', B:'白板' };
+const DOT_LAYOUT = {
+  1:[[30,42]],2:[[30,25],[30,57]],3:[[30,20],[20,42],[40,64]],
+  4:[[20,27],[40,27],[20,57],[40,57]],5:[[19,22],[41,22],[30,42],[19,62],[41,62]],
+  6:[[20,20],[40,20],[20,40],[40,40],[20,60],[40,60]],
+  7:[[18,21],[30,21],[42,21],[22,47],[38,47],[22,63],[38,63]],
+  8:[[21,16],[39,16],[21,32],[39,32],[21,48],[39,48],[21,64],[39,64]],
+  9:[[18,20],[30,20],[42,20],[18,41],[30,41],[42,41],[18,62],[30,62],[42,62]]
+};
+const STICK_LAYOUT = {
+  2:[[30,24],[30,56]],3:[[18,22],[30,42],[42,62]],
+  4:[[20,26],[40,26],[20,56],[40,56]],5:[[19,22],[41,22],[30,42],[19,62],[41,62]],
+  6:[[20,20],[40,20],[20,41],[40,41],[20,62],[40,62]],
+  7:[[18,18],[30,18],[42,18],[22,42],[38,42],[22,62],[38,62]],
+  8:[[21,15],[39,15],[21,32],[39,32],[21,49],[39,49],[21,66],[39,66]],
+  9:[[18,18],[30,18],[42,18],[18,40],[30,40],[42,40],[18,62],[30,62],[42,62]]
+};
+function dot(cx,cy,r,red){
+  const c = red ? 'var(--tile-red)' : 'var(--tile-blue)';
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}"/><circle cx="${cx}" cy="${cy}" r="${r*.54}" fill="var(--tile-face)"/><circle cx="${cx}" cy="${cy}" r="${r*.2}" fill="${c}"/>`;
+}
+function stick(cx,cy,h,red){
+  const c = red ? 'var(--tile-red)' : 'var(--tile-green)';
+  return `<rect x="${cx-2.6}" y="${cy-h/2}" width="5.2" height="${h}" rx="2.6" fill="${c}"/>
+    <path d="M${cx-2.1} ${cy-1.7}h4.2M${cx-2.1} ${cy+1.7}h4.2" stroke="var(--tile-face)" stroke-width=".8" opacity=".75"/>`;
+}
+function glyph(kind,n){
+  if(kind==='wan') return `<text class="tile-idx" x="8" y="15" font-size="8.6" fill="var(--tile-idx)">${n}</text>
+    <text x="30" y="49" text-anchor="middle" font-size="31" font-weight="600" fill="var(--tile-red)">${NUM[n]}</text>
+    <text x="30" y="70" text-anchor="middle" font-size="18" font-weight="600" fill="var(--tile-ink)">萬</text>`;
+  if(kind==='tong'){
+    if(+n===1) return `<circle cx="30" cy="40" r="15" fill="none" stroke="var(--tile-blue)" stroke-width="3"/>
+      <circle cx="30" cy="40" r="9.5" fill="var(--tile-blue)"/><circle cx="30" cy="40" r="5" fill="var(--tile-face)"/><circle cx="30" cy="40" r="2" fill="var(--tile-red)"/>`;
+    const r = +n<=2?9:+n<=5?7.2:+n<=6?6.6:+n===7?5.4:+n===8?5.2:5.6;
+    return DOT_LAYOUT[n].map((p,i)=>dot(p[0],p[1],r,i===0&&+n===5)).join('');
+  }
+  if(kind==='tiao'){
+    if(+n===1) return `<path d="M30 17c0 15 0 30 0 45" stroke="var(--tile-green)" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+      <path d="M30 32c-8-4-13 1-15 8 8 1 12-2 15-8Z" fill="var(--tile-green)"/>
+      <path d="M30 44c8-4 13 1 15 8-8 1-12-2-15-8Z" fill="var(--tile-green)"/>
+      <circle cx="30" cy="15" r="3.2" fill="var(--tile-red)"/>`;
+    const h = +n>=8?10:+n===9?9.5:12;
+    return STICK_LAYOUT[n].map((p,i)=>stick(p[0],p[1],h,i===2&&+n===5)).join('');
+  }
+  if(kind==='zi'){
+    if(n==='B') return `<rect x="15" y="21" width="30" height="38" rx="3" fill="none" stroke="var(--tile-blue)" stroke-width="3"/>
+      <rect x="21" y="27" width="18" height="26" rx="2" fill="none" stroke="var(--tile-blue)" stroke-width="1.1" opacity=".6"/>`;
+    const color = n==='Z'?'var(--tile-red)':n==='F'?'var(--tile-green)':'var(--tile-ink)';
+    return `<text x="30" y="54" text-anchor="middle" font-size="31" font-weight="600" fill="${color}">${HONOR[n]}</text>`;
+  }
+  return '';
+}
+function tile(kind,n,cls=''){
+  const nm = kind==='zi'?HONOR_NAME[n]:(kind==='wan'?'万':kind==='tiao'?'条':'筒');
+  const label = kind==='zi'?nm:`${NUM[n]}${nm}`;
+  return `<svg class="tile ${cls}" viewBox="0 0 60 80" role="img" aria-label="${label}">
+    <rect x="1" y="1" width="58" height="78" rx="8" fill="var(--tile-face)" stroke="var(--tile-edge)" stroke-width="1.3"/>
+    <rect x="5.5" y="5.5" width="49" height="69" rx="4.5" fill="none" stroke="var(--tile-inner)" stroke-width="1" opacity=".7"/>
+    ${glyph(kind,n)}
+  </svg>`;
+}
+const POOL = ['tong-9','wan-9','tiao-2','zi-S','tong-1','wan-1','zi-W','tiao-8','tong-6','wan-4','zi-N','tiao-6','tong-8','wan-3','zi-Z','tiao-4','tong-2','wan-7','tong-5','wan-6'];
+const HAND = ['wan-2','wan-2','wan-2','wan-8','wan-8','wan-8','wan-3','wan-3','wan-9','wan-9'];
+const DRAWN = 'wan-3';
+const WIN_HAND = [{tiles:['wan-2','wan-2','wan-2']},{tiles:['wan-3','wan-3','wan-3'],win:true},{tiles:['wan-5','wan-5','wan-5'],meld:'碰'},{tiles:['wan-8','wan-8','wan-8']},{tiles:['wan-9','wan-9']}];
+
+const TITLES = [
+  {id:'01',name:'大厅',view:'lobby',note:'场次 / 玩法 / 快速开始'},
+  {id:'02',name:'对局桌',view:'table',note:'四家 / 牌河 / 手牌动作'},
+  {id:'03',name:'结算',view:'settle',note:'番型明细 / 分数变化'},
+  {id:'04',name:'设置',view:'settings',note:'规则 / AI / 双主题'}
+];
+const board = document.getElementById('board');
+const tpl = document.getElementById('app-tpl');
+TITLES.forEach(meta=>{
+  const fig = document.createElement('figure');
+  fig.className='device-wrap';
+  fig.innerHTML=`<figcaption><b>${meta.id}</b>${meta.name}<span>${meta.note}</span></figcaption>
+    <div class="scaler-wrap"><div class="scaler"><div class="phone" data-view="${meta.view}" data-theme="night"></div></div></div>`;
+  fig.querySelector('.phone').appendChild(tpl.content.cloneNode(true));
+  board.appendChild(fig);
+});
+document.querySelectorAll('.phone').forEach(ph=>{
+  ph.querySelectorAll('[data-tile]').forEach(el=>{
+    const [k,v]=el.getAttribute('data-tile').split('-');
+    el.innerHTML=tile(k,v);
+  });
+  ph.querySelectorAll('[data-backs]').forEach(el=>{
+    el.innerHTML=Array.from({length:+el.dataset.backs},()=>'<span class="c-back"></span>').join('');
+  });
+  const pool=ph.querySelector('[data-pool]');
+  if(pool) pool.innerHTML=POOL.map((id,i)=>{const [k,v]=id.split('-');return `<span class="tile-wrap ${i===4?'last':''}">${tile(k,v)}</span>`;}).join('');
+  const hand=ph.querySelector('[data-hand]');
+  if(hand){
+    const hs=HAND.map((id,i)=>{const [k,v]=id.split('-');return `<span class="tile-wrap ${i===2?'sel':''}">${tile(k,v)}</span>`;}).join('');
+    const [k,v]=DRAWN.split('-');
+    hand.innerHTML=hs+`<span class="tile-wrap drawn">${tile(k,v)}</span>`;
+  }
+  const win=ph.querySelector('[data-winhand]');
+  if(win) win.innerHTML=WIN_HAND.map(g=>`<div class="grp">${g.tiles.map(id=>{const [k,v]=id.split('-');return `<span class="tile-wrap ${g.win&&v==='3'?'win':''}">${tile(k,v)}</span>`;}).join('')}</div>`).join('');
+});
+
+function setTheme(value){
+  const resolved = value==='system'?'night':value;
+  document.querySelectorAll('.phone').forEach(p=>p.dataset.theme=resolved);
+  document.querySelectorAll('[data-theme-set]').forEach(b=>b.classList.toggle('on',b.dataset.themeSet===value));
+}
+document.addEventListener('click',e=>{
+  const tb=e.target.closest('[data-theme-set]');
+  if(tb){setTheme(tb.dataset.themeSet);return;}
+  const go=e.target.closest('[data-go]');
+  if(go){const ph=go.closest('.phone');ph.dataset.view=go.dataset.go;return;}
+  const seg=e.target.closest('[data-seg] button');
+  if(seg){seg.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));seg.classList.add('on');return;}
+  const mode=e.target.closest('.c-modes button');
+  if(mode){mode.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));mode.classList.add('on');return;}
+  const chip=e.target.closest('.chips button');
+  if(chip){chip.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));chip.classList.add('on');return;}
+  const sw=e.target.closest('[data-switch]');
+  if(sw){sw.setAttribute('aria-pressed',sw.getAttribute('aria-pressed')==='true'?'false':'true');return;}
+  const diff=e.target.closest('.ct-diff button');
+  if(diff){diff.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));diff.classList.add('on');return;}
+  const skin=e.target.closest('.ct-skins button');
+  if(skin){skin.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));skin.classList.add('on');return;}
+  const ht=e.target.closest('.c-hand .tile-wrap');
+  if(ht){ht.parentElement.querySelectorAll('.tile-wrap').forEach(t=>t.classList.remove('sel'));ht.classList.add('sel');}
+});
+</script>
+</body>
+</html>

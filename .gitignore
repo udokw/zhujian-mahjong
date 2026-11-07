@@ -1,0 +1,67 @@
+# ---------- 构建产物 ----------
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+.gradle/
+.kotlin/
+captures/
+.cxx/
+*.apk
+*.aab
+*.ipa
+*.dSYM.zip
+dist/
+build-artifacts/
+iosApp/Payload/
+
+# ---------- 本地配置 ----------
+local.properties
+*.keystore
+*.jks
+
+# ---------- Xcode ----------
+**/xcuserdata/
+**/*.xcuserstate
+**/DerivedData/
+*.xccheckout
+*.xcscmblueprint
+
+# ---------- IDE ----------
+.idea/
+.vscode/
+*.iml
+*.hprof
+
+# ---------- 系统 ----------
+.DS_Store
+Thumbs.db
+
+# ---------- 调试/截图等非源码产物 ----------
+.screenshots/
+.tmp/
+.trae-html-share-packages/
+bframes/
+wframes/
+rec1frames/
+burst/
+*.mp4
+*.csv
+/b0.png
+/b1.png
+/a0.png
+/a1.png
+/auto_1.png
+/auto_2.png
+/dbg*.png
+/f019_crop.png
+/g1.png
+/gallery*.png
+/hand_crop.png
+/lobby_check.png
+/online_tenpai.png
+/s0.png
+/s0_hand.png
+/s[0-9]*.png
+/set[0-9].png
+/t[0-9].png
+/theme_after_*.png

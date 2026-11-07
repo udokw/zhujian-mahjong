@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向 B · 明快几何 | 麻将视觉方向初稿</title>
+<style>
+  /* ========== 设计板画布 ========== */
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --board-bg:#EDF1F6; --board-ink:#151A21; --board-ink-2:#5A6575; --board-line:#DCE2EB;
+    --sans:"HarmonyOS Sans SC","MiSans","PingFang SC","Source Han Sans SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    --mono:"SF Mono","JetBrains Mono",ui-monospace,monospace;
+  }
+  body{
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #FFFFFF 0%, rgba(255,255,255,0) 60%),
+      var(--board-bg);
+    color:var(--board-ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;padding:30px 40px 34px;
+  }
+  .board-head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;max-width:1440px;margin:0 auto 22px}
+  .kicker{font-size:10px;letter-spacing:.22em;color:var(--board-ink-2);font-weight:600;text-transform:uppercase}
+  .board-head h1{font-size:30px;line-height:1.15;letter-spacing:-.02em;margin:8px 0 6px;font-weight:700}
+  .board-head h1 em{font-style:normal;color:#2A5FD9}
+  .mood{font-size:12.5px;color:var(--board-ink-2);letter-spacing:.02em}
+  .bh-right{display:flex;align-items:center;gap:22px}
+  .swatches{display:flex;gap:7px}
+  .sw{width:26px;height:26px;border-radius:8px;border:1px solid rgba(20,30,45,.14);position:relative}
+  .sw span{position:absolute;left:0;right:0;bottom:-16px;text-align:center;font-size:9px;color:var(--board-ink-2);letter-spacing:.02em}
+  .theme-toggle{display:flex;background:#FFFFFF;border:1px solid var(--board-line);border-radius:12px;padding:3px}
+  .theme-toggle button{border:0;background:transparent;font-family:inherit;font-size:12px;color:var(--board-ink-2);padding:7px 13px;border-radius:9px;cursor:pointer}
+  .theme-toggle button.on{background:#151A21;color:#fff}
+  .logic-tag{font-size:10px;line-height:1.5;color:var(--board-ink-2);border-left:2px solid #3D7AFD;padding-left:9px;max-width:180px}
+  /* ========== 设备陈列 ========== */
+  .board{display:flex;gap:26px;justify-content:center;align-items:flex-start;max-width:1440px;margin:0 auto}
+  .device-wrap{width:312px}
+  .device-wrap figcaption{display:flex;align-items:baseline;gap:7px;font-size:12px;color:var(--board-ink-2);margin-bottom:9px;padding-left:2px}
+  .device-wrap figcaption b{font-family:var(--mono);font-size:10px;color:#2A5FD9;letter-spacing:.06em}
+  .device-wrap figcaption span{margin-left:auto;font-size:10px;letter-spacing:.08em;color:#8B96A6}
+  .scaler{width:390px;height:844px;transform:scale(.8);transform-origin:top left}
+  .scaler-wrap{width:312px;height:675.2px;border-radius:40px;background:#11161D;padding:0;overflow:hidden}
+  .phone{width:390px;height:844px;position:relative;overflow:hidden;background:var(--bg);border:8px solid #11161D;border-radius:42px}
+  /* ========== 主题令牌（App 内） ========== */
+  .phone[data-theme="day"]{
+    --bg:#F5F7FA; --surface:#FFFFFF; --surface-2:#EDF1F7; --surface-3:#E4EAF3;
+    --ink:#1D2129; --ink-2:#4E5969; --ink-3:#646E7E; --disabled:#A9B2C0;
+    --line:#E5E8EF; --line-strong:#D4DAE4;
+    --primary:#2C63E0; --primary-deep:#2450B8; --primary-soft:#EAF1FF;
+    --gold:#7E540C; --gold-soft:#FBF1DD;
+    --red:#B33636; --red-soft:#FCEBEB;
+    --green:#0E6B4C; --green-soft:#E6F5EF;
+    --table-1:#1B4A3D; --table-2:#143D33; --table-3:#0D2C25;
+    --on-table:#F2F7F4; --on-table-2:#B9CEC4; --table-line:rgba(255,255,255,.14);
+    --tile-face:#FFFFFF; --tile-edge:#DCE2EC; --tile-inner:#EDF1F6;
+    --tile-ink:#1D2129; --tile-red:#C63C3C; --tile-blue:#2F6FE4; --tile-green:#1B7F53;
+    --tile-idx:#8A96A6; --tile-back:#E9EFF9; --tile-back-line:#C9D6EA;
+    --glyph:var(--sans); --nav-bg:#FFFFFF;
+  }
+  .phone[data-theme="night"]{
+    --bg:#0F141B; --surface:#161D26; --surface-2:#1C2531; --surface-3:#243040;
+    --ink:#E8EDF4; --ink-2:#A7B3C4; --ink-3:#8B98AA; --disabled:#5E6B7D;
+    --line:#253040; --line-strong:#33415A;
+    --primary:#3D6FE0; --primary-deep:#7DA4FF; --primary-soft:#182742;
+    --gold:#E5B863; --gold-soft:#2E2413;
+    --red:#EE6A6A; --red-soft:#38191B;
+    --green:#4CC79A; --green-soft:#102B24;
+    --table-1:#16443A; --table-2:#0E332B; --table-3:#082019;
+    --on-table:#EEF5F1; --on-table-2:#A9C2B7; --table-line:rgba(255,255,255,.12);
+    --tile-face:#F4F1E8; --tile-edge:#C7C1AF; --tile-inner:#E6E1D2;
+    --tile-ink:#1A211D; --tile-red:#B94A3E; --tile-blue:#38679A; --tile-green:#2F7A5C;
+    --tile-idx:#8C8877; --tile-back:#1D2A24; --tile-back-line:#3E5A4C;
+    --glyph:var(--sans); --nav-bg:#131A23;
+  }
+  .phone *::-webkit-scrollbar{display:none}
+  .phone *{scrollbar-width:none}
+  /* 状态栏 / Home */
+  .status{position:absolute;z-index:9;top:0;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12.5px;font-weight:600;color:var(--ink);letter-spacing:.02em;pointer-events:none}
+  .status .sys{display:flex;align-items:center;gap:5px}
+  .phone[data-view="table"] .status{color:#DDEBE4}
+  .home-bar{position:absolute;z-index:9;bottom:8px;left:50%;transform:translateX(-50%);width:128px;height:5px;border-radius:3px;background:var(--ink);opacity:.24;pointer-events:none}
+  .phone[data-view="table"] .home-bar{background:#DDEBE4;opacity:.5}
+  /* 通用屏幕 */
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;padding-top:44px;background:var(--bg)}
+  .phone[data-view="lobby"] .screen--lobby,
+  .phone[data-view="table"] .screen--table,
+  .phone[data-view="settle"] .screen--settle,
+  .phone[data-view="settings"] .screen--settings{display:flex}
+  .scroll{flex:1;overflow-y:auto;padding:0 20px 96px}
+  .icon{width:22px;height:22px;display:block;flex:none}
+  /* ========== 大厅 ========== */
+  .lb-head{display:flex;align-items:center;justify-content:space-between;padding:10px 20px 0}
+  .user{display:flex;align-items:center;gap:10px}
+  .avatar{width:40px;height:40px;border-radius:14px;background:var(--primary-soft);color:var(--primary-deep);display:grid;place-items:center;font-size:16px;font-weight:700;flex:none;border:1px solid var(--line)}
+  .user-name{font-size:14px;font-weight:650;line-height:1.2}
+  .user-rank{font-size:10.5px;color:var(--ink-3);margin-top:3px;font-variant-numeric:tabular-nums}
+  .currency{display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 9px;font-size:11px;font-weight:650;font-variant-numeric:tabular-nums}
+  .currency+.currency{margin-left:6px}
+  .wallet{display:flex}
+  .coin{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--gold);display:inline-block;position:relative}
+  .coin::after{content:"";position:absolute;inset:3px;border-radius:1px;background:var(--gold);opacity:.55}
+  .gem{width:11px;height:11px;background:var(--primary);transform:rotate(45deg);border-radius:2px;display:inline-block}
+  .lb-title{padding:20px 20px 14px}
+  .lb-title h2{font-size:25px;letter-spacing:-.02em;line-height:1.2;font-weight:700}
+  .lb-title p{font-size:11.5px;color:var(--ink-3);margin-top:6px;letter-spacing:.02em}
+  .seg-wrap{padding:0 20px}
+  .seg{display:flex;background:var(--surface-2);border-radius:14px;padding:4px;gap:4px}
+  .seg button{flex:1;border:0;background:transparent;font-family:inherit;color:var(--ink-2);font-size:12.5px;font-weight:600;height:34px;border-radius:10px;cursor:pointer;transition:background .18s,color .18s}
+  .seg button.on{background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:none}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;padding:22px 20px 10px}
+  .sec-head h3{font-size:14px;font-weight:650;letter-spacing:.01em}
+  .sec-head span{font-size:10px;color:var(--ink-3);letter-spacing:.03em}
+  .arena{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 20px}
+  .arena-card{position:relative;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:24px;padding:14px 14px 12px;cursor:pointer;font-family:inherit;color:var(--ink);transition:border-color .18s,background .18s,transform .14s}
+  .arena-card:active{transform:scale(.985)}
+  .arena-card.on{border-color:var(--primary);background:var(--primary-soft)}
+  .arena-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .arena-name{font-size:13.5px;font-weight:650}
+  .badge{font-size:9px;font-weight:600;color:var(--primary-deep);background:var(--surface);border:1px solid var(--primary);border-radius:999px;padding:2px 6px;line-height:1.3}
+  .arena-base{display:flex;align-items:baseline;gap:4px;margin-top:9px}
+  .arena-base b{font-size:26px;line-height:1;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .arena-base span{font-size:9.5px;color:var(--ink-3)}
+  .arena-meta{font-size:9.5px;color:var(--ink-3);margin-top:7px;font-variant-numeric:tabular-nums}
+  .bars{display:flex;gap:2px;position:absolute;right:13px;bottom:12px}
+  .bars i{width:3px;height:9px;border-radius:2px;background:var(--line-strong);display:block}
+  .bars i.on{background:var(--primary)}
+  .quick{margin:14px 20px 0;background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:14px}
+  .quick-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .quick-row+.quick-row{margin-top:12px}
+  .ai-label{font-size:11px;color:var(--ink-2)}
+  .ai-value{font-size:11px;font-weight:650;color:var(--ink);display:flex;align-items:center;gap:7px}
+  .ai-meter{display:flex;gap:3px}
+  .ai-meter i{width:12px;height:4px;border-radius:2px;background:var(--line-strong);display:block}
+  .ai-meter i.on{background:var(--primary)}
+  .btn{border:0;font-family:inherit;cursor:pointer;transition:transform .14s,background .18s}
+  .btn:active{transform:scale(.985)}
+  .btn-primary{width:100%;height:52px;border-radius:14px;background:var(--primary);color:#fff;font-size:15px;font-weight:650;margin-top:14px;display:flex;align-items:center;justify-content:center;gap:9px}
+  .btn-primary small{font-size:9.5px;font-weight:500;opacity:.78;letter-spacing:.02em}
+  .btn-ghost{width:100%;height:42px;border-radius:14px;background:transparent;border:1px solid var(--line);color:var(--ink-2);font-size:12.5px;font-weight:600;margin-top:8px}
+  .tabbar{position:absolute;z-index:8;left:0;right:0;bottom:0;height:76px;display:grid;grid-template-columns:repeat(4,1fr);background:var(--nav-bg);border-top:1px solid var(--line);padding:9px 8px 18px}
+  .tab{border:0;background:transparent;font-family:inherit;color:var(--ink-3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;cursor:pointer;border-radius:12px}
+  .tab svg{width:22px;height:22px}
+  .tab.on{color:var(--primary-deep);font-weight:650}
+  .tab.on .dot{width:16px;height:3px;border-radius:2px;background:var(--primary);margin-top:-1px}
+  .tab .dot{width:16px;height:3px;border-radius:2px;background:transparent}
+  /* ========== 对局桌 ========== */
+  .screen--table{
+    background:
+      radial-gradient(120% 78% at 50% 34%, var(--table-1) 0%, var(--table-2) 48%, var(--table-3) 100%);
+    color:var(--on-table);
+  }
+  .screen--table::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 31px, rgba(255,255,255,.022) 31px 32px),
+      repeating-linear-gradient(90deg, transparent 0 31px, rgba(255,255,255,.022) 31px 32px);
+  }
+  .tb-hud{position:relative;z-index:2;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 14px}
+  .hud-btn{width:36px;height:36px;border-radius:12px;border:1px solid var(--table-line);background:rgba(255,255,255,.05);color:var(--on-table);display:grid;place-items:center;cursor:pointer}
+  .hud-mid{text-align:center;line-height:1.25}
+  .hud-mid b{display:block;font-size:12.5px;font-weight:650;letter-spacing:.03em}
+  .hud-mid span{font-size:9.5px;color:var(--on-table-2);font-variant-numeric:tabular-nums}
+  .tb-body{position:relative;z-index:2;flex:1;padding:0 12px 0}
+  .opp{position:absolute;display:flex;align-items:center;gap:7px}
+  .opp--top{top:2px;left:50%;transform:translateX(-50%);flex-direction:column;gap:5px;width:220px}
+  .opp--left{left:0;top:176px;flex-direction:column;gap:5px;width:66px}
+  .opp--right{right:0;top:176px;flex-direction:column;gap:5px;width:66px}
+  .opp-line{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.055);border:1px solid var(--table-line);border-radius:12px;padding:4px 8px 4px 4px;min-width:0}
+  .opp--left .opp-line,.opp--right .opp-line{flex-direction:column;padding:5px 6px;gap:3px;width:64px}
+  .av-sm{width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.1);border:1px solid var(--table-line);display:grid;place-items:center;font-size:11px;font-weight:650;color:var(--on-table);flex:none}
+  .opp--top .av-sm{width:26px;height:26px;font-size:10.5px}
+  .opp-meta{line-height:1.2;min-width:0}
+  .opp-name{font-size:10.5px;font-weight:600;color:var(--on-table);white-space:nowrap}
+  .opp-score{font-size:9px;color:var(--on-table-2);font-variant-numeric:tabular-nums;margin-top:2px;white-space:nowrap}
+  .wind{position:absolute;top:-5px;right:-4px;width:16px;height:16px;border-radius:5px;background:var(--on-table);color:var(--table-3);font-size:9px;font-weight:700;display:grid;place-items:center}
+  .opp-line{position:relative}
+  .backs{display:flex;gap:1px}
+  .opp--top .backs{height:24px}
+  .opp--left .backs,.opp--right .backs{flex-direction:column;position:absolute;left:70px;top:0;height:auto}
+  .opp--right .backs{left:auto;right:70px}
+  .back{width:8px;height:22px;border-radius:2px;background:var(--tile-back);border:1px solid var(--tile-back-line)}
+  .opp--left .back,.opp--right .back{width:20px;height:6px}
+  .turn-tag{font-size:8.5px;color:#0E2C25;background:#CFE6DA;border-radius:999px;padding:1px 6px;font-weight:650;letter-spacing:.02em}
+  .river{position:absolute;left:50%;top:186px;transform:translateX(-50%);width:236px;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .river-head{display:flex;align-items:center;gap:7px;font-size:9.5px;color:var(--on-table-2);font-variant-numeric:tabular-nums}
+  .river-head b{color:var(--on-table);font-weight:600}
+  .river-head .sep{width:1px;height:8px;background:var(--table-line)}
+  .pool{display:grid;grid-template-columns:repeat(6,34px);grid-auto-rows:45px;gap:4px;justify-content:center}
+  .pool .slot{width:34px;height:45px;border-radius:4px;background:rgba(255,255,255,.035)}
+  .pool .tile-wrap{width:34px;height:45px}
+  .pool .tile-wrap.last{outline:1px solid #E8C97A;outline-offset:2px;border-radius:5px}
+  .pool .tile-wrap.last::after{content:"刚打";position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:8px;color:#F1D9A4;white-space:nowrap}
+  .tile-wrap{position:relative;display:block}
+  .tile{width:100%;height:100%;display:block;filter:none}
+  .my-area{position:absolute;left:0;right:0;bottom:96px;padding:0 10px}
+  .meld{display:flex;align-items:center;gap:5px;margin-bottom:7px;padding-left:2px}
+  .meld-tag{font-size:8.5px;color:var(--on-table-2);border:1px solid var(--table-line);border-radius:5px;padding:1px 4px;line-height:1.4}
+  .meld .mini{width:22px;height:30px}
+  .my-line{display:flex;align-items:flex-end;justify-content:space-between;gap:6px}
+  .my-info{font-size:9px;color:var(--on-table-2);line-height:1.4;font-variant-numeric:tabular-nums;flex:none;width:52px}
+  .my-info b{color:var(--on-table);font-size:10px;font-weight:650;display:block}
+  .hand{display:flex;gap:1.5px;align-items:flex-end;flex:1;justify-content:center}
+  .hand .tile-wrap{width:25px;height:33px;transition:transform .16s}
+  .hand .tile-wrap.sel{transform:translateY(-7px)}
+  .hand .drawn{width:30px;height:39px;margin-left:6px;position:relative}
+  .hand .drawn::after{content:"摸";position:absolute;top:-11px;left:50%;transform:translateX(-50%);font-size:7.5px;color:#F1D9A4;letter-spacing:.08em}
+  .tb-bottom{position:absolute;left:0;right:0;bottom:0;padding:7px 14px 20px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.28) 100%)}
+  .hint{display:flex;align-items:center;justify-content:center;gap:6px;font-size:9.5px;color:#F3E2BC;margin-bottom:7px;letter-spacing:.02em}
+  .hint i{width:5px;height:5px;border-radius:50%;background:#E8C97A;display:block}
+  .actions{display:flex;gap:7px;justify-content:center}
+  .act{height:44px;min-width:50px;padding:0 13px;border-radius:14px;border:1px solid var(--table-line);background:rgba(255,255,255,.09);color:var(--on-table);font-family:inherit;font-size:13.5px;font-weight:650;cursor:pointer;transition:transform .14s,background .18s}
+  .act:active{transform:scale(.96)}
+  .act.hu{background:#E8C97A;border-color:#E8C97A;color:#2A2110}
+  .act.pass{background:transparent;color:var(--on-table-2);border-color:transparent;min-width:40px;padding:0 8px}
+  /* ========== 结算 ========== */
+  .st-head{height:52px;display:flex;align-items:center;gap:10px;padding:0 14px;flex:none}
+  .st-head b{font-size:14px;font-weight:650;flex:1}
+  .st-head span{font-size:10px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .st-body{flex:1;overflow-y:auto;padding:0 20px 100px}
+  .winner{background:var(--primary-soft);border:1px solid var(--primary);border-radius:24px;padding:16px;position:relative;overflow:hidden}
+  .win-tag{display:inline-flex;align-items:center;gap:5px;background:var(--primary);color:#fff;font-size:10px;font-weight:650;border-radius:999px;padding:4px 9px;letter-spacing:.04em}
+  .win-main{display:flex;align-items:center;gap:12px;margin-top:12px}
+  .av-lg{width:52px;height:52px;border-radius:18px;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;font-size:19px;font-weight:700;color:var(--primary-deep);flex:none}
+  .win-name{font-size:17px;font-weight:700;line-height:1.25}
+  .win-sub{font-size:10.5px;color:var(--ink-2);margin-top:4px}
+  .win-score{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
+  .win-score b{font-size:28px;line-height:1;font-weight:700;color:var(--primary-deep);letter-spacing:-.02em}
+  .win-score span{display:block;font-size:9px;color:var(--ink-3);margin-top:5px}
+  .st-hand{display:flex;justify-content:center;align-items:flex-end;gap:4px;margin:14px 0 4px}
+  .st-hand .grp{display:flex;gap:1.5px;padding:3px 3px;border-radius:7px}
+  .st-hand .grp.meld{background:var(--surface-2)}
+  .st-hand .tile-wrap{width:23px;height:31px}
+  .st-hand .grp .tile-wrap.win{outline:1.5px solid var(--primary);outline-offset:1px;border-radius:4px}
+  .hand-note{text-align:center;font-size:9px;color:var(--ink-3);margin-bottom:14px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:15px 16px}
+  .fan-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .fan-head b{font-size:13px;font-weight:650}
+  .fan-head span{font-size:9.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .fan-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .fan-row:last-of-type{border-bottom:0}
+  .fan-name{font-size:12px;color:var(--ink-2);flex:1}
+  .fan-desc{font-size:9px;color:var(--ink-3);margin-top:2px}
+  .fan-chip{font-size:9.5px;font-weight:650;padding:3px 7px;border-radius:7px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .tier-1{background:var(--surface-2);color:var(--ink-2)}
+  .tier-2{background:var(--green-soft);color:var(--green)}
+  .tier-3{background:var(--gold-soft);color:var(--gold)}
+  .tier-4{background:var(--red-soft);color:var(--red)}
+  .fan-total{display:flex;align-items:center;justify-content:space-between;padding-top:11px;margin-top:3px;border-top:1px dashed var(--line-strong)}
+  .fan-total span{font-size:10.5px;color:var(--ink-2)}
+  .fan-total b{font-size:13px;font-variant-numeric:tabular-nums}
+  .players{margin-top:12px}
+  .pl{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:16px}
+  .pl.me{background:var(--primary-soft)}
+  .pl .av-sm{background:var(--surface-2);color:var(--ink-2);border-color:var(--line)}
+  .pl-name{font-size:12px;font-weight:600}
+  .pl-role{font-size:9px;color:var(--ink-3);margin-top:2px}
+  .pl-delta{margin-left:auto;font-size:15px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .delta-plus{color:var(--green)}
+  .delta-minus{color:var(--red)}
+  .st-cta{position:absolute;left:0;right:0;bottom:0;padding:12px 20px 22px;background:linear-gradient(180deg,rgba(245,247,250,0) 0%,var(--bg) 26%)}
+  .phone[data-theme="night"] .st-cta{background:linear-gradient(180deg,rgba(15,20,27,0) 0%,var(--bg) 26%)}
+  .cta-row{display:flex;gap:9px}
+  .cta-row .btn-primary{margin:0;flex:1.4}
+  .cta-row .btn-ghost{margin:0;flex:1;height:52px;font-size:13px}
+  /* ========== 设置 ========== */
+  .set-head{height:52px;display:flex;align-items:center;gap:10px;padding:0 14px;flex:none}
+  .set-head h2{font-size:17px;font-weight:700;flex:1}
+  .set-head span{font-size:9.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .set-body{flex:1;overflow-y:auto;padding:2px 20px 40px}
+  .grp{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:14px 15px;margin-bottom:12px}
+  .grp-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .grp-title b{font-size:12.5px;font-weight:650}
+  .grp-title span{font-size:9px;color:var(--ink-3);letter-spacing:.03em}
+  .row{display:flex;align-items:center;gap:10px;min-height:44px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .row-label{font-size:12px;color:var(--ink);flex:1;line-height:1.35}
+  .row-label small{display:block;font-size:9px;color:var(--ink-3);margin-top:2px}
+  .sw-btn{width:46px;height:27px;border-radius:14px;border:1px solid var(--line-strong);background:var(--surface-2);position:relative;cursor:pointer;transition:background .2s,border-color .2s;flex:none}
+  .sw-btn::after{content:"";position:absolute;top:2px;left:2px;width:21px;height:21px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.06);transition:transform .22s cubic-bezier(.22,1,.36,1)}
+  .sw-btn[aria-pressed="true"]{background:var(--primary);border-color:var(--primary)}
+  .sw-btn[aria-pressed="true"]::after{transform:translateX(19px)}
+  .inline-seg{display:flex;background:var(--surface-2);border-radius:11px;padding:3px;gap:3px;margin-bottom:8px}
+  .inline-seg button{flex:1;border:0;background:transparent;font-family:inherit;font-size:11px;color:var(--ink-2);height:29px;border-radius:8px;cursor:pointer}
+  .inline-seg button.on{background:var(--surface);color:var(--ink);border:1px solid var(--line);font-weight:600}
+  .diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .diff{border:1px solid var(--line);border-radius:14px;padding:9px 10px;text-align:left;background:transparent;font-family:inherit;cursor:pointer;color:var(--ink)}
+  .diff.on{border-color:var(--primary);background:var(--primary-soft)}
+  .diff b{font-size:11.5px;font-weight:650;display:block}
+  .diff span{font-size:9px;color:var(--ink-3);display:block;margin-top:3px;line-height:1.35}
+  .skins{display:flex;gap:8px;margin-top:4px}
+  .skin{flex:1;border:1px solid var(--line);border-radius:14px;padding:8px;background:transparent;font-family:inherit;cursor:pointer;color:var(--ink-2);font-size:9.5px;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .skin.on{border-color:var(--primary);background:var(--primary-soft);color:var(--ink)}
+  .skin i{width:100%;height:20px;border-radius:6px;display:block;position:relative;overflow:hidden}
+  .skin i::after{content:"";position:absolute;right:5px;top:5px;width:7px;height:7px;border-radius:50%}
+  .s-classic{background:linear-gradient(135deg,#EAF1FF 0 50%,#3D7AFD 50% 100%)}
+  .s-classic::after{background:#fff}
+  .s-bamboo{background:linear-gradient(135deg,#EEF3EA 0 50%,#2E6B52 50% 100%)}
+  .s-bamboo::after{background:#D9C6A8}
+  .s-ink{background:linear-gradient(135deg,#1A2420 0 50%,#C9A227 50% 100%)}
+  .s-ink::after{background:#E9E4D8}
+  /* 可选皮肤：只替换牌桌三色 + 高亮，不改 UI 主色与布局 */
+  .phone[data-skin="bamboo"]{--table-1:#2E4B42;--table-2:#213A33;--table-3:#142622;--table-gold:#C9D9C0}
+  .phone[data-skin="ink"]{--table-1:#232A28;--table-2:#171D1B;--table-3:#0B0F0E;--table-gold:#C9A227}
+  .note{font-size:9px;color:var(--ink-3);line-height:1.5;padding:2px 6px 0}
+  .board-foot{max-width:1440px;margin:16px auto 0;display:flex;justify-content:space-between;font-size:10px;color:var(--board-ink-2);letter-spacing:.02em}
+  .board-foot b{font-weight:600;color:var(--board-ink)}
+  /* 可读性修正：辅助文字不低于 10.5px，牌面去掉重复角标（生产规范见 design-system.md） */
+  .arena-meta,.arena-base span,.hud-mid span,.opp-score,.river-head,.my-info,.hint,
+  .win-score span,.fan-desc,.fan-head span,.fan-chip,.pl-role,.row-label small,
+  .diff span,.skin,.note,.sec-head span,.grp-title span{font-size:10.5px;line-height:1.5}
+  .tab{font-size:10.5px}
+  .badge,.meld-tag,.win-tag{font-size:10.5px}
+</style>
+</head>
+<body>
+
+<header class="board-head">
+  <div>
+    <div class="kicker">Direction B / 02 · Selected Base</div>
+    <h1>明快几何 · <em>Clear Geometric</em></h1>
+    <div class="mood">轻简美 / 24dp 圆角 / 零阴影 / 三层文字灰阶 / 双主题</div>
+  </div>
+  <div class="bh-right">
+    <div class="logic-tag">逻辑二 · 现实参照<br>以 Apple Design Award 级棋牌 App 的「克制信息密度 + 单主色贯穿」为标杆，迁移到麻将牌桌。</div>
+    <div class="swatches">
+      <div class="sw" style="background:#F5F7FA"><span>F5F7FA</span></div>
+      <div class="sw" style="background:#2C63E0"><span>2C63E0</span></div>
+      <div class="sw" style="background:#1D2129"><span>1D2129</span></div>
+      <div class="sw" style="background:#143D33"><span>143D33</span></div>
+      <div class="sw" style="background:#E8C97A"><span>E8C97A</span></div>
+    </div>
+    <div class="theme-toggle" data-theme-toggle>
+      <button class="on" data-theme-set="day">日间</button>
+      <button data-theme-set="night">夜间</button>
+    </div>
+  </div>
+</header>
+
+<main class="board" id="board"></main>
+
+<div class="board-foot">
+  <span><b>麻将 · 视觉方向初稿 B</b> · 390 × 844 基准 · 可点击：场次、玩法、开关、主题、牌张、胡牌</span>
+  <span>docs/design/direction-b-clear.html</span>
+</div>
+
+<template id="app-tpl">
+  <div class="status">
+    <span>9:41</span>
+    <span class="sys">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+      <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M1 3.8a9.5 9.5 0 0 1 13 0"/><path d="M3.6 6.4a5.7 5.7 0 0 1 7.8 0"/><circle cx="7.5" cy="9.3" r=".9" fill="currentColor" stroke="none"/></svg>
+      <svg width="23" height="11" viewBox="0 0 23 11" fill="none"><rect x=".5" y=".5" width="19" height="10" rx="2.6" stroke="currentColor" opacity=".45"/><rect x="2" y="2" width="14.5" height="7" rx="1.4" fill="currentColor"/><path d="M21.4 3.6v3.8c.9-.3 1.3-.9 1.3-1.9s-.4-1.6-1.3-1.9Z" fill="currentColor" opacity=".55"/></svg>
+    </span>
+  </div>
+
+  <!-- 大厅 -->
+  <section class="screen screen--lobby">
+    <div class="lb-head">
+      <div class="user">
+        <div class="avatar">林</div>
+        <div><div class="user-name">林知远</div><div class="user-rank">三段 · 1,280 分</div></div>
+      </div>
+      <div class="wallet">
+        <div class="currency"><i class="coin"></i>12,800</div>
+        <div class="currency"><i class="gem"></i>60</div>
+      </div>
+    </div>
+
+    <div class="scroll">
+      <div class="lb-title">
+        <h2>今晚，来一局</h2>
+        <p>四人局 · 国标 / 广东 · 随时开局</p>
+      </div>
+
+      <div class="seg-wrap">
+        <div class="seg" data-seg="mode">
+          <button data-seg-val="gb">国标麻将</button>
+          <button class="on" data-seg-val="gd">广东麻将</button>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <h3>选择场次</h3>
+        <span>AI 难度随场次提升</span>
+      </div>
+      <div class="arena" data-arena>
+        <button class="arena-card on">
+          <div class="arena-top"><span class="arena-name">新手场</span><span class="badge">推荐</span></div>
+          <div class="arena-base"><b>1</b><span>底分</span></div>
+          <div class="arena-meta">入场免费 · 入门 AI</div>
+          <div class="bars"><i class="on"></i><i></i><i></i><i></i></div>
+        </button>
+        <button class="arena-card">
+          <div class="arena-top"><span class="arena-name">进阶场</span></div>
+          <div class="arena-base"><b>5</b><span>底分</span></div>
+          <div class="arena-meta">入场 2,000 · 熟练 AI</div>
+          <div class="bars"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+        </button>
+        <button class="arena-card">
+          <div class="arena-top"><span class="arena-name">高手场</span></div>
+          <div class="arena-base"><b>20</b><span>底分</span></div>
+          <div class="arena-meta">入场 20,000 · 老练 AI</div>
+          <div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+        </button>
+        <button class="arena-card">
+          <div class="arena-top"><span class="arena-name">大师场</span></div>
+          <div class="arena-base"><b>100</b><span>底分</span></div>
+          <div class="arena-meta">入场 200,000 · 大师 AI</div>
+          <div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
+        </button>
+      </div>
+
+      <div class="quick">
+        <div class="quick-row">
+          <div class="seg" style="flex:1" data-seg="play">
+            <button data-seg-val="local">单机练习</button>
+            <button class="on" data-seg-val="online">联机匹配</button>
+          </div>
+        </div>
+        <div class="quick-row">
+          <span class="ai-label">AI 强度</span>
+          <span class="ai-value"><span class="ai-meter"><i class="on"></i><i class="on"></i><i></i><i></i></span>熟练</span>
+        </div>
+        <button class="btn btn-primary" data-go="table">快速开始 <small>东风 · 四人局 · 底分 1</small></button>
+        <button class="btn btn-ghost" data-go="table">创建好友房</button>
+      </div>
+    </div>
+
+    <nav class="tabbar">
+      <button class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>大厅<span class="dot"></span></button>
+      <button class="tab" data-go="table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="4" width="17" height="16" rx="4"/><path d="M3.5 10h17M10 4v16"/></svg>牌桌<span class="dot"></span></button>
+      <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h9l3.5 3.5v13.5h-12z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>战绩<span class="dot"></span></button>
+      <button class="tab" data-go="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c.7-3.6 3.7-5.6 7.5-5.6s6.8 2 7.5 5.6"/></svg>我的<span class="dot"></span></button>
+    </nav>
+  </section>
+
+  <!-- 对局桌 -->
+  <section class="screen screen--table">
+    <div class="tb-hud">
+      <button class="hud-btn" data-go="lobby" aria-label="返回">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="hud-mid"><b>东风局 · 第 2 局</b><span>余 42 张 · 底分 1 · 广东麻将</span></div>
+      <button class="hud-btn" aria-label="设置">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="10" cy="17" r="2" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
+
+    <div class="tb-body">
+      <div class="opp opp--top">
+        <div class="opp-line">
+          <div class="av-sm">周</div>
+          <div class="opp-meta"><div class="opp-name">周叙</div><div class="opp-score">24,580</div></div>
+          <span class="wind">北</span>
+        </div>
+        <div class="backs" data-backs="13"></div>
+      </div>
+
+      <div class="opp opp--left">
+        <div class="opp-line">
+          <div class="av-sm">陈</div>
+          <div class="opp-meta"><div class="opp-name">陈见山</div><div class="opp-score">18,240</div></div>
+          <span class="wind">西</span>
+        </div>
+        <div class="backs" data-backs="13"></div>
+      </div>
+
+      <div class="opp opp--right">
+        <div class="opp-line">
+          <div class="av-sm">苏</div>
+          <div class="opp-meta"><div class="opp-name">苏晚</div><div class="opp-score">31,900</div></div>
+          <span class="wind">南</span>
+        </div>
+        <div class="backs" data-backs="13"></div>
+      </div>
+
+      <div class="river">
+        <div class="river-head"><b>牌河</b><span class="sep"></span><span>东风 · 第 2 局</span><span class="sep"></span><span>剩 42</span></div>
+        <div class="pool" data-pool></div>
+      </div>
+
+      <div class="my-area">
+        <div class="meld">
+          <span class="meld-tag">碰</span>
+          <span class="mini" data-tile="wan-5"></span><span class="mini" data-tile="wan-5"></span><span class="mini" data-tile="wan-5"></span>
+          <span style="font-size:9px;color:var(--on-table-2);margin-left:2px">五万</span>
+        </div>
+        <div class="my-line">
+          <div class="my-info"><b>林知远</b>22,460 · 东</div>
+          <div class="hand" data-hand></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tb-bottom">
+      <div class="hint"><i></i>可胡 · 清一色 · 碰碰胡 · 10 番</div>
+      <div class="actions">
+        <button class="act pass">过</button>
+        <button class="act">吃</button>
+        <button class="act">碰</button>
+        <button class="act">杠</button>
+        <button class="act hu" data-go="settle">胡</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 结算 -->
+  <section class="screen screen--settle">
+    <div class="st-head">
+      <button class="hud-btn" style="width:32px;height:32px;border-radius:10px" data-go="table" aria-label="返回">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <b>本局结算</b>
+      <span>东风 · 第 2 局</span>
+    </div>
+
+    <div class="st-body">
+      <div class="winner">
+        <span class="win-tag">自摸</span>
+        <div class="win-main">
+          <div class="av-lg">林</div>
+          <div>
+            <div class="win-name">林知远 胡牌</div>
+            <div class="win-sub">清一色 · 碰碰胡 · 门前清</div>
+          </div>
+          <div class="win-score"><b>+30</b><span>底分 1 · 三家</span></div>
+        </div>
+      </div>
+
+      <div class="st-hand" data-winhand></div>
+      <div class="hand-note">胡牌张 · 三万 · 已标出</div>
+
+      <div class="card" style="margin-top:4px">
+        <div class="fan-head"><b>番型明细</b><span>10 番 × 底分 1</span></div>
+        <div class="fan-row"><div style="flex:1"><div class="fan-name">清一色</div><div class="fan-desc">全副牌为万子一门</div></div><span class="fan-chip tier-3">5 番</span></div>
+        <div class="fan-row"><div style="flex:1"><div class="fan-name">碰碰胡</div><div class="fan-desc">四组刻子 + 一对将</div></div><span class="fan-chip tier-2">3 番</span></div>
+        <div class="fan-row"><div style="flex:1"><div class="fan-name">自摸</div><div class="fan-desc">自己摸到胡牌张</div></div><span class="fan-chip tier-1">1 番</span></div>
+        <div class="fan-row"><div style="flex:1"><div class="fan-name">花牌</div><div class="fan-desc">春夏秋冬 · 各计 1 番</div></div><span class="fan-chip tier-1">1 番</span></div>
+        <div class="fan-total"><span>合计 · 每家支付</span><b>10 分</b></div>
+      </div>
+
+      <div class="players">
+        <div class="pl me"><div class="av-sm">林</div><div><div class="pl-name">林知远</div><div class="pl-role">东 · 自摸</div></div><span class="pl-delta delta-plus">+30</span></div>
+        <div class="pl"><div class="av-sm">苏</div><div><div class="pl-name">苏晚</div><div class="pl-role">南 · 未胡</div></div><span class="pl-delta delta-minus">−10</span></div>
+        <div class="pl"><div class="av-sm">陈</div><div><div class="pl-name">陈见山</div><div class="pl-role">西 · 未胡</div></div><span class="pl-delta delta-minus">−10</span></div>
+        <div class="pl"><div class="av-sm">周</div><div><div class="pl-name">周叙</div><div class="pl-role">北 · 未胡</div></div><span class="pl-delta delta-minus">−10</span></div>
+      </div>
+    </div>
+
+    <div class="st-cta">
+      <div class="cta-row">
+        <button class="btn btn-primary" data-go="table">再来一局</button>
+        <button class="btn btn-ghost" data-go="lobby">返回大厅</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 设置 -->
+  <section class="screen screen--settings">
+    <div class="set-head">
+      <button class="hud-btn" style="width:32px;height:32px;border-radius:10px" data-go="lobby" aria-label="返回">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h2>设置</h2><span>v1.0.0</span>
+    </div>
+
+    <div class="set-body">
+      <div class="grp">
+        <div class="grp-title"><b>玩法规则</b><span>当前 · 广东麻将</span></div>
+        <div class="inline-seg" data-seg="ruleMode"><button>国标</button><button class="on">广东</button></div>
+        <div class="row"><div class="row-label">花牌计番<small>春夏秋冬、梅兰竹菊</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="row"><div class="row-label">抢杠胡<small>他人补杠时可抢胡</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="row"><div class="row-label">一炮多响<small>多方可同时胡同一张</small></div><button class="sw-btn" aria-pressed="false" data-switch></button></div>
+        <div class="row"><div class="row-label">荒庄流局<small>牌墙摸完即结束本局</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-title"><b>对局偏好</b><span>仅影响本地体验</span></div>
+        <div class="row"><div class="row-label">自动摸打<small>摸牌后自动打出建议张</small></div><button class="sw-btn" aria-pressed="false" data-switch></button></div>
+        <div class="row"><div class="row-label">可胡提示<small>听牌时在牌张上标记</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="row"><div class="row-label">音效</div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="row"><div class="row-label">震动反馈</div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-title"><b>AI 难度</b><span>单机 / 练习场</span></div>
+        <div class="diff-grid">
+          <button class="diff"><b>入门</b><span>只做基本牌型，节奏慢</span></button>
+          <button class="diff on"><b>熟练</b><span>会看牌河，懂得防守</span></button>
+          <button class="diff"><b>老练</b><span>算番扣牌，会做牌</span></button>
+          <button class="diff"><b>大师</b><span>读牌控场，接近比赛</span></button>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-title"><b>外观</b><span>日间 / 夜间自动适配</span></div>
+        <div class="inline-seg" data-seg="appTheme"><button data-theme-set="system">跟随系统</button><button class="on" data-theme-set="day">日间</button><button data-theme-set="night">夜间</button></div>
+        <div class="row" style="border-bottom:0;padding-bottom:2px"><div class="row-label">牌面字号<small>小屏与长辈模式</small></div>
+          <div class="inline-seg" style="width:110px;margin:0" data-seg="tileSize"><button class="on">标准</button><button>放大</button></div>
+        </div>
+        <div style="font-size:9.5px;color:var(--ink-3);margin:4px 0 7px">牌桌皮肤</div>
+        <div class="skins">
+          <button class="skin on" data-skin-name="classic"><i class="s-classic"></i>经典</button>
+          <button class="skin" data-skin-name="bamboo"><i class="s-bamboo"></i>竹青</button>
+          <button class="skin" data-skin-name="ink"><i class="s-ink"></i>墨玉</button>
+        </div>
+      </div>
+      <div class="note">牌局记录与账号安全在「我的 · 设置」二级页；本页仅保留对局相关项。</div>
+    </div>
+  </section>
+
+  <div class="home-bar"></div>
+</template>
+
+<script>
+/* ================= 牌面绘制（可复现矢量资产） ================= */
+const NUM = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+const HONOR = { E:'東', S:'南', W:'西', N:'北', Z:'中', F:'發', B:'白' };
+const HONOR_NAME = { E:'东风', S:'南风', W:'西风', N:'北风', Z:'红中', F:'发财', B:'白板' };
+
+const DOT_LAYOUT = {
+  1:[[30,42]], 2:[[30,25],[30,57]], 3:[[30,20],[20,42],[40,64]],
+  4:[[20,27],[40,27],[20,57],[40,57]], 5:[[19,22],[41,22],[30,42],[19,62],[41,62]],
+  6:[[20,20],[40,20],[20,40],[40,40],[20,60],[40,60]],
+  7:[[18,21],[30,21],[42,21],[22,47],[38,47],[22,63],[38,63]],
+  8:[[21,16],[39,16],[21,32],[39,32],[21,48],[39,48],[21,64],[39,64]],
+  9:[[18,20],[30,20],[42,20],[18,41],[30,41],[42,41],[18,62],[30,62],[42,62]]
+};
+const STICK_LAYOUT = {
+  2:[[30,24],[30,56]], 3:[[18,22],[30,42],[42,62]],
+  4:[[20,26],[40,26],[20,56],[40,56]], 5:[[19,22],[41,22],[30,42],[19,62],[41,62]],
+  6:[[20,20],[40,20],[20,41],[40,41],[20,62],[40,62]],
+  7:[[18,18],[30,18],[42,18],[22,42],[38,42],[22,62],[38,62]],
+  8:[[21,15],[39,15],[21,32],[39,32],[21,49],[39,49],[21,66],[39,66]],
+  9:[[18,18],[30,18],[42,18],[18,40],[30,40],[42,40],[18,62],[30,62],[42,62]]
+};
+
+function dot(cx, cy, r, red) {
+  const c = red ? 'var(--tile-red)' : 'var(--tile-blue)';
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r*0.54}" fill="var(--tile-face)"/>
+    <circle cx="${cx}" cy="${cy}" r="${r*0.2}" fill="${c}"/>`;
+}
+function stick(cx, cy, h, red) {
+  const c = red ? 'var(--tile-red)' : 'var(--tile-green)';
+  return `<rect x="${cx-2.6}" y="${cy-h/2}" width="5.2" height="${h}" rx="2.6" fill="${c}"/>
+    <path d="M${cx-2.1} ${cy-1.7}h4.2M${cx-2.1} ${cy+1.7}h4.2" stroke="var(--tile-face)" stroke-width=".8" opacity=".75"/>`;
+}
+function glyph(kind, n) {
+  if (kind === 'wan') {
+    return `<text x="30" y="50" text-anchor="middle" font-size="32" font-weight="600" fill="var(--tile-red)">${NUM[n]}</text>
+      <text x="30" y="71" text-anchor="middle" font-size="18" font-weight="600" fill="var(--tile-ink)">萬</text>`;
+  }
+  if (kind === 'tong') {
+    if (+n === 1) return `<circle cx="30" cy="40" r="15" fill="none" stroke="var(--tile-blue)" stroke-width="3"/>
+      <circle cx="30" cy="40" r="9.5" fill="var(--tile-blue)"/><circle cx="30" cy="40" r="5" fill="var(--tile-face)"/>
+      <circle cx="30" cy="40" r="2" fill="var(--tile-red)"/>`;
+    const r = +n <= 2 ? 9 : +n <= 5 ? 7.2 : +n <= 6 ? 6.6 : +n === 7 ? 5.4 : +n === 8 ? 5.2 : 5.6;
+    return DOT_LAYOUT[n].map((p, i) => dot(p[0], p[1], r, i === 0 && +n === 5)).join('');
+  }
+  if (kind === 'tiao') {
+    if (+n === 1) {
+      return `<path d="M30 17c0 15 0 30 0 45" stroke="var(--tile-green)" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <path d="M30 32c-8-4-13 1-15 8 8 1 12-2 15-8Z" fill="var(--tile-green)"/>
+        <path d="M30 44c8-4 13 1 15 8-8 1-12-2-15-8Z" fill="var(--tile-green)"/>
+        <circle cx="30" cy="15" r="3.2" fill="var(--tile-red)"/>`;
+    }
+    const h = +n >= 8 ? 10 : +n === 9 ? 9.5 : 12;
+    return STICK_LAYOUT[n].map((p, i) => stick(p[0], p[1], h, i === 2 && +n === 5)).join('');
+  }
+  if (kind === 'zi') {
+    if (n === 'B') return `<rect x="15" y="21" width="30" height="38" rx="3" fill="none" stroke="var(--tile-blue)" stroke-width="3"/>
+      <rect x="21" y="27" width="18" height="26" rx="2" fill="none" stroke="var(--tile-blue)" stroke-width="1.1" opacity=".6"/>`;
+    const color = n === 'Z' ? 'var(--tile-red)' : n === 'F' ? 'var(--tile-green)' : 'var(--tile-ink)';
+    return `<text x="30" y="54" text-anchor="middle" font-size="31" font-weight="600" fill="${color}">${HONOR[n]}</text>`;
+  }
+  return '';
+}
+function tile(kind, n, cls = '') {
+  const name = kind === 'zi' ? HONOR_NAME[n] : (kind === 'wan' ? '万' : kind === 'tiao' ? '条' : '筒');
+  const label = kind === 'zi' ? name : `${NUM[n]}${name}`;
+  return `<svg class="tile ${cls}" viewBox="0 0 60 80" role="img" aria-label="${label}">
+    <rect x="1" y="1" width="58" height="78" rx="8" fill="var(--tile-face)" stroke="var(--tile-edge)" stroke-width="1.4"/>
+    <rect x="5.5" y="5.5" width="49" height="69" rx="4.5" fill="none" stroke="var(--tile-inner)" stroke-width="1" opacity=".7"/>
+    ${glyph(kind, n)}
+  </svg>`;
+}
+function backTile() {
+  return `<span class="back"></span>`;
+}
+
+/* ================= 数据 ================= */
+const POOL = [
+  'tong-9','wan-9','tiao-2','zi-S','tong-1','wan-1',
+  'zi-W','tiao-8','tong-6','wan-4','zi-N','tiao-6',
+  'tong-8','wan-3','zi-Z','tiao-4','tong-2','wan-7'
+];
+const HAND = ['wan-2','wan-2','wan-2','wan-8','wan-8','wan-8','wan-3','wan-3','wan-9','wan-9'];
+const DRAWN = 'wan-3';
+const WIN_HAND = [
+  {tiles:['wan-2','wan-2','wan-2']},
+  {tiles:['wan-3','wan-3','wan-3'], win:true},
+  {tiles:['wan-5','wan-5','wan-5'], meld:'碰'},
+  {tiles:['wan-8','wan-8','wan-8']},
+  {tiles:['wan-9','wan-9']}
+];
+
+/* ================= 组装四台设备 ================= */
+const TITLES = [
+  {id:'01', name:'大厅', view:'lobby', note:'场次 / 玩法 / 快速开始'},
+  {id:'02', name:'对局桌', view:'table', note:'四家 / 牌河 / 手牌动作'},
+  {id:'03', name:'结算', view:'settle', note:'番型明细 / 分数变化'},
+  {id:'04', name:'设置', view:'settings', note:'规则 / AI / 双主题'}
+];
+const board = document.getElementById('board');
+const tpl = document.getElementById('app-tpl');
+
+TITLES.forEach(meta => {
+  const fig = document.createElement('figure');
+  fig.className = 'device-wrap';
+  fig.innerHTML = `<figcaption><b>${meta.id}</b>${meta.name}<span>${meta.note}</span></figcaption>
+    <div class="scaler-wrap"><div class="scaler"><div class="phone" data-view="${meta.view}" data-theme="day"></div></div></div>`;
+  fig.querySelector('.phone').appendChild(tpl.content.cloneNode(true));
+  board.appendChild(fig);
+});
+
+/* 填充牌面 */
+document.querySelectorAll('.phone').forEach(ph => {
+  ph.querySelectorAll('[data-tile]').forEach(el => {
+    const [k, v] = el.getAttribute('data-tile').split('-');
+    el.innerHTML = tile(k, v);
+  });
+  ph.querySelectorAll('[data-backs]').forEach(el => {
+    el.innerHTML = Array.from({length: +el.dataset.backs}, () => backTile()).join('');
+  });
+  const pool = ph.querySelector('[data-pool]');
+  if (pool) {
+    pool.innerHTML = POOL.map((id, i) => {
+      const [k, v] = id.split('-');
+      return `<span class="tile-wrap ${i === 4 ? 'last' : ''}">${tile(k, v)}</span>`;
+    }).join('');
+  }
+  const hand = ph.querySelector('[data-hand]');
+  if (hand) {
+    hand.innerHTML = HAND.map((id, i) => {
+      const [k, v] = id.split('-');
+      return `<span class="tile-wrap ${i === 2 ? 'sel' : ''}">${tile(k, v)}</span>`;
+    }).join('') + (() => {
+      const [k, v] = DRAWN.split('-');
+      return `<span class="tile-wrap drawn">${tile(k, v)}</span>`;
+    })();
+  }
+  const win = ph.querySelector('[data-winhand]');
+  if (win) {
+    win.innerHTML = WIN_HAND.map(g => {
+      const meldCls = g.meld ? 'grp meld' : 'grp';
+      return `<div class="${meldCls}">${g.tiles.map(id => {
+        const [k, v] = id.split('-');
+        return `<span class="tile-wrap ${g.win && v === '3' ? 'win' : ''}">${tile(k, v)}</span>`;
+      }).join('')}</div>`;
+    }).join('');
+  }
+});
+
+/* ================= 交互 ================= */
+function setTheme(root, value) {
+  const phones = document.querySelectorAll('.phone');
+  const resolved = value === 'system' ? 'day' : value;
+  phones.forEach(p => p.dataset.theme = resolved);
+  document.querySelectorAll('[data-theme-set]').forEach(b => {
+    b.classList.toggle('on', b.dataset.themeSet === value);
+  });
+}
+document.addEventListener('click', e => {
+  const themeBtn = e.target.closest('[data-theme-set]');
+  if (themeBtn) { setTheme(document, themeBtn.dataset.themeSet); return; }
+
+  const go = e.target.closest('[data-go]');
+  if (go) {
+    const phone = go.closest('.phone');
+    phone.dataset.view = go.dataset.go;
+    const screen = phone.querySelector(`.screen--${go.dataset.go}`);
+    if (screen) screen.querySelectorAll('.scroll,.st-body,.set-body').forEach(s => s.scrollTop = 0);
+    return;
+  }
+
+  const seg = e.target.closest('[data-seg] button');
+  if (seg) {
+    seg.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+    seg.classList.add('on');
+    return;
+  }
+
+  const arena = e.target.closest('.arena-card');
+  if (arena) {
+    arena.parentElement.querySelectorAll('.arena-card').forEach(b => b.classList.remove('on'));
+    arena.classList.add('on');
+    return;
+  }
+
+  const diff = e.target.closest('.diff');
+  if (diff) {
+    diff.parentElement.querySelectorAll('.diff').forEach(b => b.classList.remove('on'));
+    diff.classList.add('on');
+    return;
+  }
+
+  const skin = e.target.closest('.skin');
+  if (skin) {
+    skin.parentElement.querySelectorAll('.skin').forEach(b => b.classList.remove('on'));
+    skin.classList.add('on');
+    document.querySelectorAll('.phone').forEach(p => {
+      if (skin.dataset.skinName === 'classic') delete p.dataset.skin;
+      else p.dataset.skin = skin.dataset.skinName;
+    });
+    return;
+  }
+
+  const sw = e.target.closest('[data-switch]');
+  if (sw) {
+    sw.setAttribute('aria-pressed', sw.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    return;
+  }
+
+  const handTile = e.target.closest('.hand .tile-wrap');
+  if (handTile) {
+    handTile.parentElement.querySelectorAll('.tile-wrap').forEach(t => t.classList.remove('sel'));
+    handTile.classList.add('sel');
+  }
+});
+</script>
+</body>
+</html>

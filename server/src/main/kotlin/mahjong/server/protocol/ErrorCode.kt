@@ -1,0 +1,61 @@
+package mahjong.server.protocol
+
+object ErrorCode {
+    const val BAD_VERSION = "E_BAD_VERSION"
+    const val BAD_JSON = "E_BAD_JSON"
+    const val UNAUTHENTICATED = "E_UNAUTHENTICATED"
+    const val ALREADY_AUTHED = "E_ALREADY_AUTHED"
+    const val ROOM_NOT_FOUND = "E_ROOM_NOT_FOUND"
+    const val ROOM_FULL = "E_ROOM_FULL"
+    const val BAD_PASSWORD = "E_BAD_PASSWORD"
+    const val NOT_IN_ROOM = "E_NOT_IN_ROOM"
+    const val NOT_HOST = "E_NOT_HOST"
+    const val NOT_ENOUGH_SEATS = "E_NOT_ENOUGH_SEATS"
+    const val NOT_ALL_READY = "E_NOT_ALL_READY"
+    const val ALREADY_PLAYING = "E_ALREADY_PLAYING"
+    const val NOT_PLAYING = "E_NOT_PLAYING"
+    const val ILLEGAL_ACTION = "E_ILLEGAL_ACTION"
+    const val NOT_YOUR_TURN = "E_NOT_YOUR_TURN"
+    const val TILE_NOT_IN_HAND = "E_TILE_NOT_IN_HAND"
+    const val SEAT_TAKEOVER = "E_SEAT_TAKEOVER"
+    const val RESUME_EXPIRED = "E_RESUME_EXPIRED"
+    const val RATE_LIMITED = "E_RATE_LIMITED"
+    const val SEAT_EMPTY = "E_SEAT_EMPTY"
+    const val CANNOT_KICK_SELF = "E_CANNOT_KICK_SELF"
+    const val NOT_A_PLAYER = "E_NOT_A_PLAYER"
+    const val INTERNAL = "E_INTERNAL"
+}
+
+object MessageType {
+    const val HELLO = "hello"
+    const val HELLO_ACK = "hello_ack"
+    const val PING = "ping"
+    const val PONG = "pong"
+    const val ERROR = "error"
+
+    const val ROOM_CREATE = "room_create"
+    const val ROOM_JOIN = "room_join"
+    const val ROOM_LEAVE = "room_leave"
+    const val ROOM_READY = "room_ready"
+    const val SEAT_ADD_AI = "seat_add_ai"
+    const val SEAT_REMOVE_AI = "seat_remove_ai"
+    const val SEAT_KICK = "seat_kick"
+    const val GAME_START = "game_start"
+
+    const val ROOM_STATE = "room_state"
+    const val SEAT_GRANTED = "seat_granted"
+    const val SEAT_ONLINE = "seat_online"
+    const val ROOM_CLOSED = "room_closed"
+    const val ROOM_KICKED = "room_kicked"
+
+    const val STATE = "state"
+    const val EVENT = "event"
+    const val WINDOW = "window"
+    const val ACTION_ACK = "action_ack"
+    const val GAME_OVER = "game_over"
+
+    const val SYNC = "sync"
+    const val RECONNECT = "reconnect"
+    const val SYNC_REQUEST = "sync_request"
+    const val ACTION = "action"
+}

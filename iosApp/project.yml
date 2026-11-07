@@ -1,0 +1,57 @@
+name: iosApp
+options:
+  bundleIdPrefix: com.zhujian
+  deploymentTarget:
+    iOS: "14.0"
+  createIntermediateGroups: true
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: iosApp
+      # 直接把 Android 的 raw 音频目录作为文件夹引用打包进 iOS Bundle，
+      # 避免两套 WAV 重复入库；运行期按 raw/xxx.wav 查找。
+      - path: ../app/src/androidMain/res/raw
+        type: folder
+        buildPhase: resources
+    # 版本号等集中在 Config.xcconfig，避免工程重新生成后丢失。
+    configFiles:
+      Debug: Config.xcconfig
+      Release: Config.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zhujian.mahjong
+        INFOPLIST_FILE: iosApp/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../app/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: "$(inherited) -framework ComposeApp"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+    preBuildScripts:
+      - name: Build Compose framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          sh ./gradlew :app:embedAndSignAppleFrameworkForXcode
+
+# 显式声明 scheme：CI 里用 xcodebuild -scheme iosApp，不依赖 Xcode 自动创建 scheme。
+schemes:
+  iosApp:
+    build:
+      targets:
+        iosApp: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

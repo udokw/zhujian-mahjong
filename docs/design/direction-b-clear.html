@@ -1,0 +1,1246 @@
+<!doctype html>
+<html lang="zh-CN" data-motion="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向 B · 明快几何 | 横屏基准原型 v2.0</title>
+<style>
+  /* ================= 设计板画布 ================= */
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --board-bg:#EDF1F6; --board-ink:#151A21; --board-ink-2:#5A6575; --board-line:#DCE2EB;
+    --sans:"HarmonyOS Sans SC","MiSans","PingFang SC","Source Han Sans SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    --mono:"SF Mono","JetBrains Mono",ui-monospace,monospace;
+  }
+  body{
+    background:radial-gradient(1200px 620px at 8% -12%,#FFFFFF 0%,rgba(255,255,255,0) 62%),var(--board-bg);
+    color:var(--board-ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;
+    padding:28px 40px 34px;
+  }
+  .board-head{display:flex;justify-content:space-between;align-items:flex-end;gap:28px;max-width:1440px;margin:0 auto 20px}
+  .kicker{font-size:10px;letter-spacing:.22em;color:var(--board-ink-2);font-weight:600;text-transform:uppercase}
+  .board-head h1{font-size:29px;line-height:1.14;letter-spacing:-.02em;margin:7px 0 5px;font-weight:700}
+  .board-head h1 em{font-style:normal;color:#2A5FD9}
+  .mood{font-size:12px;color:var(--board-ink-2);letter-spacing:.02em}
+  .bh-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+  .hdr-btn{border:1px solid var(--board-line);background:#fff;color:var(--board-ink-2);font-family:inherit;font-size:11.5px;font-weight:600;height:34px;padding:0 13px;border-radius:11px;cursor:pointer}
+  .hdr-btn.on{background:#151A21;color:#fff;border-color:#151A21}
+  .theme-toggle{display:flex;background:#FFFFFF;border:1px solid var(--board-line);border-radius:12px;padding:3px}
+  .theme-toggle button{border:0;background:transparent;font-family:inherit;font-size:11.5px;color:var(--board-ink-2);padding:6px 12px;border-radius:9px;cursor:pointer}
+  .theme-toggle button.on{background:#151A21;color:#fff}
+  /* ================= 设备陈列 ================= */
+  .board{display:grid;grid-template-columns:repeat(2,auto);gap:24px 34px;justify-content:center;max-width:1440px;margin:0 auto}
+  .device-wrap{width:max-content}
+  .device-wrap[data-wide]{grid-column:1/-1;justify-self:center}
+  .device-wrap:last-child{grid-column:1/-1;justify-self:center}
+  .device-wrap figcaption{display:flex;align-items:baseline;gap:7px;font-size:11.5px;color:var(--board-ink-2);margin-bottom:7px;padding-left:3px}
+  .device-wrap figcaption b{font-family:var(--mono);font-size:10px;color:#2A5FD9;letter-spacing:.06em}
+  .device-wrap figcaption span{margin-left:auto;font-size:9.5px;letter-spacing:.06em;color:#8B96A6}
+  .shell{--w:844px;--h:390px;width:calc(var(--w)*.75 + 12px);height:calc(var(--h)*.75 + 12px);background:#11161D;border-radius:22px;padding:6px;overflow:hidden}
+  .scaler{width:var(--w);height:var(--h);transform:scale(.75);transform-origin:top left}
+  .phone{width:100%;height:100%;position:relative;overflow:hidden;border-radius:16px;background:var(--bg);color:var(--ink);
+    font-family:var(--sans);-webkit-font-smoothing:antialiased;
+    --hud:30px;--band:108px;--hand-w:36px;--hand-h:48px;--hand-gap:2px;--drawn-w:40px;--drawn-h:54px;--drawn-gap:10px;
+    --meld-w:22px;--meld-h:30px;--flw-w:16px;--flw-h:22px;--river-w:19px;--river-h:25px;--river-gap:2px;
+    --panel-w:74px;--btn-w:56px;--btn-h:38px;--btn-gap:6px;--rv-top:64px;--rv-bottom:8px;--core-y:169px;--side-y:169px;--safe:40px;
+  }
+  .phone[data-size="compact"]{
+    --hud:26px;--band:96px;--hand-w:28px;--hand-h:38px;--hand-gap:1.5px;--drawn-w:32px;--drawn-h:43px;--drawn-gap:6px;
+    --meld-w:18px;--meld-h:24px;--flw-w:13px;--flw-h:18px;--river-w:16px;--river-h:22px;--river-gap:1.5px;
+    --panel-w:66px;--btn-w:42px;--btn-h:34px;--btn-gap:5px;--rv-top:58px;--rv-bottom:6px;--core-y:148px;--side-y:148px;--safe:24px;
+  }
+  .phone[data-size="tablet"]{
+    --hud:38px;--band:148px;--hand-w:44px;--hand-h:59px;--hand-gap:2.5px;--drawn-w:49px;--drawn-h:66px;--drawn-gap:12px;
+    --meld-w:27px;--meld-h:36px;--flw-w:19px;--flw-h:26px;--river-w:27px;--river-h:36px;--river-gap:3px;
+    --panel-w:96px;--btn-w:64px;--btn-h:44px;--btn-gap:8px;--rv-top:84px;--rv-bottom:10px;--core-y:240px;--side-y:280px;--safe:48px;
+  }
+  .phone *::-webkit-scrollbar{display:none}
+  .phone *{scrollbar-width:none}
+  /* ================= 主题令牌 ================= */
+  .phone[data-theme="day"]{
+    --bg:#F5F7FA;--surface:#FFFFFF;--surface-2:#EDF1F7;--surface-3:#E4EAF3;
+    --ink:#1D2129;--ink-2:#4E5969;--ink-3:#646E7E;--disabled:#A9B2C0;
+    --line:#E5E8EF;--line-strong:#D4DAE4;
+    --primary:#2C63E0;--primary-deep:#2450B8;--primary-soft:#EAF1FF;
+    --gold:#7E540C;--gold-soft:#FBF1DD;--red:#B33636;--red-soft:#FCEBEB;--green:#0E6B4C;--green-soft:#E6F5EF;
+    --table-1:#1B4A3D;--table-2:#143D33;--table-3:#0D2C25;
+    --on-table:#F2F7F4;--on-table-2:#B9CEC4;--table-line:rgba(255,255,255,.14);--table-gold:#E8C97A;--table-gold-ink:#2A2110;
+    --tile-face:#FFFFFF;--tile-edge:#DCE2EC;--tile-inner:#EDF1F6;
+    --tile-ink:#1D2129;--tile-red:#C63C3C;--tile-blue:#2F6FE4;--tile-green:#1B7F53;
+    --tile-back:#E9EFF9;--tile-back-line:#C9D6EA;
+    --panel:rgba(255,255,255,.055);--panel-2:rgba(0,0,0,.16);
+  }
+  .phone[data-theme="night"]{
+    --bg:#0F141B;--surface:#161D26;--surface-2:#1C2531;--surface-3:#243040;
+    --ink:#E8EDF4;--ink-2:#A7B3C4;--ink-3:#8B98AA;--disabled:#5E6B7D;
+    --line:#253040;--line-strong:#33415A;
+    --primary:#3D6FE0;--primary-deep:#7DA4FF;--primary-soft:#182742;
+    --gold:#E5B863;--gold-soft:#2E2413;--red:#EE6A6A;--red-soft:#38191B;--green:#4CC79A;--green-soft:#102B24;
+    --table-1:#16443A;--table-2:#0E332B;--table-3:#082019;
+    --on-table:#EEF5F1;--on-table-2:#A9C2B7;--table-line:rgba(255,255,255,.12);--table-gold:#E8C97A;--table-gold-ink:#2A2110;
+    --tile-face:#F4F1E8;--tile-edge:#C7C1AF;--tile-inner:#E6E1D2;
+    --tile-ink:#1A211D;--tile-red:#B94A3E;--tile-blue:#38679A;--tile-green:#2F7A5C;
+    --tile-back:#1D2A24;--tile-back-line:#3E5A4C;
+    --panel:rgba(255,255,255,.05);--panel-2:rgba(0,0,0,.2);
+  }
+  /* 皮肤：只换牌桌三色 + 高亮 */
+  .phone[data-skin="bamboo"]{--table-1:#2E4B42;--table-2:#213A33;--table-3:#142622;--table-gold:#C9D9C0;--table-gold-ink:#17231B}
+  .phone[data-skin="ink"]{--table-1:#232A28;--table-2:#171D1B;--table-3:#0B0F0E;--table-gold:#C9A227;--table-gold-ink:#241C05}
+  /* ================= 系统条 ================= */
+  .status{position:absolute;z-index:20;top:0;left:0;right:0;height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 var(--safe);font-size:10.5px;font-weight:600;color:var(--ink);pointer-events:none}
+  .status .sys{display:flex;align-items:center;gap:4px}
+  .phone[data-view="splash"] .status,.phone[data-view="table"] .status{color:var(--on-table)}
+  .phone[data-view="table"] .status{display:none}
+  .home-bar{position:absolute;z-index:30;bottom:4px;left:50%;transform:translateX(-50%);width:112px;height:4px;border-radius:2px;background:var(--ink);opacity:.22;pointer-events:none}
+  .phone[data-view="splash"] .home-bar,.phone[data-view="table"] .home-bar{background:var(--on-table);opacity:.45}
+  /* ================= 屏幕外壳 ================= */
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);padding-top:24px}
+  .phone[data-view="splash"] .screen--splash,
+  .phone[data-view="lobby"] .screen--lobby,
+  .phone[data-view="table"] .screen--table,
+  .phone[data-view="settle-gb"] .screen--settle-gb,
+  .phone[data-view="settle-gd"] .screen--settle-gd,
+  .phone[data-view="settings"] .screen--settings{display:flex}
+  .phone[data-view="splash"] .screen--splash,
+  .phone[data-view="table"] .screen--table{padding-top:0}
+  .screen--lobby,.screen--settle-gb,.screen--settle-gd,.screen--settings{padding-left:var(--safe);padding-right:var(--safe)}
+  .tile{display:block;filter:none}
+  .tile-wrap{position:relative;display:block;flex:none}
+  .icon{width:20px;height:20px;display:block;flex:none}
+  /* ================= 启动页（横屏首帧） ================= */
+  .screen--splash{
+    align-items:center;justify-content:center;color:var(--on-table);
+    background:radial-gradient(120% 150% at 50% 38%,var(--table-1) 0%,var(--table-2) 52%,var(--table-3) 100%);
+  }
+  .screen--splash::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.45;
+    background:repeating-linear-gradient(0deg,transparent 0 31px,rgba(255,255,255,.02) 31px 32px),
+               repeating-linear-gradient(90deg,transparent 0 31px,rgba(255,255,255,.02) 31px 32px)}
+  .splash-inner{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:0}
+  .splash-tiles{display:flex;align-items:flex-end;height:78px;margin-bottom:16px}
+  .splash-tiles .tile-wrap{width:52px;height:69px;border-radius:7px;box-shadow:none}
+  .splash-tiles .tile-wrap:nth-child(1){transform:rotate(-9deg) translateY(4px);margin-right:-10px}
+  .splash-tiles .tile-wrap:nth-child(2){z-index:2;width:56px;height:75px}
+  .splash-tiles .tile-wrap:nth-child(3){transform:rotate(9deg) translateY(4px);margin-left:-10px}
+  .splash-title{font-size:38px;font-weight:700;letter-spacing:.26em;text-indent:.26em;line-height:1.1}
+  .splash-sub{font-size:10.5px;color:var(--on-table-2);letter-spacing:.18em;margin-top:8px}
+  .load{width:132px;height:3px;border-radius:2px;background:rgba(255,255,255,.16);overflow:hidden;margin-top:20px}
+  .load i{display:block;width:42%;height:100%;border-radius:2px;background:var(--table-gold);animation:loadmove 1.6s cubic-bezier(.45,0,.25,1) infinite}
+  @keyframes loadmove{0%{transform:translateX(-110%)}100%{transform:translateX(360%)}}
+  .splash-enter{margin-top:16px;border:0;background:transparent;color:var(--on-table-2);font-family:inherit;font-size:10.5px;letter-spacing:.14em;cursor:pointer;padding:6px 14px}
+  .splash-enter:hover{color:var(--on-table)}
+  .splash-meta{position:absolute;z-index:2;left:var(--safe);right:var(--safe);bottom:16px;display:flex;justify-content:space-between;font-size:9px;color:var(--on-table-2);letter-spacing:.06em}
+  /* ================= 大厅 ================= */
+  .lobby{flex:1;display:flex;min-height:0}
+  .rail{width:64px;flex:none;border-right:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 0 6px}
+  .rail-logo{width:30px;height:30px;border-radius:9px;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:15px;font-weight:700;margin-bottom:5px}
+  .rail-btn{width:42px;height:42px;border-radius:11px;border:0;background:transparent;color:var(--ink-3);display:grid;place-items:center;cursor:pointer}
+  .rail-btn.on{background:var(--primary-soft);color:var(--primary-deep)}
+  .rail-spacer{flex:1}
+  .lobby-main{flex:1;display:grid;grid-template-columns:1.42fr 1fr;gap:12px;padding:4px 10px 12px;min-width:0}
+  .lb-left{display:flex;flex-direction:column;min-width:0}
+  .lb-user{display:flex;align-items:center;gap:8px;height:36px}
+  .avatar{width:32px;height:32px;border-radius:11px;background:var(--primary-soft);color:var(--primary-deep);display:grid;place-items:center;font-size:14px;font-weight:700;border:1px solid var(--line);flex:none}
+  .lb-user-name{font-size:12.5px;font-weight:650;line-height:1.15}
+  .lb-user-rank{font-size:9px;color:var(--ink-3);margin-top:2px;font-variant-numeric:tabular-nums}
+  .wallet{margin-left:auto;display:flex;gap:6px}
+  .currency{display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:4px 7px;font-size:10px;font-weight:650;font-variant-numeric:tabular-nums}
+  .coin{width:11px;height:11px;border-radius:50%;border:1.4px solid var(--gold);display:inline-block;position:relative}
+  .coin::after{content:"";position:absolute;inset:2.5px;border-radius:1px;background:var(--gold);opacity:.55}
+  .gem{width:9px;height:9px;background:var(--primary);transform:rotate(45deg);border-radius:2px;display:inline-block}
+  .lb-title{padding:9px 0 7px}
+  .lb-title h2{font-size:21px;letter-spacing:-.02em;line-height:1.15;font-weight:700}
+  .lb-title p{font-size:9.5px;color:var(--ink-3);margin-top:4px;letter-spacing:.02em}
+  .seg{display:flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:3px}
+  .seg button{flex:1;border:0;background:transparent;font-family:inherit;color:var(--ink-2);font-size:11px;font-weight:600;height:27px;border-radius:8px;cursor:pointer;transition:background .18s,color .18s}
+  .seg button.on{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;padding:8px 1px 5px}
+  .sec-head h3{font-size:11.5px;font-weight:650}
+  .sec-head span{font-size:8.5px;color:var(--ink-3);letter-spacing:.03em}
+  .arena{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .arena-card{position:relative;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:8px 10px 7px;cursor:pointer;font-family:inherit;color:var(--ink);transition:border-color .18s,background .18s,transform .14s}
+  .arena-card:active{transform:scale(.985)}
+  .arena-card.on{border-color:var(--primary);background:var(--primary-soft)}
+  .arena-top{display:flex;align-items:center;justify-content:space-between;gap:5px}
+  .arena-name{font-size:11px;font-weight:650}
+  .badge{font-size:8.5px;font-weight:600;color:var(--primary-deep);background:var(--surface);border:1px solid var(--primary);border-radius:999px;padding:1px 5px;line-height:1.25}
+  .arena-base{display:flex;align-items:baseline;gap:3px;margin-top:4px}
+  .arena-base b{font-size:20px;line-height:1;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .arena-base span{font-size:8.5px;color:var(--ink-3)}
+  .arena-meta{font-size:8.5px;color:var(--ink-3);margin-top:4px;font-variant-numeric:tabular-nums}
+  .bars{display:flex;gap:2px;position:absolute;right:9px;bottom:7px}
+  .bars i{width:2.5px;height:7px;border-radius:2px;background:var(--line-strong);display:block}
+  .bars i.on{background:var(--primary)}
+  .lb-right{display:flex;flex-direction:column;gap:7px;min-width:0}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:9px 10px}
+  .panel-label{font-size:9px;color:var(--ink-3);letter-spacing:.03em;margin-bottom:5px}
+  .ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  .ai-chip{border:1px solid var(--line);background:transparent;border-radius:9px;padding:5px 7px;text-align:left;font-family:inherit;color:var(--ink-2);cursor:pointer}
+  .ai-chip b{display:block;font-size:10.5px;color:var(--ink);font-weight:650}
+  .ai-chip span{display:block;font-size:8.5px;color:var(--ink-3);margin-top:2px;line-height:1.3}
+  .ai-chip.on{border-color:var(--primary);background:var(--primary-soft)}
+  .btn{border:0;font-family:inherit;cursor:pointer;transition:transform .14s,background .18s}
+  .btn:active{transform:scale(.985)}
+  .btn-primary{height:42px;border-radius:12px;background:var(--primary);color:#fff;font-size:13px;font-weight:650;display:flex;align-items:center;justify-content:center;gap:7px}
+  .btn-primary small{font-size:8.5px;font-weight:500;opacity:.8}
+  .btn-ghost{height:32px;border-radius:10px;background:transparent;border:1px solid var(--line);color:var(--ink-2);font-size:10.5px;font-weight:600}
+  .lb-note{font-size:8.5px;line-height:1.5;color:var(--ink-3);padding:0 2px}
+  .lb-note b{color:var(--ink-2);font-weight:600}
+  /* ================= 对局桌（横屏核心） ================= */
+  .screen--table{background:radial-gradient(120% 150% at 50% 38%,var(--table-1) 0%,var(--table-2) 50%,var(--table-3) 100%);color:var(--on-table)}
+  .screen--table::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.45;
+    background:repeating-linear-gradient(0deg,transparent 0 31px,rgba(255,255,255,.02) 31px 32px),
+               repeating-linear-gradient(90deg,transparent 0 31px,rgba(255,255,255,.02) 31px 32px)}
+  .tb-field{position:relative;flex:1;min-height:0;z-index:2}
+  .tb-hud{position:absolute;top:0;left:0;right:0;height:var(--hud);display:flex;align-items:center;gap:8px;padding:0 var(--safe);z-index:6}
+  .hud-time{font-size:10px;font-weight:600;color:var(--on-table);font-variant-numeric:tabular-nums;flex:none}
+  .hud-btn{width:26px;height:26px;border-radius:8px;border:1px solid var(--table-line);background:var(--panel);color:var(--on-table);display:grid;place-items:center;cursor:pointer;flex:none;padding:0}
+  .hud-mid{position:absolute;left:50%;transform:translateX(-50%);text-align:center;line-height:1.15;white-space:nowrap}
+  .hud-mid b{font-size:10.5px;font-weight:650;letter-spacing:.03em}
+  .hud-mid span{font-size:9px;color:var(--on-table-2);font-variant-numeric:tabular-nums;margin-left:5px}
+  .hud-right{margin-left:auto;display:flex;align-items:center;gap:5px}
+  .opp{position:absolute;z-index:3;display:flex;align-items:center;gap:5px;background:var(--panel);border:1px solid var(--table-line);border-radius:9px;padding:3px 6px}
+  .opp--top{top:32px;left:50%;transform:translateX(-50%);height:28px}
+  .phone[data-size="compact"] .opp--top{top:28px;height:24px}
+  .phone[data-size="tablet"] .opp--top{top:46px;height:34px;padding:4px 9px;border-radius:11px}
+  .phone[data-size="tablet"] .opp--left,.phone[data-size="tablet"] .opp--right{padding:7px 7px 8px;border-radius:12px;gap:3px}
+  .phone[data-size="tablet"] .av-sm{width:24px;height:24px;border-radius:7px;font-size:10px}
+  .phone[data-size="tablet"] .opp-name{font-size:11px}
+  .phone[data-size="tablet"] .opp-score{font-size:10px}
+  .phone[data-size="tablet"] .wind{width:16px;height:16px;border-radius:5px;font-size:8.5px;top:4px;right:4px}
+  .phone[data-size="tablet"] .turn-dot{width:6px;height:6px}
+  .opp--left,.opp--right{flex-direction:column;gap:2px;width:var(--panel-w);top:var(--side-y);transform:translateY(-50%);padding:5px 5px 6px;border-radius:10px}
+  .opp--left{left:calc(var(--safe) + 4px)}
+  .opp--right{right:calc(var(--safe) + 4px)}
+  .av-sm{width:20px;height:20px;border-radius:6px;background:rgba(255,255,255,.1);border:1px solid var(--table-line);display:grid;place-items:center;font-size:9px;font-weight:650;color:var(--on-table);flex:none}
+  .opp-meta{line-height:1.15;min-width:0}
+  .opp-name{font-size:9.5px;font-weight:600;color:var(--on-table);white-space:nowrap}
+  .opp-score{font-size:8.5px;color:var(--on-table-2);font-variant-numeric:tabular-nums;white-space:nowrap;margin-top:1px}
+  .opp--left .opp-score,.opp--right .opp-score{margin-top:0}
+  .wind{position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:4px;background:var(--on-table);color:var(--table-3);font-size:8.5px;font-weight:700;display:grid;place-items:center}
+  .opp--left .wind,.opp--right .wind{top:3px;right:3px}
+  .backs{display:flex;gap:1px;flex:none}
+  .back{width:5px;height:16px;border-radius:1.5px;background:var(--tile-back);border:1px solid var(--tile-back-line)}
+  .backs--v{flex-direction:column;gap:1px;margin-top:1px}
+  .backs--v .back{width:14px;height:3.6px;border-radius:1px}
+  .turn-dot{width:5px;height:5px;border-radius:50%;background:var(--table-gold);flex:none}
+  /* 牌河 */
+  .river{position:absolute;z-index:2;display:grid;gap:var(--river-gap)}
+  .river--top,.river--bottom{grid-template-columns:repeat(6,var(--river-w));grid-auto-rows:var(--river-h);left:50%;transform:translateX(-50%)}
+  .river--top{top:var(--rv-top)}
+  .river--bottom{bottom:var(--rv-bottom)}
+  .river--left,.river--right{grid-template-columns:repeat(3,var(--river-w));grid-auto-rows:var(--river-h);top:var(--side-y);transform:translateY(-50%)}
+  .river--left{left:calc(var(--safe) + var(--panel-w) + 10px)}
+  .river--right{right:calc(var(--safe) + var(--panel-w) + 10px)}
+  .river .tile-wrap{width:var(--river-w);height:var(--river-h)}
+  .river .tile-wrap.last{outline:1px solid var(--table-gold);outline-offset:1.5px;border-radius:3px}
+  .river .tile-wrap.last::after{content:"刚打";position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:8.5px;color:var(--table-gold);white-space:nowrap;letter-spacing:.04em}
+  .core{position:absolute;z-index:4;left:50%;top:var(--core-y);transform:translate(-50%,-50%);width:44px;height:44px;border-radius:12px;background:var(--panel-2);border:1px solid var(--table-line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+  .core span{font-size:8.5px;color:var(--on-table-2);letter-spacing:.08em}
+  .core b{font-size:15px;font-weight:700;margin:1px 0;font-variant-numeric:tabular-nums}
+  .core em{font-size:8.5px;font-style:normal;color:var(--on-table-2)}
+  .phone[data-size="compact"] .core{width:38px;height:38px;border-radius:10px}
+  .phone[data-size="compact"] .core b{font-size:13px}
+  .phone[data-size="tablet"] .core{width:56px;height:56px;border-radius:14px}
+  .phone[data-size="tablet"] .core span,.phone[data-size="tablet"] .core em{font-size:9px}
+  .phone[data-size="tablet"] .core b{font-size:18px;margin:2px 0}
+  .phone[data-size="tablet"] .tb-hud{gap:10px}
+  .phone[data-size="tablet"] .hud-time{font-size:12px}
+  .phone[data-size="tablet"] .hud-btn{width:30px;height:30px;border-radius:9px}
+  .phone[data-size="tablet"] .hud-mid b{font-size:12.5px}
+  .phone[data-size="tablet"] .hud-mid span{font-size:10.5px;margin-left:7px}
+  /* 听牌提示：固定在 HUD 下方左侧，不进入手牌带与牌河 */
+  .tenpai{position:absolute;z-index:5;left:var(--safe);top:calc(var(--hud) + 8px);width:192px;height:56px;border-radius:12px;
+    background:rgba(6,20,16,.62);border:1px solid rgba(232,201,122,.48);display:flex;align-items:center;gap:8px;padding:0 8px}
+  .tp-tag{flex:none;background:var(--table-gold);color:var(--table-gold-ink);font-size:8.5px;font-weight:700;border-radius:5px;padding:2px 5px;letter-spacing:.04em}
+  .tp-body{min-width:0;display:flex;flex-direction:column;gap:3px}
+  .tp-row{display:flex;align-items:center;gap:3px;white-space:nowrap}
+  .tp-k{font-size:8.5px;color:var(--on-table-2);letter-spacing:.04em;margin-right:1px}
+  .tp-mini{width:15px;height:20px;display:block;flex:none}
+  .tp-mini .tile{width:100%;height:100%}
+  .tp-row b{font-size:9.5px;font-weight:650;color:var(--on-table);font-variant-numeric:tabular-nums}
+  .tp-arrow{color:var(--table-gold);font-size:9px;margin-left:1px}
+  .tp-rest{font-size:8.5px;color:var(--on-table-2);margin-left:3px;font-variant-numeric:tabular-nums}
+  .phone[data-size="compact"] .tenpai{top:calc(var(--hud) + 6px);width:160px;height:48px;gap:6px;padding:0 7px;border-radius:10px}
+  .phone[data-size="compact"] .tp-tag{font-size:8.5px;padding:1px 4px}
+  .phone[data-size="compact"] .tp-mini{width:12px;height:16px}
+  .phone[data-size="compact"] .tp-row b{font-size:8.5px}
+  .phone[data-size="compact"] .tp-row{gap:2px}
+  .phone[data-size="tablet"] .tenpai{top:calc(var(--hud) + 8px);width:220px;height:62px;gap:9px;padding:0 9px;border-radius:13px}
+  .phone[data-size="tablet"] .tp-tag{font-size:10px;padding:3px 6px}
+  .phone[data-size="tablet"] .tp-mini{width:17px;height:23px}
+  .phone[data-size="tablet"] .tp-row b{font-size:11px}
+  .phone[data-size="tablet"] .tp-k,.phone[data-size="tablet"] .tp-rest{font-size:9.5px}
+  /* 操作 */
+  .acts{position:absolute;z-index:5;right:var(--safe);bottom:10px;display:flex;gap:var(--btn-gap)}
+  .act{height:var(--btn-h);min-width:var(--btn-w);padding:0 8px;border-radius:10px;border:1px solid var(--table-line);background:var(--panel);color:var(--on-table);font-family:inherit;font-size:12px;font-weight:650;cursor:pointer;transition:transform .14s,background .18s}
+  .act:active{transform:scale(.96)}
+  .act.pass{background:transparent;border-color:transparent;color:var(--on-table-2);min-width:38px;padding:0 5px}
+  .act.hu{background:var(--table-gold);border-color:var(--table-gold);color:var(--table-gold-ink)}
+  .phone[data-size="compact"] .acts{right:var(--safe);bottom:8px}
+  .phone[data-size="compact"] .act{font-size:10.5px;padding:0 6px}
+  .phone[data-size="compact"] .act.pass{min-width:30px}
+  .phone[data-size="tablet"] .acts{bottom:12px}
+  .phone[data-size="tablet"] .act{font-size:14px;border-radius:12px;padding:0 12px}
+  .phone[data-size="tablet"] .act.pass{min-width:44px}
+  /* 手牌带 */
+  .tb-hand{position:relative;z-index:5;height:var(--band);flex:none;display:flex;align-items:center;gap:8px;padding:0 var(--safe) 14px;
+    background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.30) 100%)}
+  .me{width:84px;flex:none;display:flex;flex-direction:column;justify-content:center;gap:2px}
+  .me-top{display:flex;align-items:center;gap:5px}
+  .me-name{font-size:10px;font-weight:650;color:var(--on-table);white-space:nowrap}
+  .me-score{font-size:9px;color:var(--on-table-2);font-variant-numeric:tabular-nums}
+  .me-meta{display:flex;align-items:center;gap:4px;font-size:8.5px;color:var(--on-table-2);font-variant-numeric:tabular-nums}
+  .me-wind{width:13px;height:13px;border-radius:4px;background:var(--on-table);color:var(--table-3);display:grid;place-items:center;font-size:8.5px;font-weight:700}
+  .hand-zone{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:14px}
+  .melds{flex:none;display:flex;align-items:center;gap:5px}
+  .meld{position:relative;display:flex;gap:1px;padding:2px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid var(--table-line)}
+  .m-tag{position:absolute;top:-8px;left:2px;font-size:8.5px;color:var(--table-gold);letter-spacing:.04em}
+  .meld-name{font-size:8.5px;color:var(--on-table-2);margin-left:1px;white-space:nowrap}
+  .meld .tile-wrap{width:var(--meld-w);height:var(--meld-h)}
+  .hand-core{flex:none;display:flex;align-items:flex-end;gap:var(--drawn-gap)}
+  .hand{flex:none;display:flex;align-items:flex-end;gap:var(--hand-gap)}
+  .hand .tile-wrap{width:var(--hand-w);height:var(--hand-h);transition:transform .16s cubic-bezier(.22,1,.36,1)}
+  .hand .tile-wrap.sel{transform:translateY(-10px)}
+  .hand .tile-wrap.sel::after{content:"";position:absolute;inset:-2px;border:1px solid var(--table-gold);border-radius:4px;pointer-events:none}
+  .drawn-wrap{position:relative;flex:none;width:var(--drawn-w);height:var(--drawn-h);transition:transform .16s}
+  .drawn-wrap .tile{width:100%;height:100%}
+  .drawn-wrap::after{content:"摸";position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:8.5px;color:var(--table-gold);letter-spacing:.08em;white-space:nowrap}
+  .drawn-wrap.sel{transform:translateY(-8px)}
+  .flowers{flex:none;display:flex;align-items:center;gap:3px;padding-left:7px;margin-left:2px;border-left:1px solid var(--table-line)}
+  .fl-label{font-size:8.5px;color:var(--on-table-2);writing-mode:vertical-rl;letter-spacing:.08em;margin-right:1px}
+  .flower-tile{width:var(--flw-w);height:var(--flw-h)}
+  .phone[data-size="compact"] .me{width:58px}
+  .phone[data-size="compact"] .me-name{font-size:9px}
+  .phone[data-size="compact"] .me-score{font-size:8.5px}
+  .phone[data-size="compact"] .meld-name{display:none}
+  .phone[data-size="compact"] .tb-hand{gap:6px;padding:0 var(--safe) 10px}
+  .phone[data-size="compact"] .hand-zone{gap:10px}
+  .phone[data-size="tablet"] .tb-hand{gap:10px;padding:0 var(--safe) 18px}
+  .phone[data-size="tablet"] .hand-zone{gap:16px}
+  .phone[data-size="tablet"] .me{width:100px;gap:3px}
+  .phone[data-size="tablet"] .me-name{font-size:12px}
+  .phone[data-size="tablet"] .me-score{font-size:11px}
+  .phone[data-size="tablet"] .me-meta{font-size:10px}
+  .phone[data-size="tablet"] .me-wind{width:16px;height:16px;font-size:8.5px;border-radius:5px}
+  .phone[data-size="tablet"] .m-tag{font-size:9px;top:-10px}
+  .phone[data-size="tablet"] .meld-name{font-size:9px}
+  .phone[data-size="tablet"] .drawn-wrap::after{font-size:9px;top:-11px}
+  .phone[data-size="tablet"] .fl-label{font-size:9px}
+  /* 区域标注 */
+  .zones{position:absolute;inset:0;z-index:15;pointer-events:none;display:none}
+  .phone[data-size="base"] .zones{display:block;opacity:0;transition:opacity .16s}
+  body.show-zones .phone[data-size="base"] .zones{opacity:1}
+  .zone{position:absolute;border:1px dashed rgba(232,201,122,.85);border-radius:3px}
+  .zone span{position:absolute;left:2px;top:2px;font-size:6.5px;line-height:1.2;color:#2A2110;background:var(--table-gold);border-radius:2px;padding:1px 3px;white-space:nowrap;letter-spacing:.02em}
+  /* 动效预览（默认静止） */
+  @keyframes handIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @keyframes drawnIn{from{opacity:0;transform:translateY(-14px) scale(.94)}to{opacity:1;transform:none}}
+  @keyframes lastIn{0%{opacity:0;transform:scale(.9)}100%{opacity:1;transform:none}}
+  @keyframes huPop{0%{transform:scale(.97);box-shadow:0 0 0 0 rgba(232,201,122,.5)}55%{transform:scale(1.015);box-shadow:0 0 0 5px rgba(232,201,122,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(232,201,122,0)}}
+  body.fx .hand .tile-wrap{animation:handIn .32s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(var(--i,0)*18ms)}
+  body.fx .drawn-wrap{animation:drawnIn .22s cubic-bezier(.22,1,.36,1) .28s both}
+  body.fx .river .tile-wrap.last{animation:lastIn .24s ease-out both}
+  body.fx .act.hu{animation:huPop .9s cubic-bezier(.22,1,.36,1) .5s both}
+  html[data-motion="reduce"] .phone *,
+  html[data-motion="reduce"] .phone *::before,
+  html[data-motion="reduce"] .phone *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  html[data-motion="reduce"] .load i{width:100%;transform:none}
+  /* ================= 结算 ================= */
+  .st-head{height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px}
+  .st-head b{font-size:13px;font-weight:700}
+  .st-head span{font-size:9px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .st-tabs{margin-left:auto;display:flex;background:var(--surface-2);border-radius:9px;padding:2px;gap:2px}
+  .st-tabs button{border:0;background:transparent;font-family:inherit;font-size:9.5px;color:var(--ink-2);height:24px;padding:0 9px;border-radius:7px;cursor:pointer}
+  .st-tabs button.on{background:var(--surface);color:var(--ink);font-weight:650;border:1px solid var(--line)}
+  .st-body{flex:1;min-height:0;display:grid;grid-template-columns:1.02fr .98fr;gap:12px;padding:3px 10px 12px}
+  .st-left{display:flex;flex-direction:column;gap:7px;min-height:0}
+  .winner{position:relative;display:flex;align-items:center;gap:9px;background:var(--primary-soft);border:1px solid var(--primary);border-radius:14px;padding:9px 11px}
+  .win-tag{position:absolute;top:6px;right:8px;background:var(--primary);color:#fff;font-size:8.5px;font-weight:650;border-radius:999px;padding:2px 6px;letter-spacing:.04em}
+  .av-lg{width:36px;height:36px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;font-size:15px;font-weight:700;color:var(--primary-deep);flex:none}
+  .win-name{font-size:12.5px;font-weight:700;line-height:1.2}
+  .win-sub{font-size:8.5px;color:var(--ink-2);margin-top:2px;white-space:nowrap}
+  .win-score{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums;padding-top:4px}
+  .win-score b{font-size:21px;line-height:1;font-weight:700;color:var(--primary-deep);letter-spacing:-.02em}
+  .win-score span{display:block;font-size:8.5px;color:var(--ink-3);margin-top:3px}
+  .st-hand{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 8px;display:flex;justify-content:center;align-items:flex-end;gap:5px;flex:none}
+  .st-hand .grp{display:flex;gap:1px;padding:2px;border-radius:5px;position:relative}
+  .st-hand .grp.meld{background:var(--surface-2)}
+  .st-hand .grp .tag{position:absolute;top:-6px;left:2px;font-size:6px;color:var(--ink-3)}
+  .st-hand .tile-wrap{width:21px;height:28px}
+  .st-hand .tile-wrap.win{outline:1.5px solid var(--primary);outline-offset:1px;border-radius:3px}
+  .st-note{font-size:8.5px;color:var(--ink-3);text-align:center;margin-top:-3px}
+  .deltas{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  .pl{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:9px;background:var(--surface);border:1px solid var(--line);min-width:0}
+  .pl.self{background:var(--primary-soft);border-color:var(--primary)}
+  .pl .av-sm{width:18px;height:18px;font-size:8.5px;background:var(--surface-2);color:var(--ink-2);border-color:var(--line)}
+  .pl-name{font-size:9px;font-weight:600;white-space:nowrap}
+  .pl-role{font-size:8.5px;color:var(--ink-3);margin-top:1px}
+  .pl-delta{margin-left:auto;font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .plus{color:var(--green)}
+  .minus{color:var(--red)}
+  .st-right{min-height:0;display:flex;flex-direction:column}
+  .fan-card{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 11px 9px}
+  .fan-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+  .fan-head b{font-size:11px;font-weight:650}
+  .fan-head span{font-size:8.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .fan-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;justify-content:space-between}
+  .fan-row{display:flex;align-items:center;gap:6px;padding:2.5px 0;border-bottom:1px solid var(--line);font-size:9.5px;min-height:24px}
+  .fan-row:last-child{border-bottom:0}
+  .fan-name{width:56px;flex:none;font-weight:600}
+  .fan-desc{flex:1;min-width:0;font-size:8.5px;color:var(--ink-3);line-height:1.3}
+  .fan-val{width:38px;flex:none;text-align:right;font-weight:650;font-variant-numeric:tabular-nums}
+  .fan-gate{flex:none;font-size:8.5px;padding:1px 4px;border-radius:4px;white-space:nowrap}
+  .gate-on{background:var(--green-soft);color:var(--green)}
+  .gate-off{background:var(--surface-2);color:var(--ink-3)}
+  .fan-total{display:flex;align-items:center;justify-content:space-between;padding-top:6px;margin-top:2px;border-top:1px dashed var(--line-strong);font-size:9.5px}
+  .fan-total span{color:var(--ink-2)}
+  .fan-total b{font-size:11px;font-variant-numeric:tabular-nums}
+  .fan-gatebar{flex:none;margin:7px 0 2px;padding:5px 8px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line)}
+  .fgb-head{display:flex;align-items:baseline;justify-content:space-between;font-size:8.5px;color:var(--ink-3)}
+  .fgb-head b{font-size:9px;color:var(--ink);font-weight:650}
+  .fgb-track{position:relative;height:6px;border-radius:3px;background:var(--line);margin:5px 0 4px;overflow:hidden}
+  .fgb-track i{display:block;height:100%;border-radius:3px;background:var(--green)}
+  .fgb-track em{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-2);border-radius:1px;transform:translateX(-1px)}
+  .fgb-legend{position:relative;display:flex;justify-content:space-between;font-size:8.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .fgb-legend .fgb-mark{position:absolute;transform:translateX(-50%)}
+  .st-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:auto}
+  .st-summary div{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 7px}
+  .st-summary span{display:block;font-size:8.5px;color:var(--ink-3);line-height:1.2}
+  .st-summary b{display:block;font-size:10px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .gd-bar{display:flex;height:9px;border-radius:5px;overflow:hidden;margin:5px 0 3px;background:var(--surface-2)}
+  .gd-bar i{display:block;height:100%}
+  .gd-legend{display:flex;flex-wrap:wrap;gap:2px 9px;font-size:8.5px;color:var(--ink-3);margin-bottom:1px}
+  .gd-legend em{font-style:normal;display:inline-flex;align-items:center;gap:3px}
+  .gd-legend i{width:5px;height:5px;border-radius:2px;display:inline-block}
+  .st-actions{display:flex;gap:7px;margin-top:7px;flex:none}
+  .st-actions .btn-primary{flex:1.3;height:34px;border-radius:10px;font-size:11.5px}
+  .st-actions .btn-ghost{flex:1;height:34px;border-radius:10px;font-size:11px}
+  .cap-note{font-size:8.5px;color:var(--ink-3);margin-top:3px;line-height:1.35}
+  /* ================= 设置 ================= */
+  .set-head{height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px}
+  .set-head h2{font-size:15px;font-weight:700}
+  .set-head span{font-size:8.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .set-body{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:2px 10px 14px}
+  .set-col{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:9px 11px;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  .set-col h3{display:flex;align-items:baseline;justify-content:space-between;font-size:10.5px;font-weight:650;margin-bottom:4px}
+  .set-col h3 span{font-size:8.5px;color:var(--ink-3);font-weight:400}
+  .set-row{display:flex;align-items:center;gap:7px;min-height:40px;border-bottom:1px solid var(--line);font-size:9.5px}
+  .set-row:last-child{border-bottom:0}
+  .set-row .lab{flex:1;min-width:0;line-height:1.25}
+  .set-row .lab small{display:block;font-size:8.5px;color:var(--ink-3);margin-top:1px;line-height:1.3}
+  .sw-btn{width:36px;height:21px;border-radius:11px;border:1px solid var(--line-strong);background:var(--surface-2);position:relative;cursor:pointer;transition:background .2s,border-color .2s;flex:none;padding:0}
+  .sw-btn::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.06);transition:transform .22s cubic-bezier(.22,1,.36,1)}
+  .sw-btn[aria-pressed="true"]{background:var(--primary);border-color:var(--primary)}
+  .sw-btn[aria-pressed="true"]::after{transform:translateX(15px)}
+  .inline-seg{display:flex;background:var(--surface-2);border-radius:8px;padding:2px;gap:2px;margin-bottom:4px}
+  .inline-seg button{flex:1;border:0;background:transparent;font-family:inherit;font-size:8.5px;color:var(--ink-2);height:22px;border-radius:6px;cursor:pointer}
+  .inline-seg button.on{background:var(--surface);color:var(--ink);border:1px solid var(--line);font-weight:600}
+  .diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:4px 0 2px}
+  .diff{border:1px solid var(--line);border-radius:8px;padding:5px 6px;text-align:left;background:transparent;font-family:inherit;cursor:pointer;color:var(--ink)}
+  .diff.on{border-color:var(--primary);background:var(--primary-soft)}
+  .diff b{font-size:9px;font-weight:650;display:block}
+  .diff span{font-size:8.5px;color:var(--ink-3);display:block;margin-top:1px;line-height:1.3}
+  .skins{display:flex;gap:5px;margin-top:4px}
+  .skin{flex:1;border:1px solid var(--line);border-radius:8px;padding:4px;background:transparent;font-family:inherit;cursor:pointer;color:var(--ink-2);font-size:8.5px;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .skin.on{border-color:var(--primary);background:var(--primary-soft);color:var(--ink)}
+  .skin i{width:100%;height:14px;border-radius:4px;display:block;position:relative;overflow:hidden}
+  .skin i::after{content:"";position:absolute;right:4px;top:4px;width:5px;height:5px;border-radius:50%}
+  .s-classic{background:linear-gradient(135deg,#EAF1FF 0 50%,#3D7AFD 50% 100%)}
+  .s-classic::after{background:#fff}
+  .s-bamboo{background:linear-gradient(135deg,#EEF3EA 0 50%,#2E6B52 50% 100%)}
+  .s-bamboo::after{background:#D9C6A8}
+  .s-ink{background:linear-gradient(135deg,#1A2420 0 50%,#C9A227 50% 100%)}
+  .s-ink::after{background:#E9E4D8}
+  .motion-note{font-size:8.5px;line-height:1.4;color:var(--ink-3);padding:4px 2px 0;margin-top:auto}
+  /* ================= 规范卡 ================= */
+  .specs{max-width:1440px;margin:28px auto 0;display:grid;grid-template-columns:1.05fr .95fr;gap:18px}
+  .spec-card{background:#fff;border:1px solid var(--board-line);border-radius:18px;padding:16px 18px 18px;
+    --tile-face:#FFFFFF;--tile-edge:#DCE2EC;--tile-inner:#EDF1F6;--tile-ink:#1D2129;--tile-red:#C63C3C;--tile-blue:#2F6FE4;--tile-green:#1B7F53}
+  .spec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .spec-head h3{font-size:14px;font-weight:700;letter-spacing:-.01em}
+  .spec-head span{font-size:9.5px;color:var(--board-ink-2)}
+  .spec-rule{display:flex;align-items:center;gap:6px;font-size:9.5px;color:var(--board-ink-2);margin-bottom:10px}
+  .spec-rule b{color:var(--board-ink);font-weight:650}
+  .spec-rule i{font-style:normal;color:#2A5FD9}
+  .spec-hand{display:flex;align-items:flex-end;gap:2px;padding:15px 12px 12px;border-radius:12px;background:#F6F8FB;border:1px solid var(--board-line);overflow:hidden}
+  .spec-hand .tile-wrap{width:30px;height:40px}
+  .spec-hand .tile-wrap .tile{width:100%;height:100%}
+  .spec-hand .drawn{position:relative;width:34px;height:45px;margin-left:10px}
+  .spec-hand .drawn .tile{width:100%;height:100%}
+  .spec-hand .drawn::after{content:"摸";position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:8.5px;color:#7E540C;letter-spacing:.08em}
+  .spec-hand .flow{display:flex;align-items:flex-end;gap:2px;margin-left:8px;padding-left:8px;border-left:1px solid #D4DAE4;position:relative}
+  .spec-hand .flow::after{content:"花";position:absolute;top:-10px;left:10px;font-size:8.5px;color:#5A6575}
+  .spec-hand .flow .tile-wrap{width:22px;height:29px}
+  .spec-melds{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:11px}
+  .sp-meld{background:#F6F8FB;border:1px solid var(--board-line);border-radius:10px;padding:7px 8px;display:flex;align-items:center;gap:7px}
+  .sp-meld .tiles{display:flex;gap:1px;flex:none}
+  .sp-meld .tiles .tile-wrap{width:17px;height:23px}
+  .sp-meld .tiles .tile-wrap .tile{width:100%;height:100%}
+  .sp-meld .back-tile{width:17px;height:23px;display:block;border-radius:3px;background:#E9EFF9;border:1px solid #C9D6EA}
+  .sp-meld .m-tag2{font-size:8.5px;color:#7E540C;display:block;line-height:1;margin-bottom:2px}
+  .sp-meld .m-tag2.gray{color:#5A6575}
+  .sp-meld b{font-size:9.5px;font-weight:650;display:block;line-height:1.2}
+  .sp-meld span{font-size:8.5px;color:var(--board-ink-2);display:block;line-height:1.3;margin-top:2px}
+  .fx-list{display:flex;flex-direction:column;gap:0}
+  .fx-row{display:grid;grid-template-columns:52px 1fr 56px 78px;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--board-line);font-size:9px}
+  .fx-row:last-child{border-bottom:0}
+  .fx-name{font-weight:650;color:var(--board-ink)}
+  .fx-track{height:6px;border-radius:3px;background:#EDF1F7;overflow:hidden;display:flex}
+  .fx-track i{display:block;height:100%}
+  .fx-time{font-family:var(--mono);font-size:8.5px;color:var(--board-ink-2);text-align:right;font-variant-numeric:tabular-nums}
+  .fx-reduce{font-size:8.5px;color:#8B96A6;line-height:1.3}
+  .fx-note{margin-top:8px;font-size:8.5px;color:var(--board-ink-2);line-height:1.4}
+  @media (max-width:980px){.specs{grid-template-columns:1fr}}
+  /* ================= 设计板脚注 ================= */
+  body.solo{padding:0;background:#11161D}
+  body.solo .board-head,body.solo .board-foot,body.solo .specs{display:none}
+  body.solo .board{display:block;max-width:none;margin:0}
+  body.solo .device-wrap figcaption{display:none}
+  .board-foot{max-width:1440px;margin:18px auto 0;display:flex;justify-content:space-between;gap:20px;font-size:10px;color:var(--board-ink-2);letter-spacing:.02em}
+  .board-foot b{font-weight:600;color:var(--board-ink)}
+  .legend{display:flex;gap:14px;align-items:center}
+  .legend i{width:14px;height:14px;border-radius:3px;border:1px solid #B9C4D2;display:inline-block;vertical-align:-2px;margin-right:4px;background:#fff}
+  .legend .lg-sel{border-color:#E8C97A;outline:1px solid #E8C97A;outline-offset:1px}
+  .legend .lg-win{border-color:#2C63E0}
+</style>
+</head>
+<body>
+
+<header class="board-head">
+  <div>
+    <div class="kicker">Direction B / 03 · Landscape Baseline</div>
+    <h1>明快几何 · <em>横屏基准</em></h1>
+    <div class="mood">844×390 基准 / 640×360 紧凑 / 1024×640 平板 · 刘海与手势条安全区 · 双主题 · 三皮肤</div>
+  </div>
+  <div class="bh-right">
+    <button class="hdr-btn" id="zones-btn">区域标注</button>
+    <button class="hdr-btn" id="fx-btn">动效预览</button>
+    <div class="theme-toggle" data-theme-toggle>
+      <button class="on" data-theme-set="day">日间</button>
+      <button data-theme-set="night">夜间</button>
+    </div>
+  </div>
+</header>
+
+<main class="board" id="board"></main>
+
+<section class="specs">
+  <div class="spec-card">
+    <div class="spec-head"><h3>手牌排列 · 副露四态</h3><span>横屏单行 · 摸牌置右 · 花牌独立</span></div>
+    <div class="spec-rule"><b>固定顺序</b><span>万</span><i>→</i><span>条</span><i>→</i><span>筒</span><i>→</i><span>字</span><span>· 同花色升序 · 摸牌不参与排序</span></div>
+    <div class="spec-hand" data-spec-hand></div>
+    <div class="spec-melds">
+      <div class="sp-meld"><div class="tiles" data-spec-meld="chi"></div><div style="min-width:0"><span class="m-tag2 gray">吃</span><b>吃</b><span>顺子 · 3 张</span></div></div>
+      <div class="sp-meld"><div class="tiles" data-spec-meld="pong"></div><div style="min-width:0"><span class="m-tag2">碰</span><b>碰</b><span>刻子 · 3 张</span></div></div>
+      <div class="sp-meld"><div class="tiles" data-spec-meld="ming"></div><div style="min-width:0"><span class="m-tag2">明杠</span><b>明杠</b><span>4 张 · 金字标</span></div></div>
+      <div class="sp-meld"><div class="tiles" data-spec-meld="an"></div><div style="min-width:0"><span class="m-tag2">暗杠</span><b>暗杠</b><span>4 张 · 中间扣置</span></div></div>
+    </div>
+  </div>
+  <div class="spec-card">
+    <div class="spec-head"><h3>动效节奏</h3><span>单次位移 ≤320ms · 发牌总时长 ≤700ms · 无循环 / 无粒子</span></div>
+    <div class="fx-list">
+      <div class="fx-row"><span class="fx-name">发牌</span><div class="fx-track"><i style="width:58%;background:#2C63E0"></i><i style="width:24%;background:#7DA4FF"></i><i style="width:18%;background:#C9D9F6"></i></div><span class="fx-time">≤700ms</span><span class="fx-reduce">直接落位</span></div>
+      <div class="fx-row"><span class="fx-name">摸牌</span><div class="fx-track"><i style="width:56%;background:#2C63E0"></i><i style="width:44%;background:#E8C97A"></i></div><span class="fx-time">200ms</span><span class="fx-reduce">无位移</span></div>
+      <div class="fx-row"><span class="fx-name">出牌</span><div class="fx-track"><i style="width:46%;background:#2C63E0"></i><i style="width:38%;background:#7DA4FF"></i><i style="width:16%;background:#E8C97A"></i></div><span class="fx-time">420ms</span><span class="fx-reduce">立即落位</span></div>
+      <div class="fx-row"><span class="fx-name">碰 / 杠</span><div class="fx-track"><i style="width:50%;background:#2C63E0"></i><i style="width:30%;background:#7DA4FF"></i><i style="width:20%;background:#E8C97A"></i></div><span class="fx-time">340ms</span><span class="fx-reduce">直接成组</span></div>
+      <div class="fx-row"><span class="fx-name">自摸</span><div class="fx-track"><i style="width:40%;background:#2C63E0"></i><i style="width:60%;background:#E8C97A"></i></div><span class="fx-time">240ms</span><span class="fx-reduce">静态金线</span></div>
+      <div class="fx-row"><span class="fx-name">胡牌</span><div class="fx-track"><i style="width:45%;background:#2C63E0"></i><i style="width:35%;background:#E8C97A"></i><i style="width:20%;background:#C9D9F6"></i></div><span class="fx-time">560ms</span><span class="fx-reduce">只留金框</span></div>
+      <div class="fx-row"><span class="fx-name">分数滚动</span><div class="fx-track"><i style="width:100%;background:#2C63E0"></i></div><span class="fx-time">600ms</span><span class="fx-reduce">直显终值</span></div>
+    </div>
+    <div class="fx-note">减少动态：位移与缩放归零，仅保留 ≤120ms 透明度；发牌 / 摸牌 / 出牌直接落位；胡牌保留静态金框；分数不滚动。设置页与系统「减弱动态效果」同步。</div>
+  </div>
+</section>
+
+<div class="board-foot">
+  <span><b>麻将 · 横屏基准原型 v2.0</b> · 可点击：启动 → 大厅 → 牌桌 → 结算 / 设置，手牌可选，皮肤与主题可切</span>
+  <span class="legend"><span><i class="lg-sel"></i>选中提牌</span><span><i></i>刚打</span><span><i class="lg-win"></i>胡牌张</span></span>
+</div>
+
+<template id="app-tpl">
+  <div class="status">
+    <span>9:41</span>
+    <span class="sys">
+      <svg width="15" height="10" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+      <svg width="13" height="10" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 3.8a9.5 9.5 0 0 1 13 0"/><path d="M3.6 6.4a5.7 5.7 0 0 1 7.8 0"/><circle cx="7.5" cy="9.3" r=".9" fill="currentColor" stroke="none"/></svg>
+      <svg width="21" height="10" viewBox="0 0 23 11" fill="none"><rect x=".5" y=".5" width="19" height="10" rx="2.6" stroke="currentColor" opacity=".45"/><rect x="2" y="2" width="14.5" height="7" rx="1.4" fill="currentColor"/><path d="M21.4 3.6v3.8c.9-.3 1.3-.9 1.3-1.9s-.4-1.6-1.3-1.9Z" fill="currentColor" opacity=".55"/></svg>
+    </span>
+  </div>
+
+  <!-- ============ 启动页 ============ -->
+  <section class="screen screen--splash">
+    <div class="splash-inner">
+      <div class="splash-tiles" data-splash></div>
+      <div class="splash-title">麻将</div>
+      <div class="splash-sub">国标 · 广东 ｜ 四人局</div>
+      <div class="load"><i></i></div>
+      <button class="splash-enter" data-go="lobby">轻触进入</button>
+    </div>
+    <div class="splash-meta"><span>v2.0.0 · Landscape</span><span>横屏已锁定 · 无竖屏启动帧</span></div>
+  </section>
+
+  <!-- ============ 大厅 ============ -->
+  <section class="screen screen--lobby">
+    <div class="lobby">
+      <nav class="rail">
+        <div class="rail-logo">麻</div>
+        <button class="rail-btn on" aria-label="大厅"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg></button>
+        <button class="rail-btn" data-go="table" aria-label="牌桌"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="4" width="17" height="16" rx="4"/><path d="M3.5 10h17M10 4v16"/></svg></button>
+        <button class="rail-btn" aria-label="战绩"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h9l3.5 3.5v13.5h-12z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg></button>
+        <button class="rail-btn" data-go="settings" aria-label="设置"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c.7-3.6 3.7-5.6 7.5-5.6s6.8 2 7.5 5.6"/></svg></button>
+        <div class="rail-spacer"></div>
+        <button class="rail-btn" data-go="settings" aria-label="我的"><span class="avatar" style="width:28px;height:28px;border-radius:9px;font-size:11px">林</span></button>
+      </nav>
+
+      <div class="lobby-main">
+        <div class="lb-left">
+          <div class="lb-user">
+            <div class="avatar">林</div>
+            <div><div class="lb-user-name">林知远</div><div class="lb-user-rank">三段 · 1,280 分</div></div>
+            <div class="wallet">
+              <span class="currency"><i class="coin"></i>12,800</span>
+              <span class="currency"><i class="gem"></i>60</span>
+            </div>
+          </div>
+          <div class="lb-title"><h2>今晚，来一局</h2><p>四人局 · 国标 / 广东 · 随时开局</p></div>
+          <div class="seg" data-seg="mode"><button data-seg-val="gb">国标麻将</button><button class="on" data-seg-val="gd">广东麻将</button></div>
+          <div class="sec-head"><h3>选择场次</h3><span>AI 难度随场次提升</span></div>
+          <div class="arena" data-arena>
+            <button class="arena-card on">
+              <div class="arena-top"><span class="arena-name">新手场</span><span class="badge">推荐</span></div>
+              <div class="arena-base"><b>1</b><span>底分</span></div>
+              <div class="arena-meta">入场免费 · 入门 AI</div>
+              <div class="bars"><i class="on"></i><i></i><i></i><i></i></div>
+            </button>
+            <button class="arena-card">
+              <div class="arena-top"><span class="arena-name">进阶场</span></div>
+              <div class="arena-base"><b>5</b><span>底分</span></div>
+              <div class="arena-meta">入场 2,000 · 熟练 AI</div>
+              <div class="bars"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+            </button>
+            <button class="arena-card">
+              <div class="arena-top"><span class="arena-name">高手场</span></div>
+              <div class="arena-base"><b>20</b><span>底分</span></div>
+              <div class="arena-meta">入场 20,000 · 老练 AI</div>
+              <div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+            </button>
+            <button class="arena-card">
+              <div class="arena-top"><span class="arena-name">大师场</span></div>
+              <div class="arena-base"><b>100</b><span>底分</span></div>
+              <div class="arena-meta">入场 200,000 · 大师 AI</div>
+              <div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
+            </button>
+          </div>
+        </div>
+
+        <div class="lb-right">
+          <div class="panel">
+            <div class="panel-label">对局方式</div>
+            <div class="seg" data-seg="play"><button data-seg-val="local">单机练习</button><button class="on" data-seg-val="online">联机匹配</button></div>
+            <div class="panel-label" style="margin-top:8px">AI 强度</div>
+            <div class="ai-grid" data-ai>
+              <button class="ai-chip"><b>入门</b><span>基本牌型 · 节奏慢</span></button>
+              <button class="ai-chip on"><b>熟练</b><span>看牌河 · 懂防守</span></button>
+              <button class="ai-chip"><b>老练</b><span>算番扣牌 · 会做牌</span></button>
+              <button class="ai-chip"><b>大师</b><span>读牌控场 · 接近比赛</span></button>
+            </div>
+          </div>
+          <button class="btn btn-primary" data-go="table">快速开始 <small>东风 · 四人局 · 底分 1</small></button>
+          <button class="btn btn-ghost" data-go="table">创建好友房</button>
+          <div class="lb-note"><b>横屏布局：</b>左侧导航常驻，场次与开局同屏；开局后不再出现竖屏页面。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 对局桌 ============ -->
+  <section class="screen screen--table">
+    <div class="tb-field">
+      <div class="tb-hud">
+        <span class="hud-time">9:41</span>
+        <button class="hud-btn" data-go="lobby" aria-label="返回">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="hud-mid"><b>东风局 · 第 2 局</b><span>余 42 张 · 底分 1 · 广东麻将</span></div>
+        <div class="hud-right">
+          <button class="hud-btn" aria-label="规则">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8.2v.2"/></svg>
+          </button>
+          <button class="hud-btn" aria-label="设置">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="10" cy="17" r="1.8" fill="currentColor" stroke="none"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="opp opp--top">
+        <div class="av-sm">周</div>
+        <div class="opp-meta"><div class="opp-name">周叙</div><div class="opp-score">24,580 · 北</div></div>
+        <div class="backs" data-backs="13"></div>
+        <span class="turn-dot"></span>
+      </div>
+
+      <div class="opp opp--left">
+        <div class="av-sm">陈</div>
+        <div class="opp-name">陈见山</div>
+        <div class="opp-score">18,240</div>
+        <div class="backs backs--v" data-backs="13"></div>
+        <span class="wind">西</span>
+      </div>
+
+      <div class="opp opp--right">
+        <div class="av-sm">苏</div>
+        <div class="opp-name">苏晚</div>
+        <div class="opp-score">31,900</div>
+        <div class="backs backs--v" data-backs="13"></div>
+        <span class="wind">南</span>
+      </div>
+
+      <div class="river river--top" data-river="top"></div>
+      <div class="river river--left" data-river="left"></div>
+      <div class="river river--right" data-river="right"></div>
+      <div class="river river--bottom" data-river="bottom"></div>
+
+      <div class="core"><span>东</span><b data-remain>42</b><em>余张</em></div>
+
+      <div class="tenpai" data-tenpai></div>
+
+      <div class="acts">
+        <button class="act pass">过</button>
+        <button class="act">吃</button>
+        <button class="act">碰</button>
+        <button class="act">杠</button>
+        <button class="act hu" data-go="settle-gd">胡</button>
+      </div>
+
+      <div class="zones" aria-hidden="true">
+        <div class="zone" style="top:0;left:0;right:0;height:30px"><span>HUD 30 · 左右安全区 40</span></div>
+        <div class="zone" style="top:32px;left:50%;transform:translateX(-50%);width:244px;height:28px"><span>对家 244×28</span></div>
+        <div class="zone" style="top:64px;left:50%;transform:translateX(-50%);width:130px;height:79px"><span>对家牌河 6×3 · 19×25</span></div>
+        <div class="zone" style="top:89px;left:124px;width:61px;height:160px"><span>左家牌河 3×6</span></div>
+        <div class="zone" style="top:147px;left:50%;transform:translateX(-50%);width:44px;height:44px"><span>盘 44</span></div>
+        <div class="zone" style="top:195px;left:50%;transform:translateX(-50%);width:130px;height:79px"><span>自家牌河 6×3</span></div>
+        <div class="zone" style="top:38px;left:40px;width:192px;height:56px"><span>听牌提示 192×56 · 不入牌河/手牌</span></div>
+        <div class="zone" style="top:234px;right:40px;width:304px;height:38px"><span>操作 5×56×38</span></div>
+        <div class="zone" style="top:282px;left:0;right:0;height:108px"><span>手牌带 108 · 手牌 36×48 · 摸牌 40×54 · 副露 22×30 · 花 16×22</span></div>
+      </div>
+    </div>
+
+    <div class="tb-hand">
+      <div class="me">
+        <div class="me-top"><span class="me-wind">东</span><span class="me-name">林知远</span></div>
+        <div class="me-score">22,460</div>
+        <div class="me-meta">副露 1 · 花 2</div>
+      </div>
+      <div class="hand-zone">
+        <div class="melds" data-melds></div>
+        <div class="hand-core">
+          <div class="hand" data-hand></div>
+          <div class="drawn-wrap" data-drawn></div>
+        </div>
+        <div class="flowers" data-flowers></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 结算 · 国标 ============ -->
+  <section class="screen screen--settle-gb">
+    <div class="st-head">
+      <button class="hud-btn" style="width:26px;height:26px;border-radius:8px;border-color:var(--line);background:var(--surface);color:var(--ink)" data-go="table" aria-label="返回">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <b>本局结算</b>
+      <span>东风 · 第 2 局</span>
+      <div class="st-tabs"><button class="on" data-go="settle-gb">国标</button><button data-go="settle-gd">广东</button></div>
+    </div>
+    <div class="st-body">
+      <div class="st-left">
+        <div class="winner">
+          <span class="win-tag">自摸</span>
+          <div class="av-lg">林</div>
+          <div><div class="win-name">林知远 胡牌</div><div class="win-sub">清一色 · 碰碰胡 · 幺九刻</div></div>
+          <div class="win-score"><b>+36</b><span>底分 1 · 三家支付</span></div>
+        </div>
+        <div class="st-hand" data-winhand data-mode="gb"></div>
+        <div class="st-note">胡牌张 · 3 萬 · 蓝框标出 ｜ 花牌 2 张不计入起和</div>
+        <div class="deltas">
+          <div class="pl self"><span class="av-sm">林</span><div><div class="pl-name">林知远</div><div class="pl-role">东 · 自摸</div></div><span class="pl-delta plus">+36</span></div>
+          <div class="pl"><span class="av-sm">苏</span><div><div class="pl-name">苏晚</div><div class="pl-role">南 · 未胡</div></div><span class="pl-delta minus">−12</span></div>
+          <div class="pl"><span class="av-sm">陈</span><div><div class="pl-name">陈见山</div><div class="pl-role">西 · 未胡</div></div><span class="pl-delta minus">−12</span></div>
+          <div class="pl"><span class="av-sm">周</span><div><div class="pl-name">周叙</div><div class="pl-role">北 · 未胡</div></div><span class="pl-delta minus">−12</span></div>
+        </div>
+        <div class="cap-note">国标按番种累加：起和门槛 8 番，花牌只计番不计门槛。</div>
+        <div class="st-summary">
+          <div><span>胡牌张</span><b>3 萬</b></div>
+          <div><span>合计番</span><b>36</b></div>
+          <div><span>计入门槛</span><b>34</b></div>
+          <div><span>底分</span><b>1</b></div>
+        </div>
+      </div>
+      <div class="st-right">
+        <div class="fan-card">
+          <div class="fan-head"><b>番型明细 · 国标</b><span>起和线 8 番 · 已过</span></div>
+          <div class="fan-list">
+            <div class="fan-row"><span class="fan-name">清一色</span><span class="fan-desc">全副牌为万子一门</span><span class="fan-val">24 番</span><span class="fan-gate gate-on">计入</span></div>
+            <div class="fan-row"><span class="fan-name">碰碰胡</span><span class="fan-desc">四组刻子 + 一对将</span><span class="fan-val">6 番</span><span class="fan-gate gate-on">计入</span></div>
+            <div class="fan-row"><span class="fan-name">双暗刻</span><span class="fan-desc">两组未碰出的刻子</span><span class="fan-val">2 番</span><span class="fan-gate gate-on">计入</span></div>
+            <div class="fan-row"><span class="fan-name">幺九刻</span><span class="fan-desc">一 / 九序数牌刻子</span><span class="fan-val">1 番</span><span class="fan-gate gate-on">计入</span></div>
+            <div class="fan-row"><span class="fan-name">自摸</span><span class="fan-desc">自己摸到胡牌张</span><span class="fan-val">1 番</span><span class="fan-gate gate-on">计入</span></div>
+            <div class="fan-row"><span class="fan-name">花牌 ×2</span><span class="fan-desc">春 / 夏 各 1 番</span><span class="fan-val">2 番</span><span class="fan-gate gate-off">不计入</span></div>
+          </div>
+          <div class="fan-gatebar">
+            <div class="fgb-head"><span>起和门槛 8 番</span><b>已过 · 计入 34 番</b></div>
+            <div class="fgb-track"><i style="width:94.4%"></i><em style="left:22.2%"></em></div>
+            <div class="fgb-legend"><span>0</span><span class="fgb-mark" style="left:22.2%">门槛 8</span><span>合计 36</span></div>
+          </div>
+          <div class="fan-total"><span>合计 36 番 · 门槛内 34 番</span><b>+36 分</b></div>
+        </div>
+        <div class="st-actions">
+          <button class="btn btn-primary" data-go="table">再来一局</button>
+          <button class="btn btn-ghost" data-go="lobby">返回大厅</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 结算 · 广东 ============ -->
+  <section class="screen screen--settle-gd">
+    <div class="st-head">
+      <button class="hud-btn" style="width:26px;height:26px;border-radius:8px;border-color:var(--line);background:var(--surface);color:var(--ink)" data-go="table" aria-label="返回">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <b>本局结算</b>
+      <span>东风 · 第 2 局</span>
+      <div class="st-tabs"><button data-go="settle-gb">国标</button><button class="on" data-go="settle-gd">广东</button></div>
+    </div>
+    <div class="st-body">
+      <div class="st-left">
+        <div class="winner">
+          <span class="win-tag">自摸</span>
+          <div class="av-lg">林</div>
+          <div><div class="win-name">林知远 胡牌</div><div class="win-sub">碰碰胡 · 清一色 · 自摸</div></div>
+          <div class="win-score"><b>+9</b><span>推倒胡 · 封顶 3</span></div>
+        </div>
+        <div class="st-hand" data-winhand data-mode="gd"></div>
+        <div class="st-note">胡牌张 · 3 萬 · 蓝框标出 ｜ 花牌 2 张单独成区</div>
+        <div class="deltas">
+          <div class="pl self"><span class="av-sm">林</span><div><div class="pl-name">林知远</div><div class="pl-role">东 · 自摸</div></div><span class="pl-delta plus">+9</span></div>
+          <div class="pl"><span class="av-sm">苏</span><div><div class="pl-name">苏晚</div><div class="pl-role">南 · 未胡</div></div><span class="pl-delta minus">−3</span></div>
+          <div class="pl"><span class="av-sm">陈</span><div><div class="pl-name">陈见山</div><div class="pl-role">西 · 未胡</div></div><span class="pl-delta minus">−3</span></div>
+          <div class="pl"><span class="av-sm">周</span><div><div class="pl-name">周叙</div><div class="pl-role">北 · 未胡</div></div><span class="pl-delta minus">−3</span></div>
+        </div>
+        <div class="cap-note">广东按番数构成累加；封顶值由规则配置决定（本局推倒胡 3 番封顶，不写死）；自摸三家各付。</div>
+        <div class="st-summary">
+          <div><span>原始番</span><b>12</b></div>
+          <div><span>封顶</span><b>3</b></div>
+          <div><span>每家</span><b>3 分</b></div>
+          <div><span>支付</span><b>三家</b></div>
+        </div>
+      </div>
+      <div class="st-right">
+        <div class="fan-card">
+          <div class="fan-head"><b>番数构成 · 广东</b><span>推倒胡 · 封顶 3 番</span></div>
+          <div class="gd-bar">
+            <i style="width:8.33%;background:var(--ink-3)"></i>
+            <i style="width:25%;background:var(--green)"></i>
+            <i style="width:41.67%;background:var(--gold)"></i>
+            <i style="width:8.33%;background:var(--primary)"></i>
+            <i style="width:16.67%;background:var(--red)"></i>
+          </div>
+          <div class="gd-legend">
+            <em><i style="background:var(--ink-3)"></i>底胡 1</em>
+            <em><i style="background:var(--green)"></i>碰碰胡 3</em>
+            <em><i style="background:var(--gold)"></i>清一色 5</em>
+            <em><i style="background:var(--primary)"></i>自摸 1</em>
+            <em><i style="background:var(--red)"></i>花牌 2</em>
+          </div>
+          <div class="fan-list">
+            <div class="fan-row"><span class="fan-name">底胡</span><span class="fan-desc">和牌即计的基础番</span><span class="fan-val">1 番</span></div>
+            <div class="fan-row"><span class="fan-name">碰碰胡</span><span class="fan-desc">四组刻子 + 一对将</span><span class="fan-val">3 番</span></div>
+            <div class="fan-row"><span class="fan-name">清一色</span><span class="fan-desc">全副牌为万子一门</span><span class="fan-val">5 番</span></div>
+            <div class="fan-row"><span class="fan-name">自摸</span><span class="fan-desc">自己摸到胡牌张</span><span class="fan-val">1 番</span></div>
+            <div class="fan-row"><span class="fan-name">花牌 ×2</span><span class="fan-desc">春夏各 1 番，单独成区</span><span class="fan-val">2 番</span></div>
+          </div>
+          <div class="fan-gatebar">
+            <div class="fgb-head"><span>封顶 3 番 · 规则配置</span><b>原始 12 → 3</b></div>
+            <div class="fgb-track"><i style="width:25%"></i><em style="left:25%"></em></div>
+            <div class="fgb-legend"><span>0</span><span class="fgb-mark" style="left:25%">封顶 3</span><span>原始 12</span></div>
+          </div>
+          <div class="fan-total"><span>计入 3 番 × 底分 1 · 每家</span><b>3 分</b></div>
+        </div>
+        <div class="st-actions">
+          <button class="btn btn-primary" data-go="table">再来一局</button>
+          <button class="btn btn-ghost" data-go="lobby">返回大厅</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 设置 ============ -->
+  <section class="screen screen--settings">
+    <div class="set-head">
+      <button class="hud-btn" style="width:26px;height:26px;border-radius:8px;border-color:var(--line);background:var(--surface);color:var(--ink)" data-go="lobby" aria-label="返回">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h2>设置</h2><span>v2.0.0 · 横屏分组</span>
+    </div>
+    <div class="set-body">
+      <div class="set-col">
+        <h3>玩法规则<span>当前 · 广东</span></h3>
+        <div class="inline-seg" data-seg="ruleMode"><button>国标</button><button class="on">广东</button></div>
+        <div class="set-row"><div class="lab">花牌计番<small>春夏秋冬、梅兰竹菊</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="set-row"><div class="lab">抢杠胡<small>他人补杠时可抢胡</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="set-row"><div class="lab">一炮多响<small>多方可同时胡同一张</small></div><button class="sw-btn" aria-pressed="false" data-switch></button></div>
+        <div class="set-row"><div class="lab">荒庄流局<small>牌墙摸完即结束</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="set-row"><div class="lab">连庄计分<small>庄家连庄时底分递增</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+      </div>
+
+      <div class="set-col">
+        <h3>对局辅助<span>仅影响本地体验</span></h3>
+        <div class="set-row"><div class="lab">听牌提示<small>打哪张 / 听哪些 / 剩余张数</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="set-row"><div class="lab">可胡提示<small>听牌时在操作区高亮</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="set-row"><div class="lab">自动整理手牌<small>万→条→筒→字固定顺序</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="set-row"><div class="lab">音效与震动<small>出牌、碰杠、胡牌反馈</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="set-row"><div class="lab">减少动态<small>关闭位移 / 缩放 / 分数滚动</small></div><button class="sw-btn" aria-pressed="false" data-switch="motion"></button></div>
+        <div class="motion-note" data-motion-note>开启后：发牌与摸牌直接落位，胡牌只保留静态金框与结算页。</div>
+      </div>
+
+      <div class="set-col">
+        <h3>外观与牌桌<span>日夜同构</span></h3>
+        <div class="inline-seg" data-seg="appTheme"><button data-theme-set="system">跟随系统</button><button class="on" data-theme-set="day">日间</button><button data-theme-set="night">夜间</button></div>
+        <div class="set-row"><div class="lab">牌面字号<small>小屏与长辈模式</small></div>
+          <div class="inline-seg" style="width:86px;margin:0" data-seg="tileSize"><button class="on">标准</button><button>放大</button></div>
+        </div>
+        <div class="set-row" style="border-bottom:0;min-height:26px"><div class="lab">牌桌皮肤<small>只换牌桌三色与高亮</small></div></div>
+        <div class="skins">
+          <button class="skin on" data-skin-name="classic"><i class="s-classic"></i>经典</button>
+          <button class="skin" data-skin-name="bamboo"><i class="s-bamboo"></i>竹青</button>
+          <button class="skin" data-skin-name="ink"><i class="s-ink"></i>墨玉</button>
+        </div>
+        <div class="set-row" style="border-bottom:0"><div class="lab">牌桌亮度<small>夜间降低牌桌对比</small></div>
+          <div class="inline-seg" style="width:96px;margin:0" data-seg="tableLight"><button class="on">标准</button><button>柔和</button><button>暗</button></div>
+        </div>
+        <div class="set-row"><div class="lab">场况常驻<small>余牌、底分、局数</small></div><button class="sw-btn" aria-pressed="true" data-switch></button></div>
+        <div class="motion-note">AI 难度：<b style="color:var(--ink-2)">熟练</b> · 对局内可调。</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="home-bar"></div>
+</template>
+
+<script>
+/* ================= 牌面绘制（全部矢量、可复现） ================= */
+const NUM = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+const HONOR = { E:'東', S:'南', W:'西', N:'北', Z:'中', F:'發', B:'白' };
+const HONOR_NAME = { E:'东风', S:'南风', W:'西风', N:'北风', Z:'红中', F:'发财', B:'白板' };
+
+const DOT_LAYOUT = {
+  1:[[30,42]], 2:[[30,25],[30,57]], 3:[[30,20],[20,42],[40,64]],
+  4:[[20,27],[40,27],[20,57],[40,57]], 5:[[19,22],[41,22],[30,42],[19,62],[41,62]],
+  6:[[20,20],[40,20],[20,40],[40,40],[20,60],[40,60]],
+  7:[[18,21],[30,21],[42,21],[22,47],[38,47],[22,63],[38,63]],
+  8:[[21,16],[39,16],[21,32],[39,32],[21,48],[39,48],[21,64],[39,64]],
+  9:[[18,20],[30,20],[42,20],[18,41],[30,41],[42,41],[18,62],[30,62],[42,62]]
+};
+const STICK_LAYOUT = {
+  2:[[30,24],[30,56]], 3:[[18,22],[30,42],[42,62]],
+  4:[[20,26],[40,26],[20,56],[40,56]], 5:[[19,22],[41,22],[30,42],[19,62],[41,62]],
+  6:[[20,20],[40,20],[20,41],[40,41],[20,62],[40,62]],
+  7:[[18,18],[30,18],[42,18],[22,42],[38,42],[22,62],[38,62]],
+  8:[[21,15],[39,15],[21,32],[39,32],[21,49],[39,49],[21,66],[39,66]],
+  9:[[18,18],[30,18],[42,18],[18,40],[30,40],[42,40],[18,62],[30,62],[42,62]]
+};
+
+function dot(cx, cy, r, red) {
+  const c = red ? 'var(--tile-red)' : 'var(--tile-blue)';
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r*0.54}" fill="var(--tile-face)"/>
+    <circle cx="${cx}" cy="${cy}" r="${r*0.2}" fill="${c}"/>`;
+}
+function stick(cx, cy, h, red) {
+  const c = red ? 'var(--tile-red)' : 'var(--tile-green)';
+  return `<rect x="${cx-2.6}" y="${cy-h/2}" width="5.2" height="${h}" rx="2.6" fill="${c}"/>
+    <path d="M${cx-2.1} ${cy-1.7}h4.2M${cx-2.1} ${cy+1.7}h4.2" stroke="var(--tile-face)" stroke-width=".8" opacity=".75"/>`;
+}
+function glyph(kind, n) {
+  if (kind === 'wan') {
+    return `<text x="30" y="50" text-anchor="middle" font-size="32" font-weight="600" fill="var(--tile-red)">${NUM[n]}</text>
+      <text x="30" y="71" text-anchor="middle" font-size="18" font-weight="600" fill="var(--tile-ink)">萬</text>`;
+  }
+  if (kind === 'tong') {
+    if (+n === 1) return `<circle cx="30" cy="40" r="15" fill="none" stroke="var(--tile-blue)" stroke-width="3"/>
+      <circle cx="30" cy="40" r="9.5" fill="var(--tile-blue)"/><circle cx="30" cy="40" r="5" fill="var(--tile-face)"/>
+      <circle cx="30" cy="40" r="2" fill="var(--tile-red)"/>`;
+    const r = +n <= 2 ? 9 : +n <= 5 ? 7.2 : +n <= 6 ? 6.6 : +n === 7 ? 5.4 : +n === 8 ? 5.2 : 5.6;
+    return DOT_LAYOUT[n].map((p, i) => dot(p[0], p[1], r, i === 0 && +n === 5)).join('');
+  }
+  if (kind === 'tiao') {
+    if (+n === 1) {
+      return `<path d="M30 17c0 15 0 30 0 45" stroke="var(--tile-green)" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <path d="M30 32c-8-4-13 1-15 8 8 1 12-2 15-8Z" fill="var(--tile-green)"/>
+        <path d="M30 44c8-4 13 1 15 8-8 1-12-2-15-8Z" fill="var(--tile-green)"/>
+        <circle cx="30" cy="15" r="3.2" fill="var(--tile-red)"/>`;
+    }
+    const h = +n >= 8 ? 10 : +n === 9 ? 9.5 : 12;
+    return STICK_LAYOUT[n].map((p, i) => stick(p[0], p[1], h, i === 2 && +n === 5)).join('');
+  }
+  if (kind === 'zi') {
+    if (n === 'B') return `<rect x="15" y="21" width="30" height="38" rx="3" fill="none" stroke="var(--tile-blue)" stroke-width="3"/>
+      <rect x="21" y="27" width="18" height="26" rx="2" fill="none" stroke="var(--tile-blue)" stroke-width="1.1" opacity=".6"/>`;
+    const color = n === 'Z' ? 'var(--tile-red)' : n === 'F' ? 'var(--tile-green)' : 'var(--tile-ink)';
+    return `<text x="30" y="54" text-anchor="middle" font-size="31" font-weight="600" fill="${color}">${HONOR[n]}</text>`;
+  }
+  if (kind === 'hua') {
+    const red = n === '春' || n === '梅';
+    const c = red ? 'var(--tile-red)' : 'var(--tile-green)';
+    return `<text x="30" y="46" text-anchor="middle" font-size="26" font-weight="600" fill="${c}">${n}</text>
+      <text x="30" y="66" text-anchor="middle" font-size="11" font-weight="500" fill="var(--tile-ink)" opacity=".55">花</text>`;
+  }
+  return '';
+}
+function tile(kind, n) {
+  const name = kind === 'zi' ? HONOR_NAME[n] : kind === 'hua' ? n : (kind === 'wan' ? '万' : kind === 'tiao' ? '条' : '筒');
+  const label = kind === 'zi' || kind === 'hua' ? name : `${NUM[n]}${name}`;
+  return `<svg class="tile" viewBox="0 0 60 80" role="img" aria-label="${label}">
+    <rect x="1" y="1" width="58" height="78" rx="8" fill="var(--tile-face)" stroke="var(--tile-edge)" stroke-width="1.4"/>
+    <rect x="5.5" y="5.5" width="49" height="69" rx="4.5" fill="none" stroke="var(--tile-inner)" stroke-width="1" opacity=".7"/>
+    ${glyph(kind, n)}
+  </svg>`;
+}
+const t = id => { const [k, v] = id.split('-'); return tile(k, v); };
+
+/* ================= 牌局数据 ================= */
+/* 手牌已按 万 → 条 → 筒 → 字 排序；摸牌单独置右 */
+const HAND = ['wan-1','wan-1','wan-2','wan-3','wan-4','tiao-3','tiao-4','tong-4','tong-5','tong-6'];
+const DRAWN = 'tiao-5';
+const MELD = ['wan-5','wan-5','wan-5'];
+const FLOWERS = ['hua-春','hua-夏'];
+const TENPAI = { discard:'wan-2', waits:[['wan-2',3],['wan-5',3]] };
+const RIVERS = {
+  top:   ['tong-9','wan-9','tiao-2','zi-S','tong-1','wan-1','zi-W','tiao-8','tong-6'],
+  left:  ['wan-4','zi-N','tiao-6','tong-8','wan-3','zi-Z','tiao-4','tong-2','wan-7'],
+  right: ['zi-F','tong-3','wan-6','tiao-7','zi-E','tong-7','wan-8','tiao-9','zi-B'],
+  bottom:['tiao-1','wan-2','tong-5','zi-Z','tong-9','wan-7','tiao-6','zi-S','wan-4']
+};
+const WIN_GROUPS = [
+  {tiles:['wan-1','wan-1','wan-1']},
+  {tiles:['wan-3','wan-3','wan-3'], winIndex:2},
+  {tiles:['wan-5','wan-5','wan-5'], meld:'碰'},
+  {tiles:['wan-7','wan-7','wan-7']},
+  {tiles:['wan-9','wan-9']}
+];
+
+/* ================= 组装设备 ================= */
+const TITLES = [
+  {id:'01', name:'启动页', view:'splash', size:'base', note:'横屏首帧 · 无竖屏闪现'},
+  {id:'02', name:'大厅', view:'lobby', size:'base', note:'左侧导航 · 场次与开局同屏'},
+  {id:'03', name:'对局桌', view:'table', size:'base', note:'844×390 · 满配状态'},
+  {id:'04', name:'紧凑桌', view:'table', size:'compact', note:'640×360 · 短边 360dp'},
+  {id:'05', name:'平板横屏', view:'table', size:'tablet', note:'1024×640 · 折叠展开', wide:true},
+  {id:'06', name:'结算 · 国标', view:'settle-gb', size:'base', note:'番种 / 番数 / 起和门槛'},
+  {id:'07', name:'结算 · 广东', view:'settle-gd', size:'base', note:'推倒胡 · 封顶 3'},
+  {id:'08', name:'设置', view:'settings', size:'base', note:'三列横向分组'}
+];
+const DIMS = { base:['844','390'], compact:['640','360'], tablet:['1024','640'] };
+const board = document.getElementById('board');
+const tpl = document.getElementById('app-tpl');
+
+TITLES.forEach(meta => {
+  const [w, h] = DIMS[meta.size];
+  const fig = document.createElement('figure');
+  fig.className = 'device-wrap';
+  if (meta.wide) fig.dataset.wide = 'true';
+  fig.innerHTML = `<figcaption><b>${meta.id}</b>${meta.name}<span>${meta.note}</span></figcaption>
+    <div class="shell" style="--w:${w}px;--h:${h}px">
+      <div class="scaler"><div class="phone" data-view="${meta.view}" data-size="${meta.size}" data-theme="day"></div></div>
+    </div>`;
+  fig.querySelector('.phone').appendChild(tpl.content.cloneNode(true));
+  board.appendChild(fig);
+});
+
+/* 单屏审阅模式：direction-b-clear.html?solo=3（0-7），以 1:1 打开指定屏幕 */
+const solo = new URLSearchParams(location.search).get('solo');
+if (solo !== null) {
+  document.body.classList.add('solo');
+  const wraps = [...document.querySelectorAll('.device-wrap')];
+  wraps.forEach((w, i) => {
+    if (i !== +solo) { w.remove(); return; }
+    const shell = w.querySelector('.shell');
+    const [sw, sh] = DIMS[w.querySelector('.phone').dataset.size];
+    shell.style.width = sw + 'px';
+    shell.style.height = sh + 'px';
+    shell.style.padding = '0';
+    shell.style.borderRadius = '0';
+    w.querySelector('.scaler').style.transform = 'none';
+  });
+}
+
+/* ================= 填充牌面 ================= */
+document.querySelectorAll('.phone').forEach(ph => {
+  // 启动页三张牌
+  const sp = ph.querySelector('[data-splash]');
+  if (sp) sp.innerHTML = ['zi-Z','zi-F','tong-1'].map(id => `<span class="tile-wrap">${t(id)}</span>`).join('');
+
+  ph.querySelectorAll('[data-backs]').forEach(el => {
+    el.innerHTML = Array.from({length: +el.dataset.backs}, () => '<span class="back"></span>').join('');
+  });
+
+  // 牌河：只有最近一张（对家）标「刚打」
+  Object.entries(RIVERS).forEach(([side, ids]) => {
+    const box = ph.querySelector(`[data-river="${side}"]`);
+    if (!box) return;
+    box.innerHTML = ids.map((id, i) =>
+      `<span class="tile-wrap ${side === 'top' && i === ids.length - 1 ? 'last' : ''}">${t(id)}</span>`).join('');
+  });
+
+  // 听牌提示：打哪张 / 听哪些 / 剩余张数
+  const tp = ph.querySelector('[data-tenpai]');
+  if (tp) {
+    const mini = id => `<span class="tp-mini">${t(id)}</span>`;
+    const total = TENPAI.waits.reduce((s, [, n]) => s + n, 0);
+    tp.innerHTML = `<span class="tp-tag">听牌</span><div class="tp-body">
+      <div class="tp-row"><span class="tp-k">打</span>${mini(TENPAI.discard)}<span class="tp-arrow">→</span></div>
+      <div class="tp-row"><span class="tp-k">听</span>${TENPAI.waits.map(([id, n]) => `${mini(id)}<b>${n}</b>`).join('')}<span class="tp-rest">共 ${total} 张</span></div>
+    </div>`;
+  }
+
+  // 副露
+  const melds = ph.querySelector('[data-melds]');
+  if (melds) melds.innerHTML = `<div class="meld"><span class="m-tag">碰</span>${MELD.map(id => `<span class="tile-wrap">${t(id)}</span>`).join('')}</div><span class="meld-name">五萬</span>`;
+
+  // 手牌 + 摸牌
+  const hand = ph.querySelector('[data-hand]');
+  if (hand) hand.innerHTML = HAND.map((id, i) =>
+    `<span class="tile-wrap ${i === 2 ? 'sel' : ''}" style="--i:${i}" data-idx="${i}">${t(id)}</span>`).join('');
+  const drawn = ph.querySelector('[data-drawn]');
+  if (drawn) drawn.innerHTML = t(DRAWN);
+
+  // 花牌独立区
+  const fl = ph.querySelector('[data-flowers]');
+  if (fl) fl.innerHTML = `<span class="fl-label">花牌</span>` + FLOWERS.map(id =>
+    `<span class="tile-wrap flower-tile">${t(id)}</span>`).join('');
+
+  // 结算手牌
+  const win = ph.querySelector('[data-winhand]');
+  if (win) {
+    win.innerHTML = WIN_GROUPS.map((g, gi) =>
+      `<div class="grp ${g.meld ? 'meld' : ''}">${g.meld ? `<span class="tag">${g.meld}</span>` : ''}${g.tiles.map((id, i) =>
+        `<span class="tile-wrap ${g.winIndex === i ? 'win' : ''}">${t(id)}</span>`).join('')}</div>`).join('');
+  }
+});
+
+/* ================= 规范卡填充 ================= */
+const specHand = document.querySelector('[data-spec-hand]');
+if (specHand) {
+  specHand.innerHTML = ['wan-1','wan-2','wan-3','wan-4','tiao-3','tiao-4','tiao-5','tong-4','tong-5']
+    .map(id => `<span class="tile-wrap">${t(id)}</span>`).join('')
+    + `<span class="drawn">${t('tiao-6')}</span>`
+    + `<span class="flow"><span class="tile-wrap">${t('hua-春')}</span><span class="tile-wrap">${t('hua-夏')}</span></span>`;
+}
+const specMelds = {
+  chi: ['tong-3','tong-4','tong-5'],
+  pong: ['wan-5','wan-5','wan-5'],
+  ming: ['tiao-7','tiao-7','tiao-7','tiao-7']
+};
+Object.entries(specMelds).forEach(([key, ids]) => {
+  const box = document.querySelector(`[data-spec-meld="${key}"]`);
+  if (box) box.innerHTML = ids.map(id => `<span class="tile-wrap">${t(id)}</span>`).join('');
+});
+const anGang = document.querySelector('[data-spec-meld="an"]');
+if (anGang) anGang.innerHTML = `<span class="tile-wrap">${t('tong-9')}</span><span class="back-tile"></span><span class="back-tile"></span><span class="tile-wrap">${t('tong-9')}</span>`;
+
+/* ================= 交互 ================= */
+function setTheme(value) {
+  const resolved = value === 'system' ? 'day' : value;
+  document.querySelectorAll('.phone').forEach(p => p.dataset.theme = resolved);
+  document.querySelectorAll('[data-theme-set]').forEach(b => b.classList.toggle('on', b.dataset.themeSet === value));
+}
+
+document.addEventListener('click', e => {
+  const themeBtn = e.target.closest('[data-theme-set]');
+  if (themeBtn) { setTheme(themeBtn.dataset.themeSet); return; }
+
+  const go = e.target.closest('[data-go]');
+  if (go) {
+    const phone = go.closest('.phone');
+    phone.dataset.view = go.dataset.go;
+    phone.querySelectorAll('.fan-list').forEach(el => el.scrollTop = 0);
+    return;
+  }
+
+  const seg = e.target.closest('[data-seg] button');
+  if (seg) {
+    seg.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+    seg.classList.add('on');
+    return;
+  }
+
+  const arena = e.target.closest('.arena-card');
+  if (arena) {
+    arena.parentElement.querySelectorAll('.arena-card').forEach(b => b.classList.remove('on'));
+    arena.classList.add('on');
+    return;
+  }
+
+  const ai = e.target.closest('.ai-chip');
+  if (ai) {
+    ai.parentElement.querySelectorAll('.ai-chip').forEach(b => b.classList.remove('on'));
+    ai.classList.add('on');
+    return;
+  }
+
+  const skin = e.target.closest('.skin');
+  if (skin) {
+    skin.parentElement.querySelectorAll('.skin').forEach(b => b.classList.remove('on'));
+    skin.classList.add('on');
+    document.querySelectorAll('.phone').forEach(p => {
+      if (skin.dataset.skinName === 'classic') delete p.dataset.skin;
+      else p.dataset.skin = skin.dataset.skinName;
+    });
+    return;
+  }
+
+  const sw = e.target.closest('[data-switch]');
+  if (sw) {
+    const next = sw.getAttribute('aria-pressed') !== 'true';
+    sw.setAttribute('aria-pressed', String(next));
+    if (sw.dataset.switch === 'motion') {
+      document.documentElement.dataset.motion = next ? 'reduce' : 'full';
+      document.querySelectorAll('[data-motion-note]').forEach(n => {
+        n.textContent = next
+          ? '已开启：发牌/摸牌直接落位，分数不滚动，胡牌只保留静态金框。'
+          : '开启后：发牌与摸牌直接落位，胡牌只保留静态金框与结算页。';
+      });
+    }
+    return;
+  }
+
+  const handTile = e.target.closest('.hand .tile-wrap');
+  if (handTile) {
+    handTile.parentElement.querySelectorAll('.tile-wrap').forEach(el => el.classList.remove('sel'));
+    handTile.classList.add('sel');
+  }
+});
+
+/* 区域标注 */
+const zonesBtn = document.getElementById('zones-btn');
+zonesBtn.addEventListener('click', () => {
+  const on = document.body.classList.toggle('show-zones');
+  zonesBtn.classList.toggle('on', on);
+});
+
+/* 动效预览 */
+const fxBtn = document.getElementById('fx-btn');
+fxBtn.addEventListener('click', () => {
+  document.body.classList.remove('fx');
+  void document.body.offsetWidth;
+  document.body.classList.add('fx');
+  fxBtn.classList.add('on');
+  clearTimeout(window.__fxTimer);
+  window.__fxTimer = setTimeout(() => {
+    document.body.classList.remove('fx');
+    fxBtn.classList.remove('on');
+  }, 2200);
+});
+</script>
+</body>
+</html>
