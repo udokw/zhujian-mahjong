@@ -31,6 +31,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.zhujian.mahjong
         INFOPLIST_FILE: iosApp/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
+        # 仓库里暂时没有 AppIcon 图标集，XcodeGen 默认会写上 AppIcon 导致
+        # actool 报 "None of the input catalogs contained ... AppIcon"，这里显式置空。
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../app/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         OTHER_LDFLAGS: "$(inherited) -framework ComposeApp"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
