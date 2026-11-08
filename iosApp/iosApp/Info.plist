@@ -24,15 +24,31 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>用于在局域网内自动发现同一网络下的麻将房间。</string>
+	<!-- 诊断期：允许「文件」App 访问 Documents，便于在没有 Mac 的情况下取出 crash.log。 -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<!-- 诊断开关：true 时先渲染一帧极简 Compose 内容再进入真实 App；
+	     如果这一屏也崩，说明问题在 Compose/Skiko 渲染栈，而不是业务首屏。 -->
+	<key>MJBootProbe</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
+		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
+		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
