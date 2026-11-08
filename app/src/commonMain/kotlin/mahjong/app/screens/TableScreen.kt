@@ -86,11 +86,16 @@ import mahjong.app.theme.MjMotion
 import mahjong.app.theme.MjRadius
 import mahjong.app.ui.ActionKind
 import mahjong.app.ui.Avatar
+import mahjong.app.ui.DialogMessage
+import mahjong.app.ui.DialogTitle
+import mahjong.app.ui.GhostButton
 import mahjong.app.ui.MjBackStrip
+import mahjong.app.ui.MjDialog
 import mahjong.app.ui.MjIcon
 import mahjong.app.ui.MjIconKind
 import mahjong.app.ui.MjText
 import mahjong.app.ui.MjTile
+import mahjong.app.ui.PrimaryButton
 import mahjong.app.ui.ProgressBar
 import mahjong.app.ui.TableActionButton
 import mahjong.app.ui.TileVisual
@@ -1831,35 +1836,14 @@ private fun ChiSheet(
 
 @Composable
 private fun ExitDialog(onContinue: () -> Unit, onExit: () -> Unit) {
-    val colors = LocalMjColors.current
-    val type = LocalMjType.current
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.46f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(MjRadius.card))
-                .background(colors.surface)
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            MjText("退出本局？", type.h2, colors.ink)
-            Spacer(Modifier.height(6.dp))
-            MjText(
-                "当前牌局进度会被放弃，本局不计入战绩。",
-                type.caption,
-                colors.ink3,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TableActionButton("继续打牌", onContinue, modifier = Modifier.weight(1f))
-                TableActionButton("退出", onExit, modifier = Modifier.weight(1f))
-            }
+    MjDialog(onDismiss = onContinue) {
+        DialogTitle("退出本局？")
+        Spacer(Modifier.height(6.dp))
+        DialogMessage("当前牌局进度会被放弃，本局不计入战绩。")
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GhostButton("继续打牌", onContinue, modifier = Modifier.weight(1f), height = 44.dp)
+            PrimaryButton("退出", onExit, modifier = Modifier.weight(1f), height = 44.dp)
         }
     }
 }

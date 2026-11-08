@@ -80,7 +80,7 @@ object GameAudio {
     /** 报牌语音比敲桌声晚 60ms，形成“敲桌 → 念牌”的两层声音。 */
     private const val TILE_VOICE_DELAY_MS = 60L
 
-    /** 人声套数，与 tools/sfx/generate_audio.py 的 VOICE_SETS 保持一致。 */
+    /** 人声套数，与 tools/sfx/generate_voice_voxcpm.py 的 DIALECTS 保持一致（9 种方言）。 */
     internal const val VOICE_SET_COUNT = 9
 
     private val lastPlayed = HashMap<String, Long>()

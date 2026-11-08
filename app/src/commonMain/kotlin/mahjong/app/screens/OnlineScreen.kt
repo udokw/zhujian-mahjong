@@ -51,9 +51,12 @@ import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.MjRadius
 import mahjong.app.theme.MjSpace
 import mahjong.app.ui.Avatar
+import mahjong.app.ui.DialogMessage
+import mahjong.app.ui.DialogTitle
 import mahjong.app.ui.DividerLine
 import mahjong.app.ui.GhostButton
 import mahjong.app.ui.MjCard
+import mahjong.app.ui.MjDialog
 import mahjong.app.ui.MjIcon
 import mahjong.app.ui.MjIconKind
 import mahjong.app.ui.MjText
@@ -687,59 +690,41 @@ private fun JoinPasswordDialog(
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     var password by remember(target.code) { mutableStateOf("") }
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onCancel),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
+    MjDialog(onDismiss = onCancel, maxWidth = 340.dp) {
+        DialogTitle("房间 ${target.code} 需要密码")
+        Spacer(Modifier.height(6.dp))
+        DialogMessage("${target.host.ifBlank { "房主" }} 的房间 · ${target.ruleLabel}")
+        Spacer(Modifier.height(14.dp))
+        Box(
             Modifier
-                .fillMaxWidth(0.86f)
-                .widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(MjRadius.card))
-                .background(colors.surface)
-                .clickable(enabled = false) {}
-                .padding(20.dp),
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(MjRadius.small))
+                .background(colors.surface2)
+                .border(1.dp, colors.line, RoundedCornerShape(MjRadius.small))
+                .padding(horizontal = 12.dp, vertical = 12.dp),
         ) {
-            MjText("房间 ${target.code} 需要密码", type.bodyStrong, colors.ink)
-            Spacer(Modifier.height(6.dp))
-            MjText(
-                "${target.host.ifBlank { "房主" }} 的房间 · ${target.ruleLabel}",
-                type.caption,
-                colors.ink3,
+            if (password.isEmpty()) {
+                MjText("输入房间密码", type.body, colors.ink2, maxLines = 1)
+            }
+            BasicTextField(
+                value = password,
+                onValueChange = { password = it.take(12) },
+                singleLine = true,
+                textStyle = type.body.copy(color = colors.ink),
+                cursorBrush = SolidColor(colors.primary),
+                modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(14.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(MjRadius.small))
-                    .background(colors.surface2)
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-            ) {
-                if (password.isEmpty()) {
-                    MjText("输入房间密码", type.body, colors.disabled, maxLines = 1)
-                }
-                BasicTextField(
-                    value = password,
-                    onValueChange = { password = it.take(12) },
-                    singleLine = true,
-                    textStyle = type.body.copy(color = colors.ink),
-                    cursorBrush = SolidColor(colors.primary),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GhostButton("取消", onCancel, modifier = Modifier.weight(1f))
-                PrimaryButton(
-                    "加入",
-                    { onConfirm(password) },
-                    modifier = Modifier.weight(1f),
-                    enabled = password.isNotBlank(),
-                )
-            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GhostButton("取消", onCancel, modifier = Modifier.weight(1f), height = 44.dp)
+            PrimaryButton(
+                "加入",
+                { onConfirm(password) },
+                modifier = Modifier.weight(1f),
+                enabled = password.isNotBlank(),
+                height = 44.dp,
+            )
         }
     }
 }
@@ -750,36 +735,14 @@ private fun KickConfirmDialog(
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val colors = LocalMjColors.current
-    val type = LocalMjType.current
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onCancel),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth(0.86f)
-                .widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(MjRadius.card))
-                .background(colors.surface)
-                .clickable(enabled = false) {}
-                .padding(20.dp),
-        ) {
-            MjText("移出玩家", type.bodyStrong, colors.ink)
-            Spacer(Modifier.height(8.dp))
-            MjText(
-                "「$name」将被移出房间，座位立即空出，其他玩家可以加入。若在牌局中移出，会由 AI 接管到本局结束。",
-                type.caption,
-                colors.ink3,
-            )
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GhostButton("取消", onCancel, modifier = Modifier.weight(1f))
-                PrimaryButton("移出", onConfirm, modifier = Modifier.weight(1f))
-            }
+    MjDialog(onDismiss = onCancel, maxWidth = 340.dp) {
+        DialogTitle("移出玩家")
+        Spacer(Modifier.height(8.dp))
+        DialogMessage("「$name」将被移出房间，座位立即空出，其他玩家可以加入。若在牌局中移出，会由 AI 接管到本局结束。")
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GhostButton("取消", onCancel, modifier = Modifier.weight(1f), height = 44.dp)
+            PrimaryButton("移出", onConfirm, modifier = Modifier.weight(1f), height = 44.dp)
         }
     }
 }
@@ -792,46 +755,27 @@ private fun AiLevelDialog(
     onCancel: () -> Unit,
     onPick: (Int) -> Unit,
 ) {
-    val colors = LocalMjColors.current
-    val type = LocalMjType.current
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onCancel),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth(0.86f)
-                .widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(MjRadius.card))
-                .background(colors.surface)
-                .clickable(enabled = false) {}
-                .padding(20.dp),
-        ) {
-            MjText("${seat + 1} 座 · 设为 AI", type.bodyStrong, colors.ink)
-            Spacer(Modifier.height(8.dp))
-            MjText(
-                if (replacingHuman) {
-                    "这个座位上的玩家会被移出房间（收到提示），随后由 AI 顶替。"
-                } else {
-                    "AI 在服务端跑，其他玩家看到的手牌和分数都由服务端统一计算。"
-                },
-                type.caption,
-                colors.ink3,
+    MjDialog(onDismiss = onCancel, maxWidth = 340.dp) {
+        DialogTitle("${seat + 1} 座 · 设为 AI")
+        Spacer(Modifier.height(8.dp))
+        DialogMessage(
+            if (replacingHuman) {
+                "这个座位上的玩家会被移出房间（收到提示），随后由 AI 顶替。"
+            } else {
+                "AI 在服务端跑，其他玩家看到的手牌和分数都由服务端统一计算。"
+            },
+        )
+        Spacer(Modifier.height(14.dp))
+        for (level in 1..4) {
+            GhostButton(
+                "AI · ${aiLevelName(level)}",
+                { onPick(level) },
+                modifier = Modifier.fillMaxWidth(),
+                height = 42.dp,
             )
-            Spacer(Modifier.height(14.dp))
-            for (level in 1..4) {
-                GhostButton(
-                    "AI · ${aiLevelName(level)}",
-                    { onPick(level) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-            Spacer(Modifier.height(4.dp))
-            GhostButton("取消", onCancel, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
         }
+        Spacer(Modifier.height(4.dp))
+        GhostButton("取消", onCancel, modifier = Modifier.fillMaxWidth(), height = 42.dp)
     }
 }

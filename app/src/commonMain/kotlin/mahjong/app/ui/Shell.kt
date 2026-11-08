@@ -16,14 +16,18 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import mahjong.app.theme.LocalMjColors
@@ -185,6 +189,72 @@ fun ModalSheet(
             content = content,
         )
     }
+}
+
+/**
+ * 统一的确认弹窗容器：遮罩、卡片、描边、投影全部走主题色。
+ * 新增确认类弹窗一律用它，避免在浅色卡片上误用牌桌专用的白字按钮。
+ */
+@Composable
+fun MjDialog(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    maxWidth: Dp = 320.dp,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val colors = LocalMjColors.current
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier
+                .widthIn(max = maxWidth)
+                .fillMaxWidth(0.9f)
+                .shadow(
+                    elevation = if (colors.isDark) 10.dp else 22.dp,
+                    shape = RoundedCornerShape(MjRadius.card),
+                )
+                .clip(RoundedCornerShape(MjRadius.card))
+                .background(colors.surface)
+                .border(1.dp, colors.lineStrong, RoundedCornerShape(MjRadius.card))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) {}
+                .padding(20.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+fun DialogTitle(text: String, align: TextAlign = TextAlign.Center) {
+    MjText(
+        text,
+        LocalMjType.current.bodyStrong,
+        LocalMjColors.current.ink,
+        modifier = Modifier.fillMaxWidth(),
+        textAlign = align,
+    )
+}
+
+@Composable
+fun DialogMessage(text: String, align: TextAlign = TextAlign.Center) {
+    MjText(
+        text,
+        LocalMjType.current.caption,
+        LocalMjColors.current.ink2,
+        modifier = Modifier.fillMaxWidth(),
+        textAlign = align,
+    )
 }
 
 @Composable

@@ -2,69 +2,36 @@
 """
 麻将音效资源生成器（一次性离线生成，运行时不联网）。
 
-产物全部写入 app/src/androidMain/res/raw/：
+产物写入 app/src/androidMain/res/raw/：
   - sfx_start.wav / sfx_draw.wav / sfx_discard_1..6.wav / sfx_chi.wav /
     sfx_peng.wav / sfx_gang.wav / sfx_hu.wav / sfx_liuju.wav / sfx_settle.wav
-  - voice_tile_00..33.wav（34 种牌名报牌）
-  - voice_chi / voice_peng / voice_gang / voice_hu / voice_zimo / voice_liuju
 
-两类来源：
-  1. 敲桌、摸牌、吃碰杠、胡牌、开局洗牌、结算等音效：本脚本用 numpy 程序化合成，
-     不含任何第三方采样，无版权风险。
-  2. 34 种牌名与动作报牌：用 edge-tts 的 9 套中文神经网络音色
-     （5 女 4 男，见 VOICE_SETS）一次性合成，生成后打包为本地 WAV；
-     每局开始时给四家随机分配互不相同的一整套音色，运行期完全离线。
+来源与分工：
+  1. 本脚本：敲桌、摸牌、吃碰杠、胡牌、开局洗牌、结算等音效，用 numpy 程序化
+     合成，不含任何第三方采样，无版权风险。
+  2. 报牌人声（voice1..voice9 × 34 张牌 + 6 个动作 = 360 条）已改用
+     **VoxCPM2** 本地推理生成，9 套分别是中国 9 大方言，脚本见
+     tools/sfx/generate_voice_voxcpm.py；本脚本不再生成人声，也不再依赖
+     edge-tts。
+     方言与套号：voice1 四川话 / voice2 广东话 / voice3 吴语 / voice4 东北话 /
+     voice5 河南话 / voice6 陕西话 / voice7 山东话 / voice8 天津话 / voice9 闽南话。
+     VoxCPM2 权重与代码以 Apache-2.0 发布，允许商用；详见 assets/audio/SOURCES.md。
 
-依赖：numpy、soundfile、edge-tts（生成时需要联网，仅生成阶段）。
+依赖：numpy、soundfile。
 用法：python tools/sfx/generate_audio.py
 """
 
 from __future__ import annotations
 
-import asyncio
-import io
 import math
-import random
 import wave
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
 
 SR = 44100
 ROOT = Path(__file__).resolve().parents[2]
 RAW = ROOT / "app" / "src" / "androidMain" / "res" / "raw"
-
-# 9 套明显不同的人声：5 女 4 男，覆盖不同年龄与口音，靠换真人音色区分，
-# 不做变调。运行期不再按座位固定，而是每局开始时给四家随机分配互不相同的一整套。
-# 每个音色单独调速，把各套语音时长压到同一量级，避免某一家拖慢报牌节奏。
-VOICE_SETS = [
-    ("1", "zh-CN-XiaoxiaoNeural", "+55%"),    # 女 · 青年 · 温和标准
-    ("2", "zh-CN-XiaoyiNeural", "+50%"),      # 女 · 青年 · 活泼俏皮
-    ("3", "zh-CN-liaoning-XiaobeiNeural", "+52%"),  # 女 · 中年 · 东北口音
-    ("4", "zh-CN-shaanxi-XiaoniNeural", "+48%"),    # 女 · 中年 · 陕西口音，偏沉
-    ("5", "zh-CN-YunxiNeural", "+70%"),       # 男 · 青年 · 清亮
-    ("6", "zh-CN-YunjianNeural", "+60%"),     # 男 · 青年偏成熟 · 浑厚
-    ("7", "zh-CN-YunyangNeural", "+58%"),     # 男 · 中年 · 播音腔，端正
-    ("8", "zh-CN-YunxiaNeural", "+72%"),      # 男 · 少年 · 年龄感最小
-    ("9", "zh-TW-YunJheNeural", "+56%"),      # 男 · 青年 · 台湾腔
-]
-
-# 引擎牌序号：0..8 万，9..17 筒，18..26 条，27 东 28 南 29 西 30 北 31 中 32 发 33 白
-TILE_WORDS = [
-    "一万", "二万", "三万", "四万", "五万", "六万", "七万", "八万", "九万",
-    "一筒", "二筒", "三筒", "四筒", "五筒", "六筒", "七筒", "八筒", "九筒",
-    "一条", "二条", "三条", "四条", "五条", "六条", "七条", "八条", "九条",
-    "东风", "南风", "西风", "北风", "红中", "发财", "白板",
-]
-ACTION_WORDS = {
-    "chi": "吃",
-    "peng": "碰",
-    "gang": "杠",
-    "hu": "胡",
-    "zimo": "自摸",
-    "liuju": "流局",
-}
 
 
 # ---------------------------------------------------------------- 基础工具
@@ -361,80 +328,6 @@ def write_wav(path: Path, x: np.ndarray, sr: int = SR, peak: float = 0.95) -> No
         f.writeframes(pcm.tobytes())
 
 
-# ---------------------------------------------------------------- 语音
-
-def trim_speech(x: np.ndarray, sr: int, lead_ms: float = 12.0, tail_ms: float = 28.0) -> np.ndarray:
-    env = np.abs(x)
-    peak = float(env.max()) or 1.0
-    idx = np.where(env > max(peak * 0.025, 2e-4))[0]
-    if len(idx) == 0:
-        return x
-    a = max(0, idx[0] - int(sr * lead_ms / 1000))
-    b = min(len(x), idx[-1] + int(sr * tail_ms / 1000))
-    y = x[a:b].copy()
-    fade_edges(y, 3.0, 12.0)
-    return y
-
-
-async def synth_voice(
-    text: str,
-    voice: str,
-    rate: str,
-    path: Path,
-    semaphore: asyncio.Semaphore,
-) -> tuple[str, float]:
-    import edge_tts
-
-    async with semaphore:
-        last_error: Exception | None = None
-        for attempt in range(4):
-            try:
-                communicate = edge_tts.Communicate(text, voice, rate=rate)
-                buf = bytearray()
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        buf.extend(chunk["data"])
-                if not buf:
-                    raise RuntimeError("empty audio")
-                x, sr = sf.read(io.BytesIO(bytes(buf)), dtype="float32")
-                if x.ndim > 1:
-                    x = x.mean(axis=1)
-                y = trim_speech(x, sr)
-                write_wav(path, y, sr, peak=0.92)
-                return text, len(y) / float(sr)
-            except Exception as exc:  # noqa: BLE001
-                last_error = exc
-                await asyncio.sleep(0.8 + attempt * 0.7)
-        raise RuntimeError(f"TTS failed for {text!r}: {last_error}")
-
-
-async def build_voice() -> None:
-    import edge_tts  # noqa: F401  确保依赖存在
-
-    jobs: list[tuple[str, str, str, Path]] = []
-    for set_id, voice, rate in VOICE_SETS:
-        for i, word in enumerate(TILE_WORDS):
-            jobs.append((word, voice, rate, RAW / f"voice{set_id}_tile_{i:02d}.wav"))
-        for key, word in ACTION_WORDS.items():
-            jobs.append((word, voice, rate, RAW / f"voice{set_id}_{key}.wav"))
-
-    semaphore = asyncio.Semaphore(4)
-    results = await asyncio.gather(
-        *(synth_voice(text, voice, rate, path, semaphore) for text, voice, rate, path in jobs)
-    )
-    durations = [dur for _, dur in results]
-    print("语音生成完成：")
-    print(f"  {len(VOICE_SETS)} 套人声 × {len(TILE_WORDS)} 种牌 + {len(ACTION_WORDS)} 个动作 = {len(jobs)} 条")
-    print(f"  最长 {max(durations) * 1000:.0f} ms，平均 {sum(durations) / len(durations) * 1000:.0f} ms")
-
-    # 清掉早期单人声版本，避免 APK 里同时存在两套报牌资源。
-    for legacy in list(RAW.glob("voice_tile_*.wav")) + [
-        RAW / f"voice_{key}.wav" for key in ACTION_WORDS
-    ]:
-        if legacy.exists():
-            legacy.unlink()
-
-
 # ---------------------------------------------------------------- 入口
 
 def build_effects() -> None:
@@ -458,7 +351,7 @@ def build_effects() -> None:
 
 def main() -> None:
     build_effects()
-    asyncio.run(build_voice())
+    print("\n报牌人声不在此脚本生成，见 tools/sfx/generate_voice_voxcpm.py")
     files = sorted(RAW.glob("*.wav"))
     print(f"\n输出目录：{RAW}")
     print(f"WAV 总数：{len(files)}")
