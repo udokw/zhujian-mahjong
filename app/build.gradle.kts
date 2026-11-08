@@ -34,21 +34,17 @@ kotlin {
                 implementation(project(":core"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-                implementation("io.ktor:ktor-client-core:2.3.12")
-                implementation("io.ktor:ktor-client-websockets:2.3.12")
             }
         }
         val androidMain by getting {
             dependencies {
                 implementation("androidx.activity:activity-compose:1.9.2")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-                implementation("io.ktor:ktor-client-okhttp:2.3.12")
             }
         }
         // 非 macOS 环境可能不会创建 iosMain（Kotlin/Native 目标被跳过），
         // 这里用 findByName 安全跳过，避免整个 Gradle 配置阶段失败。
         findByName("iosMain")?.dependencies {
-            implementation("io.ktor:ktor-client-darwin:2.3.12")
         }
     }
 }
@@ -61,8 +57,8 @@ android {
         applicationId = "mahjong.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.0.10"
+        versionCode = 12
+        versionName = "1.0.11"
     }
 
     sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")

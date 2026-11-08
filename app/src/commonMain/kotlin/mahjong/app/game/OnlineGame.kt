@@ -3,19 +3,18 @@ package mahjong.app.game
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.plugins.websocket.webSocket
-import io.ktor.websocket.Frame
-import io.ktor.websocket.readText
-import io.ktor.websocket.send
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -27,6 +26,15 @@ import mahjong.app.audio.GameAudio
 import mahjong.app.audio.SoundEffect
 import mahjong.app.audio.VoiceLine
 import mahjong.app.keyValueStore
+import mahjong.app.lan.LanConn
+import mahjong.app.lan.LanDiag
+import mahjong.app.lan.LanDirectory
+import mahjong.app.lan.LanDiscoveryNode
+import mahjong.app.lan.LanHost
+import mahjong.app.lan.LanLog
+import mahjong.app.lan.LanPeer
+import mahjong.app.lan.createLanDiscovery
+import mahjong.app.lan.lanConnect
 import mahjong.app.platformDeviceId
 import mahjong.app.platformVibrate
 import mahjong.app.settings.AppSettings
@@ -267,7 +275,6 @@ class OnlineGameSession(
         encodeDefaults = false
         explicitNulls = false
     }
-    private val client = HttpClient { install(WebSockets) }
     private val store = keyValueStore()
 
     private var job: Job? = null
@@ -290,7 +297,19 @@ class OnlineGameSession(
 
     /** 连接代号：只允许最新一次连接的回调改动状态，避免「离开后立刻建房」时旧连接的收尾把新房间冲掉。 */
     private var connectionId = 0
-    private var socketRef: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
+    private var socketRef: LanConn? = null
+
+    /** 本机作为房主时的实例；非房主为 null。 */
+    private var lanHost: LanHost? = null
+
+    /** 客机通过发现拿到的房主地址；房主本人固定 127.0.0.1。 */
+    private var lanEndpoint: Pair<String, Int>? = null
+    private var lobbyNode: LanDiscoveryNode? = null
+    private var lobbySweep: Job? = null
+    private val _lobbyPeers = MutableStateFlow<List<LanPeer>>(emptyList())
+    val lobbyPeers: StateFlow<List<LanPeer>> = _lobbyPeers.asStateFlow()
+
+    /** 手动兜底地址（设置页填写），仅在自动发现失败时使用。 */
     private var targetServerUrl: String? = store.get(KEY_SERVER)?.takeIf { it.isNotBlank() }
 
     var status by mutableStateOf(OnlineStatus.OFFLINE)
@@ -325,7 +344,9 @@ class OnlineGameSession(
         closing = true
         job?.cancel()
         job = null
+        socketRef?.close()
         socketRef = null
+        stopLanHost()
         pending = null
         bannerJob?.cancel()
         analysisJob?.cancel()
@@ -335,23 +356,94 @@ class OnlineGameSession(
         status = OnlineStatus.OFFLINE
     }
 
+    // ------------------------------------------------------------ 局域网
+
+    /**
+     * 大厅自动发现：房主应答、客机查询。只在未进房时运行。
+     * 结果通过 [lobbyPeers] 暴露（已经过 TTL 过滤）。
+     */
+    fun startLobbyScan() {
+        stopLobbyScan()
+        LanDirectory.clear()
+        // 换了角色（房主 → 客机）后计数应从零开始，否则诊断页会混着上一局房主的数据。
+        LanLog.reset()
+        LanDiag.reset()
+        val node = createLanDiscovery()
+        lobbyNode = node
+        node.startAsGuest {
+            _lobbyPeers.value = LanDirectory.alive()
+        }
+        lobbySweep = scope.launch {
+            while (isActive) {
+                delay(2_000)
+                _lobbyPeers.value = LanDirectory.alive()
+            }
+        }
+    }
+
+    fun stopLobbyScan() {
+        lobbySweep?.cancel()
+        lobbySweep = null
+        lobbyNode?.stop()
+        lobbyNode = null
+        _lobbyPeers.value = emptyList()
+    }
+
+    private fun stopLanHost() {
+        lanHost?.stop()
+        lanHost = null
+        lanEndpoint = null
+    }
+
+    /** 解析 "host:port" / "1.2.3.4:45232" / 老格式 ws://host:port/ws。 */
+    private fun parseEndpoint(raw: String): Pair<String, Int>? {
+        var value = raw.trim()
+        if (value.isEmpty()) return null
+        value = value.removePrefix("ws://").removePrefix("wss://").removePrefix("tcp://")
+        value = value.substringBefore('/')
+        val host = value.substringBeforeLast(':', "")
+        val portText = value.substringAfterLast(':', "")
+        if (host.isBlank()) return null
+        val port = portText.toIntOrNull() ?: return null
+        if (port !in 1..65535) return null
+        return host to port
+    }
+
     // ------------------------------------------------------------ 连接入口
 
+    /** 建房：本机直接成为房主，不再需要任何服务器地址。 */
     fun createRoom(presetId: String, password: String? = null) {
+        stopLobbyScan()
+        stopLanHost()
         ruleSet = wireRule(presetId)
-        connect(PendingAction.Create(ruleSet, password))
+        val host = LanHost.start(ruleSet, password, settings().aiSpeed.thinkMs)
+        if (host == null) {
+            errorMessage = "无法开启局域网房间：端口被占用"
+            status = OnlineStatus.ERROR
+            return
+        }
+        lanHost = host
+        lanEndpoint = "127.0.0.1" to host.port
+        roomCode = host.code
+        onMessage("房间已创建：${host.code}")
+        connect(PendingAction.Join(host.code, password))
     }
 
     /**
-     * 加入房间。[serverUrl] 来自局域网自动发现，为空时沿用上次连接的服务器地址或设置里的地址。
+     * 加入房间：只认 4 位数字房号。
+     * [serverUrl] 来自发现列表（host:port），通常不需要传。
      */
     fun joinRoom(code: String, serverUrl: String? = null, password: String? = null) {
-        val normalized = code.trim().uppercase()
-        if (normalized.isEmpty()) {
-            onMessage("请输入房间号")
+        val normalized = code.trim().filter { it.isDigit() }
+        if (normalized.length != 4) {
+            onMessage("请输入 4 位数字房号")
             return
         }
-        if (!serverUrl.isNullOrBlank()) targetServerUrl = serverUrl
+        stopLobbyScan()
+        stopLanHost()
+        if (!serverUrl.isNullOrBlank()) {
+            parseEndpoint(serverUrl)?.let { lanEndpoint = it }
+        }
         roomCode = normalized
         connect(PendingAction.Join(normalized, password))
     }
@@ -359,7 +451,6 @@ class OnlineGameSession(
     fun resumeSaved() {
         val token = store.get(KEY_TOKEN) ?: return
         val saved = store.get(KEY_ROOM) ?: return
-        store.get(KEY_SERVER)?.takeIf { it.isNotBlank() }?.let { targetServerUrl = it }
         roomCode = saved
         ruleSet = store.get(KEY_RULE) ?: "MCR"
         connect(PendingAction.Resume(saved, token))
@@ -374,31 +465,47 @@ class OnlineGameSession(
         notice = null
         status = OnlineStatus.CONNECTING
         job = scope.launch {
+            var conn: LanConn? = null
+            val closed = CompletableDeferred<Unit>()
             try {
-                client.webSocket(urlString = targetServerUrl ?: settings().effectiveServerUrl) {
-                    socketRef = this
-                    sendEnvelope(
-                        type = "hello",
-                        payload = buildJsonObject {
-                            put("deviceId", platformDeviceId())
-                            put("nickname", settings().nickname.ifBlank { "玩家" })
-                        },
-                    )
-                    launch {
-                        while (isActive) {
-                            delay(5_000)
-                            runCatching {
-                                sendEnvelope(
-                                    type = "ping",
-                                    payload = buildJsonObject { put("time", Clock.now()) },
-                                )
-                            }
+                val endpoint = resolveEndpoint()
+                    ?: throw IllegalStateException("未找到房间，请确认两台设备在同一 Wi-Fi")
+                conn = lanConnect(
+                    host = endpoint.first,
+                    port = endpoint.second,
+                    timeoutMs = 4_000,
+                    onText = { text ->
+                        scope.launch {
+                            if (connId == connectionId) handle(text)
+                        }
+                    },
+                    onClosed = { closed.complete(Unit) },
+                ) ?: throw IllegalStateException("连不上房主 ${endpoint.first}:${endpoint.second}")
+                if (connId != connectionId) {
+                    conn.close()
+                    return@launch
+                }
+                socketRef = conn
+                conn.sendEnvelope(
+                    type = "hello",
+                    payload = buildJsonObject {
+                        put("deviceId", platformDeviceId())
+                        put("nickname", settings().nickname.ifBlank { "玩家" })
+                    },
+                )
+                val pingConn = conn
+                launch {
+                    while (isActive) {
+                        delay(5_000)
+                        runCatching {
+                            pingConn.sendEnvelope(
+                                type = "ping",
+                                payload = buildJsonObject { put("time", Clock.now()) },
+                            )
                         }
                     }
-                    for (frame in incoming) {
-                        if (frame is Frame.Text) handle(frame.readText())
-                    }
                 }
+                closed.await()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -407,6 +514,7 @@ class OnlineGameSession(
                     status = OnlineStatus.ERROR
                 }
             } finally {
+                conn?.close()
                 // 已被更新的连接取代（离开后立刻重建房间等），旧连接的收尾不能再改状态。
                 if (connId == connectionId) {
                     socketRef = null
@@ -424,7 +532,30 @@ class OnlineGameSession(
         }
     }
 
-    private suspend fun io.ktor.client.plugins.websocket.DefaultClientWebSocketSession.sendEnvelope(
+    /** 房主 → 搜索缓存 → 现场扫描 → 手动地址（兜底）。 */
+    private suspend fun resolveEndpoint(): Pair<String, Int>? {
+        lanEndpoint?.let { return it }
+        LanDirectory.find(roomCode)?.let { return it.host to it.port }
+        scanForRoom(roomCode)?.let { return it }
+        return targetServerUrl?.let { parseEndpoint(it) }
+    }
+
+    private suspend fun scanForRoom(code: String): Pair<String, Int>? {
+        if (code.isBlank()) return null
+        val node = createLanDiscovery()
+        val found = CompletableDeferred<LanPeer?>()
+        try {
+            node.startAsGuest { peer ->
+                if (peer.code == code && !found.isCompleted) found.complete(peer)
+            }
+            val peer = withTimeoutOrNull(3_000) { found.await() } ?: return null
+            return peer.host to peer.port
+        } finally {
+            node.stop()
+        }
+    }
+
+    private suspend fun LanConn.sendEnvelope(
         type: String,
         payload: JsonObject = JsonObject(emptyMap()),
         sid: String = "",
@@ -438,29 +569,33 @@ class OnlineGameSession(
             put("room", roomCode)
             put("p", payload)
         }
-        send(Frame.Text(json.encodeToString(JsonObject.serializer(), envelope)))
+        send(json.encodeToString(JsonObject.serializer(), envelope))
     }
 
-    private suspend fun io.ktor.client.plugins.websocket.DefaultClientWebSocketSession.sendAction(
+    private fun LanConn.sendAction(
         action: String,
         tile: Int? = null,
         tiles: List<Int> = emptyList(),
         claimed: Int? = null,
         kind: String? = null,
     ) {
-        sendEnvelope(
-            type = "action",
-            payload = buildJsonObject {
-                put("action", action)
-                if (tile != null) put("tile", tile)
-                if (tiles.isNotEmpty()) put(
-                    "tiles",
-                    kotlinx.serialization.json.JsonArray(tiles.map { kotlinx.serialization.json.JsonPrimitive(it) }),
+        scope.launch {
+            runCatching {
+                sendEnvelope(
+                    type = "action",
+                    payload = buildJsonObject {
+                        put("action", action)
+                        if (tile != null) put("tile", tile)
+                        if (tiles.isNotEmpty()) put(
+                            "tiles",
+                            kotlinx.serialization.json.JsonArray(tiles.map { kotlinx.serialization.json.JsonPrimitive(it) }),
+                        )
+                        if (claimed != null) put("claimed", claimed)
+                        if (kind != null) put("kind", kind)
+                    },
                 )
-                if (claimed != null) put("claimed", claimed)
-                if (kind != null) put("kind", kind)
-            },
-        )
+            }.onFailure { errorMessage = friendlyError(it) }
+        }
     }
 
     // ------------------------------------------------------------ 房间操作
@@ -663,7 +798,7 @@ class OnlineGameSession(
                     store.put(KEY_TOKEN, dto.resumeToken)
                     store.put(KEY_SEAT, dto.seat.toString())
                     store.put(KEY_RULE, ruleSet)
-                    store.put(KEY_SERVER, targetServerUrl ?: settings().effectiveServerUrl)
+                    targetServerUrl?.takeIf { it.isNotBlank() }?.let { store.put(KEY_SERVER, it) }
                 }
             }
 

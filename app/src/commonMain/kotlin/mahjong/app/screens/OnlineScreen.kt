@@ -21,7 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,14 +39,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import mahjong.app.game.OnlineGameSession
 import mahjong.app.game.OnlineStatus
 import mahjong.app.game.RoomStateDto
 import mahjong.app.game.SeatInfoDto
-import mahjong.app.online.DiscoveredRoom
-import mahjong.app.online.discoverNearbyRooms
-import mahjong.app.online.hostOfServerUrl
+import mahjong.app.lan.LanDiag
+import mahjong.app.lan.LanLog
+import mahjong.app.lan.LanPeer
 import mahjong.app.settings.AppSettings
 import mahjong.app.theme.LocalMjColors
 import mahjong.app.theme.LocalMjType
@@ -76,30 +77,22 @@ fun OnlineScreen(
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     var roomInput by remember { mutableStateOf("") }
-    var nearbyRooms by remember { mutableStateOf<List<DiscoveredRoom>>(emptyList()) }
-    var scanning by remember { mutableStateOf(false) }
-    var joinTarget by remember { mutableStateOf<DiscoveredRoom?>(null) }
+    var joinTarget by remember { mutableStateOf<LanPeer?>(null) }
     var kickTarget by remember { mutableStateOf<SeatInfoDto?>(null) }
     var aiTarget by remember { mutableStateOf<SeatInfoDto?>(null) }
+    var showDiagnostics by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
     val room = session.room
     val connected = session.status == OnlineStatus.CONNECTED
+    val nearbyRooms by session.lobbyPeers.collectAsState()
+    val scanning = room == null && nearbyRooms.isEmpty()
 
-    // 大厅里每 2 秒自动扫描一次局域网房间，创建即被发现。
-    // 已配置过服务器时额外单播探测它，兼容模拟器 NAT / 禁广播的 Wi-Fi。
-    val probeHosts = remember(settings.effectiveServerUrl) {
-        listOf(hostOfServerUrl(settings.effectiveServerUrl))
-    }
-    LaunchedEffect(room == null) {
-        if (room != null) return@LaunchedEffect
-        while (true) {
-            scanning = true
-            val found = runCatching { discoverNearbyRooms(unicastHosts = probeHosts) }
-                .getOrDefault(emptyList())
-            nearbyRooms = found.sortedBy { it.code }
-            scanning = false
-            delay(2_000)
+    // 大厅里常驻一个「客机发现」节点；进房或建房时自动停掉，把发现端口让给房主。
+    DisposableEffect(room == null) {
+        if (room == null) session.startLobbyScan() else session.stopLobbyScan()
+        onDispose {
+            if (room == null) session.stopLobbyScan()
         }
     }
 
@@ -165,10 +158,10 @@ fun OnlineScreen(
                 if (session.status == OnlineStatus.ERROR) {
                     Spacer(Modifier.height(12.dp))
                     MjCard {
-                        MjText("无法连接服务器", type.bodyStrong, colors.ink)
+                        MjText("联机未连上", type.bodyStrong, colors.ink)
                         Spacer(Modifier.height(4.dp))
                         MjText(
-                            session.errorMessage ?: "请检查网络与服务器地址",
+                            session.errorMessage ?: "请确认两台设备在同一 Wi-Fi 下",
                             type.caption,
                             colors.ink3,
                         )
@@ -182,7 +175,7 @@ fun OnlineScreen(
                                 },
                                 modifier = Modifier.weight(1f),
                             )
-                            GhostButton("设置地址", onSettings, modifier = Modifier.weight(1f))
+                            GhostButton("联机诊断", { showDiagnostics = true }, modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -194,7 +187,7 @@ fun OnlineScreen(
                         scanning = scanning,
                         onJoin = { found ->
                             if (found.hasPassword) joinTarget = found
-                            else session.joinRoom(found.code, found.wsUrl)
+                            else session.joinRoom(found.code, found.endpoint)
                         },
                     )
 
@@ -202,7 +195,7 @@ fun OnlineScreen(
                     EntryCard(
                         settings = settings,
                         roomInput = roomInput,
-                        onRoomInput = { roomInput = it.trim().uppercase().take(8) },
+                        onRoomInput = { roomInput = it.filter { ch -> ch.isDigit() }.take(4) },
                         connecting = session.status == OnlineStatus.CONNECTING,
                         onCreate = { session.createRoom(settings.preset.id) },
                         onJoin = { session.joinRoom(roomInput) },
@@ -225,10 +218,12 @@ fun OnlineScreen(
                     Spacer(Modifier.height(20.dp))
                     SettingsGroup("联机说明") {
                         SettingRow("发现", "同一 Wi-Fi 下建房后自动出现在「附近房间」", showDivider = true)
+                        SettingRow("房号", "4 位数字，只填房号即可加入，不用填地址", showDivider = true)
                         SettingRow("座位", "四人一桌，房主可补 AI、可移出玩家", showDivider = true)
-                        SettingRow("断线", "3 秒后 AI 托管，180 秒内可重连", showDivider = true)
-                        SettingRow("规则", "由房主创建时选择，服务端统一裁决", showDivider = false)
+                        SettingRow("断线", "3 秒后 AI 托管，180 秒内可重连", showDivider = false)
                     }
+                    Spacer(Modifier.height(10.dp))
+                    GhostButton("联机诊断", { showDiagnostics = true })
                 } else {
                     Spacer(Modifier.height(14.dp))
                     RoomCodeCard(
@@ -268,7 +263,7 @@ fun OnlineScreen(
                 onCancel = { joinTarget = null },
                 onConfirm = { password ->
                     joinTarget = null
-                    session.joinRoom(target.code, target.wsUrl, password)
+                    session.joinRoom(target.code, target.endpoint, password)
                 },
             )
         }
@@ -294,6 +289,17 @@ fun OnlineScreen(
                     session.addAi(target.seat, level)
                     aiTarget = null
                     onToast("${target.seat + 1} 座已设为 AI · ${aiLevelName(level)}")
+                },
+            )
+        }
+
+        if (showDiagnostics) {
+            DiagnosticsDialog(
+                onDismiss = { showDiagnostics = false },
+                onCopy = { text ->
+                    clipboard.setText(AnnotatedString(text))
+                    showDiagnostics = false
+                    onToast("联机日志已复制")
                 },
             )
         }
@@ -329,7 +335,13 @@ private fun ConnectionBar(session: OnlineGameSession, settings: AppSettings) {
                     MjText(label, type.label, colors.ink, maxLines = 1)
                 }
                 Spacer(Modifier.height(1.dp))
-                MjText(settings.effectiveServerUrl, type.caption, colors.ink3, maxLines = 1)
+                MjText(
+                    if (session.isHost) "房主 · 局域网直连 · 房号 ${session.room?.room ?: "-"}"
+                    else "局域网直连 · 已自动发现",
+                    type.caption,
+                    colors.ink3,
+                    maxLines = 1,
+                )
             }
         }
     }
@@ -370,7 +382,7 @@ private fun EntryCard(
                     .padding(horizontal = 12.dp, vertical = 12.dp),
             ) {
                 if (roomInput.isEmpty()) {
-                    MjText("输入 6 位房间号", type.body, colors.disabled, maxLines = 1)
+                    MjText("输入 4 位数字房号", type.body, colors.disabled, maxLines = 1)
                 }
                 BasicTextField(
                     value = roomInput,
@@ -387,7 +399,7 @@ private fun EntryCard(
                 )
             }
             Spacer(Modifier.width(10.dp))
-            SmallButton("加入", onJoin, enabled = roomInput.isNotBlank() && !connecting)
+            SmallButton("加入", onJoin, enabled = roomInput.length == 4 && !connecting)
         }
     }
 }
@@ -618,11 +630,51 @@ private fun aiLevelName(level: Int): String = when (level) {
     else -> "AI"
 }
 
+private fun lanRuleLabel(ruleSet: String): String = when (ruleSet.uppercase()) {
+    "GD_TUIDAOHU" -> "广东推倒胡"
+    "GD_JIPINGHU" -> "广东鸡平胡"
+    "MCR" -> "国标麻将"
+    else -> ruleSet.ifBlank { "麻将" }
+}
+
+@Composable
+private fun DiagnosticsDialog(
+    onDismiss: () -> Unit,
+    onCopy: (String) -> Unit,
+) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    val text = remember {
+        "===== 联机诊断 =====\n" + LanDiag.snapshot() + "\n===== 最近日志 =====\n" + LanLog.dump()
+    }
+    MjDialog(onDismiss = onDismiss, maxWidth = 420.dp) {
+        DialogTitle("联机诊断")
+        Spacer(Modifier.height(8.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .clip(RoundedCornerShape(MjRadius.small))
+                .background(colors.surface2)
+                .padding(10.dp),
+        ) {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                MjText(text, type.caption.copy(fontSize = 10.sp), colors.ink2)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GhostButton("关闭", onDismiss, modifier = Modifier.weight(1f))
+            PrimaryButton("复制日志", { onCopy(text) }, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
 @Composable
 private fun NearbyRoomsCard(
-    rooms: List<DiscoveredRoom>,
+    rooms: List<LanPeer>,
     scanning: Boolean,
-    onJoin: (DiscoveredRoom) -> Unit,
+    onJoin: (LanPeer) -> Unit,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
@@ -652,14 +704,14 @@ private fun NearbyRoomsCard(
                 ) {
                     Column(Modifier.weight(1f)) {
                         MjText(
-                            "${found.code} · ${found.host.ifBlank { "房主" }}",
+                            "${found.code} · ${found.host}",
                             type.label.copy(fontWeight = FontWeight.SemiBold),
                             colors.ink,
                             maxLines = 1,
                         )
                         Spacer(Modifier.height(1.dp))
                         MjText(
-                            "${found.ruleLabel} · ${found.players}/${found.capacity} 人" +
+                            "${lanRuleLabel(found.ruleSet)} · ${found.players}/${found.capacity} 人" +
                                 if (found.hasPassword) " · 有密码" else "",
                             type.caption.copy(fontSize = 10.sp),
                             colors.ink3,
@@ -683,7 +735,7 @@ private fun NearbyRoomsCard(
 
 @Composable
 private fun JoinPasswordDialog(
-    target: DiscoveredRoom,
+    target: LanPeer,
     onCancel: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -693,7 +745,7 @@ private fun JoinPasswordDialog(
     MjDialog(onDismiss = onCancel, maxWidth = 340.dp) {
         DialogTitle("房间 ${target.code} 需要密码")
         Spacer(Modifier.height(6.dp))
-        DialogMessage("${target.host.ifBlank { "房主" }} 的房间 · ${target.ruleLabel}")
+        DialogMessage("${target.host} 的房间 · ${lanRuleLabel(target.ruleSet)}")
         Spacer(Modifier.height(14.dp))
         Box(
             Modifier
