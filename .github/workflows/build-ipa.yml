@@ -117,7 +117,7 @@ jobs:
           ls -lh iosApp-unsigned.ipa
 
       - name: Upload IPA
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: iosApp-unsigned-ipa
           path: iosApp/iosApp-unsigned.ipa
