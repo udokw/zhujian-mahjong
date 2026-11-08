@@ -113,6 +113,30 @@ jobs:
           echo "--- 版本信息 ---"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+
+          # ---- 产物 Info.plist 断言（防止 1.0.6 启动闪退回归）----
+          # Compose Multiplatform 1.7.0 的 PlistSanityCheck 会在启动时校验这一项，
+          # 缺失或非 true 会抛 IllegalStateException -> SIGABRT（表现为闪一下灰影后退出）。
+          # 这里断言的是“打进 bundle 的产物”，而不是仓库里的模板，避免模板改了却没生效。
+          PLIST="$APP/Info.plist"
+          CADISABLE=$(/usr/libexec/PlistBuddy -c 'Print :CADisableMinimumFrameDurationOnPhone' "$PLIST" 2>/dev/null || true)
+          if [ "$CADISABLE" != "true" ]; then
+            echo "✗ 产物 Info.plist 的 CADisableMinimumFrameDurationOnPhone 不是 true（实际: '${CADISABLE:-缺失}'）"
+            exit 1
+          fi
+          echo "✓ CADisableMinimumFrameDurationOnPhone = true"
+
+          # 版本号必须与 Config.xcconfig 一致，防止出包时版本号没跟上。
+          EXPECTED_MARKETING=$(sed -n 's/^MARKETING_VERSION *= *//p' Config.xcconfig | tr -d '[:space:]')
+          EXPECTED_BUILD=$(sed -n 's/^CURRENT_PROJECT_VERSION *= *//p' Config.xcconfig | tr -d '[:space:]')
+          ACTUAL_MARKETING=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")
+          ACTUAL_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")
+          if [ "$ACTUAL_MARKETING" != "$EXPECTED_MARKETING" ] || [ "$ACTUAL_BUILD" != "$EXPECTED_BUILD" ]; then
+            echo "✗ 产物版本与 Config.xcconfig 不一致：产物 ${ACTUAL_MARKETING}(${ACTUAL_BUILD})，期望 ${EXPECTED_MARKETING}(${EXPECTED_BUILD})"
+            exit 1
+          fi
+          echo "✓ 产物版本与 Config.xcconfig 一致：${ACTUAL_MARKETING}(${ACTUAL_BUILD})"
+
           du -sh iosApp-unsigned.ipa
           ls -lh iosApp-unsigned.ipa
 

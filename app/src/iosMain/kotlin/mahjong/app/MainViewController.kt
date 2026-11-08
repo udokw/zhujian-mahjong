@@ -22,14 +22,15 @@ import platform.Foundation.NSNumber
 import platform.UIKit.UIViewController
 
 /**
- * 首帧探针开关，来自 Info.plist 的 MJBootProbe（缺省开启）。
+ * 首帧探针开关，来自 Info.plist 的 MJBootProbe（缺省关闭）。
  *
  * 目的：先用最朴素的 Compose 内容渲染一帧，再切到真实 App，把
  * 「Compose/Skiko 渲染栈本身」和「业务首屏」两类崩溃区分开。
+ * 正式包默认关闭，只有排查渲染栈问题时才把 Info.plist 里改成 true。
  */
 private val bootProbeEnabled: Boolean by lazy {
     val value = NSBundle.mainBundle.objectForInfoDictionaryKey("MJBootProbe")
-    (value as? NSNumber)?.boolValue ?: true
+    (value as? NSNumber)?.boolValue ?: false
 }
 
 /** 极简首帧：不使用主题、不读资源、不做动画，只验证渲染栈能不能出图。 */
