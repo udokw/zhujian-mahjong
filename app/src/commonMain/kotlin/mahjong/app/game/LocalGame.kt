@@ -25,6 +25,7 @@ import mahjong.core.engine.MahjongGame
 import mahjong.core.model.Action
 import mahjong.core.model.GameEvent
 import mahjong.core.model.GameResult
+import mahjong.core.model.Meld
 import mahjong.core.model.MeldType
 import mahjong.core.model.Phase
 import mahjong.core.rules.GameMode
@@ -236,6 +237,43 @@ class LocalGameSession(
                     stage = WinStage.FAN,
                 ),
             )
+
+            // 截图/量尺寸用：四家各有两组副露（吃/碰/明杠/暗杠/补杠），且四家牌河都是两行。
+            "melds" -> {
+                val crowded = listOf(
+                    listOf(
+                        Meld(MeldType.CHOW, listOf(0, 1, 2)),
+                        Meld(MeldType.PUNG, listOf(13, 13, 13)),
+                    ),
+                    listOf(
+                        Meld(MeldType.PUNG, listOf(19, 19, 19)),
+                        Meld(MeldType.KONG_EXPOSED, listOf(20, 20, 20, 20)),
+                    ),
+                    listOf(
+                        Meld(MeldType.CHOW, listOf(9, 10, 11)),
+                        Meld(MeldType.KONG_CONCEALED, listOf(27, 27, 27, 27)),
+                    ),
+                    listOf(
+                        Meld(MeldType.KONG_ADDED, listOf(31, 31, 31, 31)),
+                        Meld(MeldType.PUNG, listOf(5, 5, 5)),
+                    ),
+                )
+                val crowdedSeats = seats.mapIndexed { seat, ui ->
+                    ui.copy(
+                        melds = crowded[seat],
+                        handCount = if (seat == meSeat) 7 else 13,
+                        discards = (0 until 18).map { (it * 2 + seat) % 34 },
+                    )
+                }
+                base.copy(
+                    seats = crowdedSeats,
+                    melds = crowded[meSeat],
+                    hand = listOf(3, 4, 5, 6, 7, 8, 12),
+                )
+            }
+
+            // 截图/量尺寸用：中心提示圈（碰/杠/吃/胡）与余牌圈同心验证。
+            "banner" -> base.copy(banner = Banner("碰", kind = BannerKind.MELD))
 
             else -> base
         }

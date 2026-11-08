@@ -19,7 +19,7 @@ import kotlin.math.min
  * 外圈用木纹渐变模拟实木边框，内圈用径向渐变做绒面，金色双线收边，
  * 让牌桌从“一块绿色背景”变成有厚度、有材质的实体桌面。
  */
-fun Modifier.drawTableFelt(colors: MjColors): Modifier = drawBehind {
+fun Modifier.drawTableFelt(colors: MjColors, centerYPx: Float = -1f): Modifier = drawBehind {
     // 1) 实木桌沿：整块木色打底，斜向木纹只露在四周。
     drawRect(
         brush = Brush.linearGradient(
@@ -96,7 +96,9 @@ fun Modifier.drawTableFelt(colors: MjColors): Modifier = drawBehind {
     }
 
     // 4) 中央罗盘环：只做压纹，不投影、不压住牌河。
-    val center = Offset(size.width * 0.5f, size.height * 0.50f)
+    // centerYPx 由牌桌实测传入（HUD 底边与手牌分割线的中点），未测量时回落到正中心。
+    val centerY = if (centerYPx >= 0f) centerYPx else size.height * 0.5f
+    val center = Offset(size.width * 0.5f, centerY)
     val ring = min(size.width, size.height) * 0.28f
     drawCircle(colors.tableGold.copy(alpha = 0.07f), radius = ring, center = center)
     drawCircle(

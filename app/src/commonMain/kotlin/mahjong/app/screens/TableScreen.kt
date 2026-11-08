@@ -80,7 +80,6 @@ import mahjong.app.game.WinShowUi
 import mahjong.app.game.WinStage
 import mahjong.app.game.WinnerUi
 import mahjong.app.game.WindNames
-import mahjong.app.game.meldLabel
 import mahjong.app.theme.LocalMjColors
 import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.LocalReduceMotion
@@ -135,6 +134,15 @@ fun TableScreen(
     var showAdvice by remember { mutableStateOf(false) }
     // 手牌行顶边在根坐标中的 y：牌河向下生长时要贴到它上方，而不是被底栏布局边界截断。
     var handTopPx by remember { mutableStateOf(0f) }
+    // 桌子可视区的上下两条界线（根坐标 px）：顶部 HUD 栏底边、手牌区上方的分割线。
+    // 圆心取两者中点，完全由实际布局测量得出，不写死任何比例。
+    var hudBottomPx by remember { mutableStateOf(0f) }
+    var handLinePx by remember { mutableStateOf(0f) }
+    val centerYPx = if (hudBottomPx > 0f && handLinePx > 0f) {
+        (hudBottomPx + handLinePx) / 2f
+    } else {
+        -1f
+    }
 
     val hand = table.hand
     val handKey = hand.joinToString(",")
@@ -164,11 +172,16 @@ fun TableScreen(
     val advice = table.plans.firstOrNull()
     val recommend = if (table.canDiscard) advice?.discard else null
 
-    BoxWithConstraints(Modifier.fillMaxSize().drawTableFelt(colors)) {
+    BoxWithConstraints(Modifier.fillMaxSize().drawTableFelt(colors, centerYPx)) {
         val tight = maxHeight < 390.dp
         // 根容器尺寸：牌河换算桌布圆心时要用，先取出来避免在嵌套作用域里被遮住。
         val rootWidth = maxWidth
         val rootHeight = maxHeight
+        val density = LocalDensity.current
+        val rootHeightPx = with(density) { rootHeight.toPx() }
+        val feltCenterY = if (centerYPx >= 0f) centerYPx else rootHeightPx / 2f
+        // 圆心相对根容器中心的垂直偏移：中心信息、提示圈都按它整体平移，保持同心。
+        val centerOffsetY = with(density) { (feltCenterY - rootHeightPx / 2f).toDp() }
         Column(
             Modifier
                 .fillMaxSize()
@@ -185,6 +198,7 @@ fun TableScreen(
                 onToggleAuto = onToggleAuto,
                 tingLocked = tingLocked,
                 onToggleTingLock = onToggleTingLock,
+                onHudBottom = { hudBottomPx = it },
             )
 
             val hasTing = showTing && hasTingContent(table) && table.winShow == null
@@ -195,6 +209,7 @@ fun TableScreen(
                     table = table,
                     isCurrent = isCurrentSeat(table, left),
                     width = if (tight) 70.dp else 80.dp,
+                    meldsOnRight = true,
                 )
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     // 牌河 + 对家手牌都以桌布圆心为唯一基准摆放，不再参与上方流式布局。
@@ -204,7 +219,7 @@ fun TableScreen(
                         left = left,
                         right = right,
                         rootWidth = rootWidth,
-                        rootHeight = rootHeight,
+                        centerYPx = feltCenterY,
                         handTopPx = handTopPx,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -244,6 +259,7 @@ fun TableScreen(
                     table = table,
                     isCurrent = isCurrentSeat(table, right),
                     width = if (tight) 70.dp else 80.dp,
+                    meldsOnRight = false,
                 )
             }
 
@@ -297,12 +313,13 @@ fun TableScreen(
                     onDiscard(tile)
                 },
                 onHandTop = { handTopPx = it },
+                onHandLine = { handLinePx = it },
             )
         }
 
-        // 中心局况锚定屏幕正中心（与 drawTableFelt 的罗盘同心），不参与任何流式布局。
+        // 中心局况与绘制罗盘同心：圆心由 HUD 底边与手牌分割线实测得出，不参与流式布局。
         Box(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().offset(y = centerOffsetY),
             contentAlignment = Alignment.Center,
         ) {
             CenterInfo(table)
@@ -310,7 +327,7 @@ fun TableScreen(
 
         BannerOverlay(
             if (table.winShow == null) table.banner else null,
-            Modifier.align(Alignment.Center),
+            Modifier.align(Alignment.Center).offset(y = centerOffsetY),
         )
 
         table.winShow?.let { show ->
@@ -362,6 +379,7 @@ private fun LandscapeHud(
     onToggleAuto: (() -> Unit)?,
     tingLocked: Boolean,
     onToggleTingLock: (() -> Unit)?,
+    onHudBottom: (Float) -> Unit,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
@@ -369,6 +387,10 @@ private fun LandscapeHud(
         Modifier
             .fillMaxWidth()
             .height(38.dp)
+            .onGloballyPositioned {
+                // 圆心定义的上界：这一栏的底边（根坐标）。
+                onHudBottom(it.localToRoot(Offset.Zero).y + it.size.height)
+            }
             .background(
                 Brush.verticalGradient(
                     0f to Color.Black.copy(alpha = 0.30f),
@@ -597,16 +619,21 @@ private fun TopSeat(
                     TingMark()
                 }
             }
-            if (seat.melds.isNotEmpty()) {
-                MjText(
-                    seat.melds.joinToString(" ") { meldLabel(it.type) },
-                    type.caption.copy(fontSize = 8.sp),
-                    colors.tableGold,
-                    maxLines = 1,
-                )
-            }
         }
         Spacer(Modifier.width(8.dp))
+        // 对家副露：紧贴其手牌横向排列，牌面 180°（对家自己看是正的）；首组贴近手牌，依次向其右手方向（屏幕左）延伸。
+        if (seat.melds.isNotEmpty()) {
+            MeldStrip(
+                seat.melds,
+                fitMeldCell(seat.melds, 190.dp, 1.dp, 3.dp),
+                gap = 1.dp,
+                groupGap = 3.dp,
+                reverse = true,
+                vertical = false,
+                angle = 180f,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp)) {
             repeat(seat.handCount.coerceAtMost(14)) {
                 MjBackStrip(6.dp, 18.dp)
@@ -617,35 +644,76 @@ private fun TopSeat(
 }
 
 @Composable
-private fun SideSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, width: Dp) {
-    val colors = LocalMjColors.current
-    val type = LocalMjType.current
+private fun SideSeat(
+    seat: SeatUi?,
+    table: TableUi,
+    isCurrent: Boolean,
+    width: Dp,
+    meldsOnRight: Boolean,
+) {
     if (seat == null) {
         Spacer(Modifier.width(width))
         return
     }
+    val melds = seat.melds
+    BoxWithConstraints(Modifier.width(width).fillMaxHeight()) {
+        // 有副露时把标签区横向收窄（参照顶栏「竹隐」的紧凑形态），腾出的宽度给纵向副露列，
+        // 整个座位列宽不变，所以不会压缩棋盘/牌河。
+        val compact = melds.isNotEmpty()
+        // 纵向列：牌张横置（宽 = 4/3 高），零组内间距、组间 2dp，按可用高度实算牌张大小。
+        val meldCell = fitMeldCell(melds, maxHeight, 0.dp, 2.dp)
+        val meldW = meldStripCross(melds, meldCell)
+        val cardW = if (compact) (width - meldW - 4.dp).coerceAtLeast(width * 0.45f) else width
+        Row(
+            Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (meldsOnRight) Arrangement.Start else Arrangement.End,
+        ) {
+            // 左家：标签贴屏幕外缘，副露在其内侧（右边）；右家镜像。
+            if (!meldsOnRight) {
+                if (melds.isNotEmpty()) {
+                    // 屏幕右家（青禾）：牌面 270°，她自己看是正的。
+                    MeldStrip(melds, meldCell, gap = 0.dp, groupGap = 2.dp, reverse = true, vertical = true, angle = 270f)
+                    Spacer(Modifier.width(4.dp))
+                }
+                SeatTag(seat, isCurrent, cardW, compact)
+            } else {
+                SeatTag(seat, isCurrent, cardW, compact)
+                if (melds.isNotEmpty()) {
+                    // 屏幕左家（南舟）：牌面 90°，她自己看是正的。
+                    Spacer(Modifier.width(4.dp))
+                    MeldStrip(melds, meldCell, gap = 0.dp, groupGap = 2.dp, reverse = false, vertical = true, angle = 90f)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeatTag(seat: SeatUi, isCurrent: Boolean, cardW: Dp, compact: Boolean) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
     Column(
         Modifier
-            .width(width)
-            .fillMaxHeight(),
+            .width(cardW)
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.table3.copy(alpha = if (isCurrent) 0.62f else 0.40f))
+            .border(
+                1.dp,
+                if (isCurrent) colors.tableGold.copy(alpha = 0.80f) else colors.tableLine,
+                RoundedCornerShape(14.dp),
+            )
+            .padding(horizontal = if (compact) 2.dp else 6.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        Column(
-            Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(colors.table3.copy(alpha = if (isCurrent) 0.62f else 0.40f))
-                .border(
-                    1.dp,
-                    if (isCurrent) colors.tableGold.copy(alpha = 0.80f) else colors.tableLine,
-                    RoundedCornerShape(14.dp),
-                )
-                .padding(horizontal = 6.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-        Avatar(seat.name, size = 26.dp, dim = !seat.isAI)
+        Avatar(seat.name, size = if (compact) 20.dp else 26.dp, dim = !seat.isAI)
         Spacer(Modifier.height(3.dp))
-        MjText(seat.name, type.caption.copy(fontSize = 10.sp), colors.onTable, maxLines = 1)
+        MjText(
+            seat.name,
+            type.caption.copy(fontSize = if (compact) 9.sp else 10.sp),
+            colors.onTable,
+            maxLines = 1,
+        )
         if (seat.tingLocked) {
             Spacer(Modifier.height(2.dp))
             TingMark()
@@ -660,16 +728,6 @@ private fun SideSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, width: D
             repeat(seat.handCount.coerceAtMost(14)) {
                 MjBackStrip(5.dp, 11.dp)
             }
-        }
-        if (seat.melds.isNotEmpty()) {
-            Spacer(Modifier.height(3.dp))
-            MjText(
-                seat.melds.joinToString("") { meldLabel(it.type) },
-                type.caption.copy(fontSize = 8.sp),
-                colors.tableGold,
-                maxLines = 1,
-            )
-        }
         }
     }
 }
@@ -715,9 +773,6 @@ private fun isCurrentSeat(table: TableUi, seat: SeatUi?): Boolean {
 
 // ------------------------------------------------------------ 牌河
 
-/** 桌布罗盘圆心在整屏中的位置，与 drawTableFelt / CenterInfo 保持一致：正中心。 */
-private const val FELT_CENTER_Y = 0.50f
-
 /**
  * 四家出牌区最近边到圆心的距离。
  *
@@ -726,6 +781,12 @@ private const val FELT_CENTER_Y = 0.50f
  */
 private val RIVER_CENTER_GAP = 32.dp
 
+/** 副露牌张：牌河 24dp 的 75%（18dp），四家 2 组副露也排得下，同时牌面文字仍可辨认。 */
+private val MELD_CELL = 18.dp
+
+/** 杠的第四张叠压偏移（相对牌张短边的比例），明杠/补杠统一三张一列 + 第四张压在上面。 */
+private const val MELD_STACK = 0.26f
+
 @Composable
 private fun CompactRiver(
     table: TableUi,
@@ -733,7 +794,7 @@ private fun CompactRiver(
     left: SeatUi?,
     right: SeatUi?,
     rootWidth: Dp,
-    rootHeight: Dp,
+    centerYPx: Float,
     handTopPx: Float,
     modifier: Modifier = Modifier,
 ) {
@@ -746,7 +807,8 @@ private fun CompactRiver(
             .onGloballyPositioned { origin = it.localToRoot(Offset.Zero) },
     ) {
         val centerX = with(density) { (rootWidth.toPx() * 0.5f - origin.x).toDp() }
-        val centerY = with(density) { (rootHeight.toPx() * FELT_CENTER_Y - origin.y).toDp() }
+        // 圆心 y 由父级按 HUD 底边与手牌分割线实测传入，这里只做坐标换算。
+        val centerY = with(density) { (centerYPx - origin.y).toDp() }
 
         val gap = 1.dp
         // 对家手牌已在顶栏，这里只需保证牌河最近边钉在 RIVER_CENTER_GAP 上。
@@ -759,8 +821,10 @@ private fun CompactRiver(
             maxHeight
         }
         val below = bottomEdge - centerY - RIVER_CENTER_GAP - 2.dp
+        // 牌张尺寸在 1.0.9 的 20dp 基础上放大 20%（20 × 1.2 = 24dp）；
+        // 其余上限项保证 2 行牌也只向远离圆心的方向生长，且不会侵占 RIVER_CENTER_GAP。
         val cell = minOf(
-            20.dp,
+            24.dp,
             (minOf(above, below) / 2f - gap) * 0.75f,
             (centerX - RIVER_CENTER_GAP - gap * 7f) / 8f,
             (maxWidth - gap * 11f) / 12f,
@@ -768,7 +832,11 @@ private fun CompactRiver(
         val rowH = cell * 4f / 3f + gap
         val blockH = rowH * 2f
         val wideW = cell * 12f + gap * 11f
-        val sideW = cell * 8f + gap * 7f
+        // 左右两家牌河可用长度：从"圆心 - RIVER_CENTER_GAP"一直吃到本区域边缘，
+        // 列数按此实算，保证牌数变多时向右/左延长，而不是把旧牌裁掉。
+        val sideAvail = minOf(centerX - RIVER_CENTER_GAP, maxWidth - centerX - RIVER_CENTER_GAP)
+        val sideCols = ((sideAvail + gap) / (cell + gap)).toInt().coerceIn(6, 14)
+        val sideW = cell * sideCols.toFloat() + gap * (sideCols - 1).toFloat()
 
         val topY = centerY - RIVER_CENTER_GAP - blockH
         val sideY = centerY - rowH
@@ -783,7 +851,7 @@ private fun CompactRiver(
         }
         val me = table.seats.getOrNull(table.meSeat)
 
-        // 对家出牌：钉在圆心上方 RIVER_CENTER_GAP，行数只向上叠加。
+        // 对家出牌：钉在圆心上方 RIVER_CENTER_GAP，行数只向上叠加。牌河四家统一正立（同我方视角）。
         RiverGrid(
             tiles = top?.discards ?: emptyList(),
             columns = 12,
@@ -796,10 +864,10 @@ private fun CompactRiver(
             rowAlign = Alignment.CenterHorizontally,
             modifier = Modifier.offset(x = centerX - wideW / 2f, y = topY),
         )
-        // 左家：靠圆心的一侧固定，牌只向左侧生长。
+        // 左家：靠圆心的一侧固定，牌只向左侧生长；列数按可用长度实算，不裁牌。
         RiverGrid(
             tiles = left?.discards ?: emptyList(),
-            columns = 8,
+            columns = sideCols,
             cell = cell,
             gap = gap,
             maxRows = 2,
@@ -809,10 +877,10 @@ private fun CompactRiver(
             rowAlign = Alignment.End,
             modifier = Modifier.offset(x = centerX - RIVER_CENTER_GAP - sideW, y = sideY),
         )
-        // 右家：靠圆心的一侧固定，牌只向右侧生长。
+        // 右家：靠圆心的一侧固定，牌只向右侧生长；列数同上。
         RiverGrid(
             tiles = right?.discards ?: emptyList(),
-            columns = 8,
+            columns = sideCols,
             cell = cell,
             gap = gap,
             maxRows = 2,
@@ -835,7 +903,48 @@ private fun CompactRiver(
             rowAlign = Alignment.CenterHorizontally,
             modifier = Modifier.offset(x = centerX - wideW / 2f, y = bottomY),
         )
+        // 左右两家的副露在各自座位列内纵向排列（见 SideSeat）。
     }
+}
+
+/** 副露一组实际摆出的张数：杠是三张一列 + 第四张叠压，只占 3 张的长度。 */
+private fun Meld.baseTiles(): Int = if (tiles.size == 4) 3 else tiles.size
+
+/** 副露整串沿排列方向的长度（含组内间距、组间距）。 */
+private fun meldStripMain(melds: List<Meld>, cell: Dp, gap: Dp, groupGap: Dp): Dp {
+    if (melds.isEmpty()) return 0.dp
+    var total = groupGap * (melds.size - 1).toFloat()
+    melds.forEach { meld ->
+        val base = meld.baseTiles()
+        total += cell * base.toFloat() + gap * (base - 1).toFloat()
+    }
+    return total
+}
+
+/** 副露整串垂直于排列方向的厚度（有杠时因叠压多出一点）。 */
+private fun meldStripCross(melds: List<Meld>, cell: Dp): Dp {
+    if (melds.isEmpty()) return 0.dp
+    val stack = cell * MELD_STACK
+    return cell * 4f / 3f + if (melds.any { it.tiles.size == 4 }) stack else 0.dp
+}
+
+/**
+ * 按可用长度（横向可用宽度 / 纵向可用高度）算副露牌张短边。
+ * 正常 2 组（碰 + 杠）时就是 18dp（牌河的 75%）；再紧也保 17.5dp（72.9%）下限，
+ * 最多允许 13dp 的居中溢出，绝不裁牌。
+ */
+private fun fitMeldCell(melds: List<Meld>, available: Dp, gap: Dp, groupGap: Dp): Dp {
+    if (melds.isEmpty()) return MELD_CELL
+    if (meldStripMain(melds, MELD_CELL, gap, groupGap) <= available) return MELD_CELL
+    val bases = melds.sumOf { it.baseTiles() }
+    val gapTiles = melds.fold(0f) { acc, m -> acc + (m.baseTiles() - 1).coerceAtLeast(0).toFloat() }
+    val others = gap * gapTiles + groupGap * (melds.size - 1).toFloat()
+    val unit = bases.toFloat()
+    val exact = (available - others) / unit
+    val floor = 17.5.dp
+    if (exact >= floor) return exact
+    val overflow = floor * unit + others - available
+    return if (overflow <= 13.dp) floor else exact
 }
 
 @Composable
@@ -860,18 +969,14 @@ private fun RiverGrid(
         verticalArrangement = verticalArrangement,
     ) {
         if (tiles.isEmpty()) return@Column
-        val shown = if (tiles.size > maxRows * columns) tiles.takeLast(maxRows * columns) else tiles
-        shown.chunked(columns).forEachIndexed { rowIndex, rowTiles ->
+        // 不再截断：所有已出的牌都要显示，容量不足时由调用方按可用长度加列/加行。
+        tiles.chunked(columns).forEachIndexed { rowIndex, rowTiles ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(gap, rowAlign),
             ) {
                 rowTiles.forEachIndexed { colIndex, tile ->
-                    val absolute = if (tiles.size > maxRows * columns) {
-                        tiles.size - shown.size + rowIndex * columns + colIndex
-                    } else {
-                        rowIndex * columns + colIndex
-                    }
+                    val absolute = rowIndex * columns + colIndex
                     val isLast = absolute == tiles.lastIndex
                     val visual = when {
                         isLast && winning -> TileVisual.WINNABLE
@@ -970,6 +1075,7 @@ private fun BottomBand(
     onChiMore: () -> Unit,
     onConfirmDiscard: (Int) -> Unit,
     onHandTop: (Float) -> Unit,
+    onHandLine: (Float) -> Unit,
 ) {
     val colors = LocalMjColors.current
     Column(
@@ -991,7 +1097,7 @@ private fun BottomBand(
             onChiMore = onChiMore,
             onConfirmDiscard = onConfirmDiscard,
         )
-        MeldsStrip(table)
+        MeldsStrip(table, onHandLine = onHandLine)
         HandRow(
             slots = slots,
             drawn = drawn,
@@ -1218,70 +1324,184 @@ private fun ClaimCountdown(claim: ClaimUi, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MeldsStrip(table: TableUi) {
+private fun MeldsStrip(table: TableUi, onHandLine: (Float) -> Unit) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
-    val hasContent = table.melds.isNotEmpty() || table.flowers.isNotEmpty()
+    val melds = table.melds
+    val hasContent = melds.isNotEmpty() || table.flowers.isNotEmpty()
     Row(
         Modifier
             .fillMaxWidth()
             .height(26.dp)
+            .onGloballyPositioned {
+                // 圆心定义的下界：这一行正中那条「手牌」分割线（根坐标）。
+                onHandLine(it.localToRoot(Offset.Zero).y + it.size.height / 2f)
+            }
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(2.dp).height(15.dp).clip(RoundedCornerShape(2.dp)).background(colors.tableGold.copy(alpha = if (hasContent) 0.9f else 0.25f)))
         Spacer(Modifier.width(6.dp))
         if (hasContent) {
-            MjText("副露", type.caption.copy(fontSize = 8.sp), colors.onTable2, maxLines = 1)
-            Spacer(Modifier.width(6.dp))
-            Row(
-                Modifier
-                    .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                table.melds.forEach { meld -> MeldGroup(meld, showName = table.melds.size < 3) }
-                if (table.flowers.isNotEmpty()) {
-                    Box(Modifier.width(1.dp).height(14.dp).background(colors.tableLine))
-                    MjText("花", type.caption.copy(fontSize = 8.sp), colors.tableGold, maxLines = 1)
+            // 我方副露：紧贴手牌上沿横向排列，牌面 0°（自己看是正的），从自己左手边（屏幕左）向右顺序排。
+            MeldStrip(melds, MELD_CELL, gap = 1.dp, groupGap = 5.dp, reverse = false, vertical = false, angle = 0f)
+            if (melds.isNotEmpty() && table.flowers.isNotEmpty()) {
+                Spacer(Modifier.width(9.dp))
+                Box(Modifier.width(1.dp).height(14.dp).background(colors.tableLine))
+                Spacer(Modifier.width(6.dp))
+                MjText("花", type.caption.copy(fontSize = 8.sp), colors.onTable2, maxLines = 1)
+            }
+            if (table.flowers.isNotEmpty()) {
+                if (melds.isEmpty()) MjText("花", type.caption.copy(fontSize = 8.sp), colors.onTable2, maxLines = 1)
+                Spacer(Modifier.width(6.dp))
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     table.flowers.forEach { tile ->
                         MjTile(tile = tile, width = 14.dp, height = 18.dp)
                     }
                 }
             }
         } else {
-            Box(Modifier.weight(1f).height(1.dp).background(colors.tableLine.copy(alpha = 0.4f)))
-            Spacer(Modifier.width(6.dp))
-            MjText("手牌", type.caption.copy(fontSize = 8.sp), colors.onTable2, maxLines = 1)
+            // 没有副露/花时这里只保留行高（26dp），不再画白色分割线与「手牌」标签：
+            // 圆心仍按这一行的中心取值，所以删线不影响圆心与牌河位置。
+            Spacer(Modifier.weight(1f))
         }
     }
 }
 
+/**
+ * 四家副露牌面：吃/碰/明杠/补杠/暗杠都以真实牌面摆出，尺寸为牌河的 75%（18dp）。
+ * 牌面按该座位角度整体旋转（对家 180°、我方 0°、左家 90°、右家 270°），
+ * 每家看自己的牌都是正的；只做单张旋转，不做父级整体旋转。
+ * reverse 用来让牌序按该座位自身视角的「左 → 右」排列（正对家/东家与屏幕方向相反）。
+ */
 @Composable
-private fun MeldGroup(meld: Meld, showName: Boolean) {
-    val colors = LocalMjColors.current
-    val type = LocalMjType.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Row(horizontalArrangement = Arrangement.spacedBy(-4.dp)) {
-            meld.tiles.forEach { tile ->
-                MjTile(
-                    tile = tile,
-                    width = 15.dp,
-                    height = 20.dp,
-                    faceDown = meld.type == MeldType.KONG_CONCEALED,
-                )
-            }
+private fun MeldStrip(
+    melds: List<Meld>,
+    cell: Dp,
+    gap: Dp,
+    groupGap: Dp,
+    reverse: Boolean,
+    vertical: Boolean,
+    angle: Float,
+    modifier: Modifier = Modifier,
+) {
+    if (melds.isEmpty()) return
+    // 整串倒序 = 组倒序 + 组内牌倒序，等价于把该座位的「左手边」放到末端。
+    val groups = remember(melds, reverse) {
+        if (reverse) melds.reversed().map { Meld(it.type, it.tiles.reversed(), it.claimedFrom, it.claimedTile) } else melds
+    }
+    // 左右两家：牌张转 90°/270° 后外接矩形横置（宽 = 4/3 高）再一列向下排；对家/我方仍竖版。
+    val tileW = if (vertical) cell * 4f / 3f else cell
+    val tileH = if (vertical) cell else cell * 4f / 3f
+    val stack = cell * MELD_STACK
+    if (vertical) {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(groupGap, Alignment.CenterVertically)) {
+            groups.forEach { meld -> MeldGroup(meld, tileW, tileH, gap, stack, vertical = true, angle = angle) }
         }
-        if (showName) {
-            Spacer(Modifier.width(3.dp))
-            MjText(
-                meldLabel(meld.type),
-                type.caption.copy(fontSize = 8.sp),
-                colors.onTable2,
-                maxLines = 1,
+    } else {
+        Row(
+            modifier,
+            horizontalArrangement = Arrangement.spacedBy(groupGap),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            groups.forEach { meld -> MeldGroup(meld, tileW, tileH, gap, stack, vertical = false, angle = angle) }
+        }
+    }
+}
+
+/**
+ * 一组副露。杠（明杠/补杠/暗杠）统一「三张一列 + 第四张叠压在上面」，有可见偏移，
+ * 看出是压上去的；只按坐标摆放，不做父级旋转。
+ */
+@Composable
+private fun MeldGroup(
+    meld: Meld,
+    tileW: Dp,
+    tileH: Dp,
+    gap: Dp,
+    stack: Dp,
+    vertical: Boolean,
+    angle: Float,
+) {
+    val faceDown = meld.type == MeldType.KONG_CONCEALED
+    val kong = meld.tiles.size == 4
+    val baseCount = if (kong) 3 else meld.tiles.size
+    val mainTile = if (vertical) tileH else tileW
+    val crossTile = if (vertical) tileW else tileH
+    val main = mainTile * baseCount.toFloat() + gap * (baseCount - 1).toFloat()
+    val cross = crossTile + if (kong) stack else 0.dp
+    val w = if (vertical) cross else main
+    val h = if (vertical) main else cross
+    Box(Modifier.size(w, h), contentAlignment = Alignment.TopStart) {
+        repeat(baseCount) { index ->
+            val along = mainTile * index.toFloat() + gap * index.toFloat()
+            val side = if (kong) stack else 0.dp
+            MeldTile(
+                tile = meld.tiles[index],
+                width = tileW,
+                height = tileH,
+                faceDown = faceDown,
+                landscape = vertical,
+                angle = angle,
+                modifier = Modifier.offset(
+                    x = if (vertical) side else along,
+                    y = if (vertical) along else side,
+                ),
             )
         }
+        if (kong) {
+            // 第四张：压在第一张上，向上（或向左）错开 stack，形成叠压层次。
+            MeldTile(
+                tile = meld.tiles[3],
+                width = tileW,
+                height = tileH,
+                faceDown = faceDown,
+                landscape = vertical,
+                angle = angle,
+                modifier = Modifier.offset(
+                    x = if (vertical) 0.dp else stack,
+                    y = if (vertical) stack else 0.dp,
+                ),
+            )
+        }
+    }
+}
+
+/**
+ * 副露牌：整张牌接座位角度旋转（字形一起转），槽位按旋转后的外接矩形占位。
+ * 左/右家用横置槽，对家/我方用竖版槽。
+ */
+@Composable
+private fun MeldTile(
+    tile: Int,
+    width: Dp,
+    height: Dp,
+    faceDown: Boolean,
+    landscape: Boolean,
+    angle: Float,
+    modifier: Modifier,
+) {
+    if (angle == 0f) {
+        MjTile(tile = tile, width = width, height = height, faceDown = faceDown, modifier = modifier)
+        return
+    }
+    // 横置槽：牌本体按短边（height）绘制，旋转 90° 后正好填满槽位。
+    val naturalW = if (landscape) height else width
+    val naturalH = if (landscape) width else height
+    Box(modifier.size(width, height), contentAlignment = Alignment.Center) {
+        MjTile(
+            tile = tile,
+            width = naturalW,
+            height = naturalH,
+            faceDown = faceDown,
+            modifier = Modifier.graphicsLayer { rotationZ = angle },
+        )
     }
 }
 
@@ -1918,7 +2138,7 @@ private fun BannerOverlay(banner: Banner?, modifier: Modifier = Modifier) {
         val sub = banner?.sub ?: ""
         val isWin = banner?.kind == BannerKind.HU
         val ringSize = if (isWin) 104.dp else 84.dp
-        // 提示圈直接以屏幕正中心为圆心；副标题绝对下偏移，避免把圆圈顶离圆心。
+        // 提示圈与余牌圈同心：圆心由外层按实测中心整体平移；副标题绝对下偏移，不顶离圆心。
         Box(contentAlignment = Alignment.Center) {
             Box(
                 Modifier
