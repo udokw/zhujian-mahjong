@@ -771,6 +771,8 @@ class OnlineGameSession(
                 val dto = decode(RoomStateDto.serializer(), envelope.p) ?: return
                 roomCode = dto.room
                 room = dto
+                // 客机必须以房主下发的规则为准，否则标题/起和线/封顶全按本机默认走。
+                if (dto.ruleSet.isNotBlank()) ruleSet = dto.ruleSet
                 if (mySeat < 0) {
                     mySeat = envelope.seat
                 }

@@ -104,6 +104,8 @@ private class AndroidLanConn(private val socket: Socket) : LanConn {
     @Volatile
     private var closed = false
 
+    private val closeGuard = java.util.concurrent.atomic.AtomicBoolean(false)
+
     private var readerStarted = false
 
     // 发送统一走独立写线程：调用方常在主线程（Compose 事件），
@@ -190,7 +192,8 @@ private class AndroidLanConn(private val socket: Socket) : LanConn {
 
     private fun writeLoop() {
         try {
-            while (!closed) {
+            // 收到空帧（关闭哨兵）才退出，保证 close() 之前入队的帧能写完。
+            while (true) {
                 val frame = writeQueue.take()
                 if (frame.isEmpty()) break
                 output.write(frame)
@@ -201,13 +204,20 @@ private class AndroidLanConn(private val socket: Socket) : LanConn {
                 LanLog.warn("TCP 发送失败 $remote", e)
                 close()
             }
+        } finally {
+            runCatching { socket.close() }
         }
     }
 
     override fun close() {
-        if (closed) return
+        if (!closeGuard.compareAndSet(false, true)) return
         closed = true
+        // 先投递哨兵让写线程把已入队的帧（尤其是被踢时的 room_kicked）刷出去，再关 socket；
+        // 直接 socket.close() 会把队列里最后一帧丢掉。
         writeQueue.offer(ByteArray(0))
+        if (Thread.currentThread() !== writeWorker) {
+            runCatching { writeWorker.join(400) }
+        }
         runCatching { socket.close() }
         onClosed?.invoke()
         onClosed = null

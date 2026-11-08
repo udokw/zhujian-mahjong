@@ -249,29 +249,35 @@ private class IosLanConn(private val fd: Int) : LanConn {
         if (writerStarted) return
         writerStarted = true
         lanIoScope.launch {
-            for (frame in writeQueue) {
-                if (closed) break
-                var offset = 0
-                var failed = false
-                while (offset < frame.size) {
-                    // 显式写成 platform.posix.send：本类有同名成员 send(String)，
-                    // 不加限定符容易踩到重载解析的坑。
-                    val written = frame.usePinned { pinned ->
-                        platform.posix.send(fd, pinned.addressOf(offset), (frame.size - offset).convert(), 0)
+            try {
+                // 队列被 close() 关闭后仍会把已入队的帧写完：最后一帧常常是
+                // room_kicked / room_closed，提前 break 会让对端永远收不到通知。
+                for (frame in writeQueue) {
+                    var offset = 0
+                    var failed = false
+                    while (offset < frame.size) {
+                        // 显式写成 platform.posix.send：本类有同名成员 send(String)，
+                        // 不加限定符容易踩到重载解析的坑。
+                        val written = frame.usePinned { pinned ->
+                            platform.posix.send(fd, pinned.addressOf(offset), (frame.size - offset).convert(), 0)
+                        }
+                        if (written <= 0) {
+                            failed = true
+                            break
+                        }
+                        offset += written.toInt()
                     }
-                    if (written <= 0) {
-                        failed = true
+                    if (failed) {
+                        if (!closed) {
+                            LanLog.warn("TCP 发送失败")
+                            close()
+                        }
                         break
                     }
-                    offset += written.toInt()
                 }
-                if (failed) {
-                    if (!closed) {
-                        LanLog.warn("TCP 发送失败")
-                        close()
-                    }
-                    break
-                }
+            } finally {
+                // fd 由写协程统一关闭：既保证最后一帧已刷出，也避免重复 close。
+                if (closed) runCatching { platform.posix.close(fd) }
             }
         }
     }
@@ -279,9 +285,9 @@ private class IosLanConn(private val fd: Int) : LanConn {
     override fun close() {
         if (closed) return
         closed = true
+        // 只关队列入口，不再直接关 fd；写完队列后由写协程收尾。
         writeQueue.close()
-        // 同理显式限定，避免与本类的 close() 混淆。
-        runCatching { platform.posix.close(fd) }
+        startWriter()
         onClosed?.invoke()
         onClosed = null
     }
