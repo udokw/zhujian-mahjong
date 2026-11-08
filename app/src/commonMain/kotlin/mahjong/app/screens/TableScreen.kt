@@ -50,11 +50,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -162,6 +164,9 @@ fun TableScreen(
 
     BoxWithConstraints(Modifier.fillMaxSize().drawTableFelt(colors)) {
         val tight = maxHeight < 390.dp
+        // 根容器尺寸：牌河换算桌布圆心时要用，先取出来避免在嵌套作用域里被遮住。
+        val rootWidth = maxWidth
+        val rootHeight = maxHeight
         Column(
             Modifier
                 .fillMaxSize()
@@ -169,6 +174,8 @@ fun TableScreen(
         ) {
             LandscapeHud(
                 table = table,
+                topSeat = top,
+                topCurrent = isCurrentSeat(table, top),
                 showTing = showTing,
                 onBack = { showExit = true },
                 onToggleTing = onToggleTing,
@@ -188,21 +195,16 @@ fun TableScreen(
                     width = if (tight) 70.dp else 80.dp,
                 )
                 Box(Modifier.weight(1f).fillMaxHeight()) {
-                    Column(Modifier.fillMaxSize()) {
-                        TopSeat(
-                            seat = top,
-                            table = table,
-                            isCurrent = isCurrentSeat(table, top),
-                            height = if (tight) 36.dp else 44.dp,
-                        )
-                        CompactRiver(
-                            table = table,
-                            top = top,
-                            left = left,
-                            right = right,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                    // 牌河 + 对家手牌都以桌布圆心为唯一基准摆放，不再参与上方流式布局。
+                    CompactRiver(
+                        table = table,
+                        top = top,
+                        left = left,
+                        right = right,
+                        rootWidth = rootWidth,
+                        rootHeight = rootHeight,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                     if (showAdvice) {
                         AdvicePanel(
                             table = table,
@@ -347,6 +349,8 @@ fun TableScreen(
 @Composable
 private fun LandscapeHud(
     table: TableUi,
+    topSeat: SeatUi?,
+    topCurrent: Boolean,
     showTing: Boolean,
     onBack: () -> Unit,
     onToggleTing: (() -> Unit)?,
@@ -357,7 +361,7 @@ private fun LandscapeHud(
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
-    Row(
+    Box(
         Modifier
             .fillMaxWidth()
             .height(38.dp)
@@ -366,57 +370,69 @@ private fun LandscapeHud(
                     0f to Color.Black.copy(alpha = 0.30f),
                     1f to Color.Transparent,
                 ),
-            )
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            ),
     ) {
-        Box(
-            Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .clickable { onBack() },
-            contentAlignment = Alignment.Center,
+        Row(
+            Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            MjIcon(MjIconKind.BACK, size = 16.dp, tint = colors.onTable)
-        }
-        Spacer(Modifier.width(6.dp))
-        MjText(
-            "${table.modeLabel} · ${WindNames.getOrElse(table.roundWind) { "东" }}风 · 第 ${table.handNumber} 局",
-            type.caption.copy(fontWeight = FontWeight.SemiBold, fontSize = 11.sp),
-            colors.onTable,
-            maxLines = 1,
-        )
-        Spacer(Modifier.weight(1f))
-        MjText(
-            "余 ${table.wallRemaining}",
-            type.caption.copy(fontSize = 10.sp),
-            colors.onTable2,
-            maxLines = 1,
-        )
-        if (onToggleTing != null) {
-            Spacer(Modifier.width(8.dp))
-            HudChip(
-                label = "听牌提示",
-                active = showTing,
-                onClick = onToggleTing,
-            )
-        }
-        if (onToggleTingLock != null) {
+            Box(
+                Modifier
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center,
+            ) {
+                MjIcon(MjIconKind.BACK, size = 16.dp, tint = colors.onTable)
+            }
             Spacer(Modifier.width(6.dp))
-            HudChip(
-                label = if (tingLocked) "已听牌" else "听牌",
-                active = tingLocked,
-                onClick = onToggleTingLock,
+            MjText(
+                "${table.modeLabel} · ${WindNames.getOrElse(table.roundWind) { "东" }}风 · 第 ${table.handNumber} 局",
+                type.caption.copy(fontWeight = FontWeight.SemiBold, fontSize = 11.sp),
+                colors.onTable,
+                maxLines = 1,
             )
-        }
-        if (onToggleAuto != null) {
-            Spacer(Modifier.width(6.dp))
-            HudChip(
-                label = "托管",
-                active = autoPlaying,
-                onClick = onToggleAuto,
+            Spacer(Modifier.weight(1f))
+            MjText(
+                "余 ${table.wallRemaining}",
+                type.caption.copy(fontSize = 10.sp),
+                colors.onTable2,
+                maxLines = 1,
             )
+            if (onToggleTing != null) {
+                Spacer(Modifier.width(8.dp))
+                HudChip(
+                    label = "听牌提示",
+                    active = showTing,
+                    onClick = onToggleTing,
+                )
+            }
+            if (onToggleTingLock != null) {
+                Spacer(Modifier.width(6.dp))
+                HudChip(
+                    label = if (tingLocked) "已听牌" else "听牌",
+                    active = tingLocked,
+                    onClick = onToggleTingLock,
+                )
+            }
+            if (onToggleAuto != null) {
+                Spacer(Modifier.width(6.dp))
+                HudChip(
+                    label = "托管",
+                    active = autoPlaying,
+                    onClick = onToggleAuto,
+                )
+            }
         }
+        // 对家手牌放进顶栏中央：牌河上方的纵向空间全部留给出牌区，
+        // 保证四家出牌区到圆心严格对称，同时手牌始终稳定在最高处。
+        TopSeat(
+            seat = topSeat,
+            table = table,
+            isCurrent = topCurrent,
+            height = 34.dp,
+            modifier = Modifier.align(Alignment.Center),
+        )
     }
 }
 
@@ -533,15 +549,21 @@ private fun waitSummary(waits: List<WaitTile>): String {
 // ------------------------------------------------------------ 对手
 
 @Composable
-private fun TopSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, height: Dp) {
+private fun TopSeat(
+    seat: SeatUi?,
+    table: TableUi,
+    isCurrent: Boolean,
+    height: Dp,
+    modifier: Modifier = Modifier,
+) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     if (seat == null) {
-        Spacer(Modifier.height(height))
+        Spacer(modifier.height(height))
         return
     }
     Box(
-        Modifier.fillMaxWidth().height(height).padding(horizontal = 10.dp),
+        modifier.fillMaxWidth().height(height).padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
     Row(
@@ -689,21 +711,57 @@ private fun isCurrentSeat(table: TableUi, seat: SeatUi?): Boolean {
 
 // ------------------------------------------------------------ 牌河
 
+/** 桌布罗盘圆心在整屏中的纵向比例，与 drawTableFelt / CenterInfo 保持一致。 */
+private const val FELT_CENTER_Y = 0.40f
+
+/**
+ * 四家出牌区最近边到圆心的距离。
+ *
+ * 中心信息圈半径 28dp，这里留 4dp 视觉空隙；四家共用同一个常量，
+ * 因此上下、左右到圆心的距离天然对称，且与出牌张数无关。
+ */
+private val RIVER_CENTER_GAP = 32.dp
+
 @Composable
 private fun CompactRiver(
     table: TableUi,
     top: SeatUi?,
     left: SeatUi?,
     right: SeatUi?,
+    rootWidth: Dp,
+    rootHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier.padding(horizontal = 2.dp)) {
+    val density = LocalDensity.current
+    // 本区域在根坐标系中的位置：把它换算出来，才能拿到"桌布圆心"在本区域的坐标。
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    BoxWithConstraints(
+        modifier
+            .fillMaxSize()
+            .onGloballyPositioned { origin = it.localToRoot(Offset.Zero) },
+    ) {
+        val centerX = with(density) { (rootWidth.toPx() * 0.5f - origin.x).toDp() }
+        val centerY = with(density) { (rootHeight.toPx() * FELT_CENTER_Y - origin.y).toDp() }
+
+        val gap = 1.dp
+        // 对家手牌已在顶栏，这里只需保证牌河最近边钉在 RIVER_CENTER_GAP 上。
+        val above = centerY - RIVER_CENTER_GAP
+        val below = maxHeight - centerY - RIVER_CENTER_GAP
         val cell = minOf(
             20.dp,
-            ((maxHeight.value - 8f) / 6f * 0.75f).dp,
-            ((maxWidth.value - 92f) / 12f).dp,
+            (minOf(above, below) / 2f - gap) * 0.75f,
+            (centerX - RIVER_CENTER_GAP - gap * 7f) / 8f,
+            (maxWidth - gap * 11f) / 12f,
         ).coerceAtLeast(9.dp)
-        val gap = 1.dp
+        val rowH = cell * 4f / 3f + gap
+        val blockH = rowH * 2f
+        val wideW = cell * 12f + gap * 11f
+        val sideW = cell * 8f + gap * 7f
+
+        val topY = centerY - RIVER_CENTER_GAP - blockH
+        val sideY = centerY - rowH
+        val bottomY = centerY + RIVER_CENTER_GAP
+
         val winTiles = if (table.claim?.options?.contains(ClaimOption.Hu) == true &&
             table.claim.fromSeat != null && table.claim.fromSeat == table.lastDiscardSeat
         ) {
@@ -711,58 +769,60 @@ private fun CompactRiver(
         } else {
             emptySet()
         }
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        val me = table.seats.getOrNull(table.meSeat)
+
+        // 对家出牌：钉在圆心上方 RIVER_CENTER_GAP，行数只向上叠加。
+        RiverGrid(
+            tiles = top?.discards ?: emptyList(),
+            columns = 12,
+            cell = cell,
+            gap = gap,
+            maxRows = 2,
+            verticalArrangement = Arrangement.Bottom,
+            highlight = if (top != null && top.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
+            winning = winTiles.any { it.first == top?.seat },
+            rowAlign = Alignment.CenterHorizontally,
+            modifier = Modifier.offset(x = centerX - wideW / 2f, y = topY),
+        )
+        // 左家：靠圆心的一侧固定，牌只向左侧生长。
+        RiverGrid(
+            tiles = left?.discards ?: emptyList(),
+            columns = 8,
+            cell = cell,
+            gap = gap,
+            maxRows = 2,
             verticalArrangement = Arrangement.Center,
-        ) {
-            RiverGrid(
-                tiles = top?.discards ?: emptyList(),
-                columns = 12,
-                cell = cell,
-                gap = gap,
-                maxRows = 2,
-                alignBottom = true,
-                highlight = if (top != null && top.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
-                winning = winTiles.any { it.first == top?.seat },
-                rowAlign = Alignment.CenterHorizontally,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RiverGrid(
-                    tiles = left?.discards ?: emptyList(),
-                    columns = 8,
-                    cell = cell,
-                    gap = gap,
-                    maxRows = 2,
-                    alignBottom = false,
-                    highlight = if (left != null && left.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
-                    winning = winTiles.any { it.first == left?.seat },
-                )
-                Spacer(Modifier.width(92.dp))
-                RiverGrid(
-                    tiles = right?.discards ?: emptyList(),
-                    columns = 8,
-                    cell = cell,
-                    gap = gap,
-                    maxRows = 2,
-                    alignBottom = false,
-                    highlight = if (right != null && right.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
-                    winning = winTiles.any { it.first == right?.seat },
-                    rowAlign = Alignment.End,
-                )
-            }
-            RiverGrid(
-                tiles = table.seats.getOrNull(table.meSeat)?.discards ?: emptyList(),
-                columns = 12,
-                cell = cell,
-                gap = gap,
-                maxRows = 2,
-                alignBottom = false,
-                highlight = if (table.meSeat == table.lastDiscardSeat) table.lastDiscardTile else null,
-                winning = false,
-                rowAlign = Alignment.CenterHorizontally,
-            )
-        }
+            highlight = if (left != null && left.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
+            winning = winTiles.any { it.first == left?.seat },
+            rowAlign = Alignment.End,
+            modifier = Modifier.offset(x = centerX - RIVER_CENTER_GAP - sideW, y = sideY),
+        )
+        // 右家：靠圆心的一侧固定，牌只向右侧生长。
+        RiverGrid(
+            tiles = right?.discards ?: emptyList(),
+            columns = 8,
+            cell = cell,
+            gap = gap,
+            maxRows = 2,
+            verticalArrangement = Arrangement.Center,
+            highlight = if (right != null && right.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
+            winning = winTiles.any { it.first == right?.seat },
+            rowAlign = Alignment.Start,
+            modifier = Modifier.offset(x = centerX + RIVER_CENTER_GAP, y = sideY),
+        )
+        // 我方出牌：钉在圆心下方 RIVER_CENTER_GAP，行数只向下叠加。
+        RiverGrid(
+            tiles = me?.discards ?: emptyList(),
+            columns = 12,
+            cell = cell,
+            gap = gap,
+            maxRows = 2,
+            verticalArrangement = Arrangement.Top,
+            highlight = if (table.meSeat == table.lastDiscardSeat) table.lastDiscardTile else null,
+            winning = false,
+            rowAlign = Alignment.CenterHorizontally,
+            modifier = Modifier.offset(x = centerX - wideW / 2f, y = bottomY),
+        )
     }
 }
 
@@ -773,18 +833,19 @@ private fun RiverGrid(
     cell: Dp,
     gap: Dp,
     maxRows: Int,
-    alignBottom: Boolean,
+    verticalArrangement: Arrangement.Vertical,
     highlight: Int?,
     winning: Boolean,
     rowAlign: Alignment.Horizontal = Alignment.Start,
+    modifier: Modifier = Modifier,
 ) {
     val reduceMotion = LocalReduceMotion.current
     val rowHeight = cell * 4f / 3f + gap
     // 固定列宽：牌数变化只影响这一块内部，不会反向挤压其他元素。
     val gridWidth = cell * columns.toFloat() + gap * (columns - 1).toFloat()
     Column(
-        modifier = Modifier.width(gridWidth).height(rowHeight * maxRows),
-        verticalArrangement = if (alignBottom) Arrangement.Bottom else Arrangement.Top,
+        modifier = modifier.width(gridWidth).height(rowHeight * maxRows),
+        verticalArrangement = verticalArrangement,
     ) {
         if (tiles.isEmpty()) return@Column
         val shown = if (tiles.size > maxRows * columns) tiles.takeLast(maxRows * columns) else tiles
