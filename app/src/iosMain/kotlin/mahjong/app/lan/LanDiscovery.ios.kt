@@ -9,7 +9,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import platform.Foundation.NSDate
 import platform.posix.AF_INET
 import platform.posix.IPPROTO_UDP
 import platform.posix.SO_BROADCAST
@@ -19,6 +18,7 @@ import platform.posix.SOL_SOCKET
 import platform.posix.SOCK_DGRAM
 import platform.posix.bind
 import platform.posix.close
+import platform.posix.gettimeofday
 import platform.posix.memset
 import platform.posix.recvfrom
 import platform.posix.sendto
@@ -27,9 +27,14 @@ import platform.posix.sockaddr_in
 import platform.posix.socket
 import platform.posix.timeval
 
+// 走 POSIX gettimeofday：Kotlin/Native 的 NSDate 未导出 timeIntervalSince1970，
+// 而 platform.posix 的时间接口在所有 Apple 目标上都能解析。
 @OptIn(ExperimentalForeignApi::class)
-actual fun nowWallMillis(): Long =
-    (NSDate().timeIntervalSince1970 * 1000.0).toLong()
+actual fun nowWallMillis(): Long = memScoped {
+    val tv = alloc<timeval>()
+    gettimeofday(tv.ptr, null)
+    tv.tv_sec * 1000L + tv.tv_usec / 1000L
+}
 
 actual fun createLanDiscovery(): LanDiscoveryNode = IosLanDiscovery()
 

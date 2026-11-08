@@ -11,7 +11,9 @@ import kotlinx.coroutines.withContext
 import platform.posix.AF_INET
 import platform.posix.F_SETFL
 import platform.posix.IPPROTO_TCP
+import platform.posix.IPPROTO_UDP
 import platform.posix.O_NONBLOCK
+import platform.posix.SOCK_DGRAM
 import platform.posix.SOCK_STREAM
 import platform.posix.SO_RCVTIMEO
 import platform.posix.SO_REUSEADDR
@@ -21,9 +23,7 @@ import platform.posix.bind
 import platform.posix.close
 import platform.posix.connect
 import platform.posix.fcntl
-import platform.posix.freeifaddrs
-import platform.posix.getifaddrs
-import platform.posix.ifaddrs
+import platform.posix.getsockname
 import platform.posix.listen
 import platform.posix.memset
 import platform.posix.recv
@@ -131,26 +131,29 @@ actual suspend fun lanConnect(
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun lanLocalIpv4(): String {
-    return memScoped {
-        val ifap = alloc<CPointerVar<ifaddrs>>()
-        if (getifaddrs(ifap.ptr) != 0) return "127.0.0.1"
-        try {
-            var cur = ifap.value
-            while (cur != null) {
-                val ifa = cur.pointed
-                val addr = ifa.ifa_addr
-                if (addr != null && addr.pointed.sa_family.toInt() == AF_INET) {
-                    val sin = addr.reinterpret<sockaddr_in>().pointed
-                    val raw = sin.sin_addr.s_addr
-                    val ip = "${raw and 0xFFu}.${(raw shr 8) and 0xFFu}.${(raw shr 16) and 0xFFu}.${(raw shr 24) and 0xFFu}"
-                    if (ip != "127.0.0.1" && !ip.startsWith("169.254.")) return ip
-                }
-                cur = ifa.ifa_next
+    // platform.posix 没有导出 getifaddrs/ifaddrs，改用"UDP connect 探路由 + getsockname"：
+    // 不实际发包，只让内核按默认出口网卡填上源地址。
+    val fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+    if (fd < 0) return "127.0.0.1"
+    try {
+        return memScoped {
+            val target = alloc<sockaddr_in>()
+            memset(target.ptr, 0, sizeOf<sockaddr_in>().convert())
+            target.sin_family = AF_INET.convert()
+            target.sin_port = htons(53)
+            target.sin_addr.s_addr = inetAddr("8.8.8.8")
+            if (connect(fd, target.ptr.reinterpret(), sizeOf<sockaddr_in>().convert()) != 0) {
+                return@memScoped "127.0.0.1"
             }
-            "127.0.0.1"
-        } finally {
-            freeifaddrs(ifap.value)
+            val local = alloc<sockaddr_in>()
+            val len = alloc<UIntVar>().apply { value = sizeOf<sockaddr_in>().convert() }
+            if (getsockname(fd, local.ptr.reinterpret(), len.ptr) != 0) {
+                return@memScoped "127.0.0.1"
+            }
+            ipv4Text(local.sin_addr.s_addr)
         }
+    } finally {
+        close(fd)
     }
 }
 
