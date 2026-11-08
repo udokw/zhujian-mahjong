@@ -237,22 +237,6 @@ fun TableScreen(
                             onClose = { showAdvice = false },
                         )
                     }
-                    // 听牌提示是覆盖层：浮在牌桌之上，不参与任何尺寸计算。
-                    if (hasTing) {
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                // 牌河现在会向下长到提示条区域，听牌条随之下移避免压牌。
-                                .offset(y = 44.dp)
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                        ) {
-                            TingBar(
-                                table = table,
-                                onExpand = { showAdvice = !showAdvice },
-                                expanded = showAdvice,
-                            )
-                        }
-                    }
                 }
                 SideSeat(
                     seat = right,
@@ -314,6 +298,10 @@ fun TableScreen(
                 },
                 onHandTop = { handTopPx = it },
                 onHandLine = { handLinePx = it },
+                // 听牌提示不再做全宽浮层（会压住牌河第二行与操作行），改为塞进操作行左侧的空白区。
+                showTingLine = hasTing && table.claim == null,
+                adviceExpanded = showAdvice,
+                onExpandAdvice = { showAdvice = !showAdvice },
             )
         }
 
@@ -496,7 +484,12 @@ private fun hasTingContent(table: TableUi): Boolean {
 }
 
 @Composable
-private fun TingBar(table: TableUi, expanded: Boolean, onExpand: () -> Unit) {
+private fun TingBar(
+    table: TableUi,
+    expanded: Boolean,
+    onExpand: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     val plan = table.plans.firstOrNull()
@@ -510,14 +503,14 @@ private fun TingBar(table: TableUi, expanded: Boolean, onExpand: () -> Unit) {
     }
 
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
-            .height(30.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .height(28.dp)
+            .clip(RoundedCornerShape(9.dp))
             .background(colors.table3.copy(alpha = 0.94f))
-            .border(1.dp, colors.tableLine, RoundedCornerShape(10.dp))
+            .border(1.dp, colors.tableLine, RoundedCornerShape(9.dp))
             .clickable { onExpand() }
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         MjText(
@@ -1076,6 +1069,9 @@ private fun BottomBand(
     onConfirmDiscard: (Int) -> Unit,
     onHandTop: (Float) -> Unit,
     onHandLine: (Float) -> Unit,
+    showTingLine: Boolean,
+    adviceExpanded: Boolean,
+    onExpandAdvice: () -> Unit,
 ) {
     val colors = LocalMjColors.current
     Column(
@@ -1096,6 +1092,9 @@ private fun BottomBand(
             onHu = onHu,
             onChiMore = onChiMore,
             onConfirmDiscard = onConfirmDiscard,
+            showTingLine = showTingLine,
+            adviceExpanded = adviceExpanded,
+            onExpandAdvice = onExpandAdvice,
         )
         MeldsStrip(table, onHandLine = onHandLine)
         HandRow(
@@ -1129,6 +1128,9 @@ private fun ActionRow(
     onHu: () -> Unit,
     onChiMore: () -> Unit,
     onConfirmDiscard: (Int) -> Unit,
+    showTingLine: Boolean,
+    adviceExpanded: Boolean,
+    onExpandAdvice: () -> Unit,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
@@ -1200,6 +1202,16 @@ private fun ActionRow(
                 }
             }
         } else {
+            // 听牌条放在本行左侧空白区（牌河最左边一张在更右边），不再浮在牌河上。
+            if (showTingLine) {
+                TingBar(
+                    table = table,
+                    expanded = adviceExpanded,
+                    onExpand = onExpandAdvice,
+                    modifier = Modifier.widthIn(max = 168.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+            }
             MjText(
                 if (table.turnOptions.canHu && !table.huMeetsMin) {
                     "听牌但仅 ${table.huFan ?: 0} 番 · 不足 ${table.minFan} 番，不能胡"
