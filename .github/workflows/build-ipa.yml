@@ -22,10 +22,10 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -38,7 +38,7 @@ jobs:
 
       # Gradle 依赖 + Kotlin/Native 工具链体积大，缓存后重跑会快很多。
       - name: Cache Gradle and Kotlin/Native
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches
@@ -117,7 +117,7 @@ jobs:
           ls -lh iosApp-unsigned.ipa
 
       - name: Upload IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: iosApp-unsigned-ipa
           path: iosApp/iosApp-unsigned.ipa
