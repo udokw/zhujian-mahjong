@@ -96,7 +96,7 @@ fun Modifier.drawTableFelt(colors: MjColors): Modifier = drawBehind {
     }
 
     // 4) 中央罗盘环：只做压纹，不投影、不压住牌河。
-    val center = Offset(size.width * 0.5f, size.height * 0.40f)
+    val center = Offset(size.width * 0.5f, size.height * 0.50f)
     val ring = min(size.width, size.height) * 0.28f
     drawCircle(colors.tableGold.copy(alpha = 0.07f), radius = ring, center = center)
     drawCircle(

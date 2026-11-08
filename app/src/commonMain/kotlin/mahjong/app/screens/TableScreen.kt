@@ -133,6 +133,8 @@ fun TableScreen(
     var showChiSheet by remember { mutableStateOf(false) }
     var showExit by remember { mutableStateOf(false) }
     var showAdvice by remember { mutableStateOf(false) }
+    // 手牌行顶边在根坐标中的 y：牌河向下生长时要贴到它上方，而不是被底栏布局边界截断。
+    var handTopPx by remember { mutableStateOf(0f) }
 
     val hand = table.hand
     val handKey = hand.joinToString(",")
@@ -203,6 +205,7 @@ fun TableScreen(
                         right = right,
                         rootWidth = rootWidth,
                         rootHeight = rootHeight,
+                        handTopPx = handTopPx,
                         modifier = Modifier.fillMaxSize(),
                     )
                     if (showAdvice) {
@@ -224,6 +227,8 @@ fun TableScreen(
                         Box(
                             Modifier
                                 .align(Alignment.BottomCenter)
+                                // 牌河现在会向下长到提示条区域，听牌条随之下移避免压牌。
+                                .offset(y = 44.dp)
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                         ) {
                             TingBar(
@@ -291,14 +296,13 @@ fun TableScreen(
                     selectedDrawn = false
                     onDiscard(tile)
                 },
+                onHandTop = { handTopPx = it },
             )
         }
 
-        // 中心局况锚定桌布圆心（与 drawTableFelt 的罗盘同心），不参与任何流式布局。
+        // 中心局况锚定屏幕正中心（与 drawTableFelt 的罗盘同心），不参与任何流式布局。
         Box(
-            Modifier
-                .fillMaxSize()
-                .offset(y = -(maxHeight * 0.10f)),
+            Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             CenterInfo(table)
@@ -711,8 +715,8 @@ private fun isCurrentSeat(table: TableUi, seat: SeatUi?): Boolean {
 
 // ------------------------------------------------------------ 牌河
 
-/** 桌布罗盘圆心在整屏中的纵向比例，与 drawTableFelt / CenterInfo 保持一致。 */
-private const val FELT_CENTER_Y = 0.40f
+/** 桌布罗盘圆心在整屏中的位置，与 drawTableFelt / CenterInfo 保持一致：正中心。 */
+private const val FELT_CENTER_Y = 0.50f
 
 /**
  * 四家出牌区最近边到圆心的距离。
@@ -730,6 +734,7 @@ private fun CompactRiver(
     right: SeatUi?,
     rootWidth: Dp,
     rootHeight: Dp,
+    handTopPx: Float,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -746,7 +751,14 @@ private fun CompactRiver(
         val gap = 1.dp
         // 对家手牌已在顶栏，这里只需保证牌河最近边钉在 RIVER_CENTER_GAP 上。
         val above = centerY - RIVER_CENTER_GAP
-        val below = maxHeight - centerY - RIVER_CENTER_GAP
+        // 下边界取手牌行实际顶边：底栏上方的提示条区域是空的，牌河可以落进去，
+        // 否则 2 行牌会把牌格压到 11dp 左右。首帧还没量到手牌时先用本区域高度兜底。
+        val bottomEdge = if (handTopPx > 0f) {
+            with(density) { (handTopPx - origin.y).toDp() }
+        } else {
+            maxHeight
+        }
+        val below = bottomEdge - centerY - RIVER_CENTER_GAP - 2.dp
         val cell = minOf(
             20.dp,
             (minOf(above, below) / 2f - gap) * 0.75f,
@@ -957,6 +969,7 @@ private fun BottomBand(
     onHu: () -> Unit,
     onChiMore: () -> Unit,
     onConfirmDiscard: (Int) -> Unit,
+    onHandTop: (Float) -> Unit,
 ) {
     val colors = LocalMjColors.current
     Column(
@@ -993,6 +1006,9 @@ private fun BottomBand(
             onSelect = onSelect,
             onSelectDrawn = onSelectDrawn,
             onDragDiscard = onDragDiscard,
+            modifier = Modifier.onGloballyPositioned {
+                onHandTop(it.localToRoot(Offset.Zero).y)
+            },
         )
         Spacer(Modifier.height(3.dp))
     }
@@ -1307,11 +1323,12 @@ private fun HandRow(
     onSelect: (HandSlot) -> Unit,
     onSelectDrawn: () -> Unit,
     onDragDiscard: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     BoxWithConstraints(
-        Modifier
+        modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp),
     ) {
@@ -1900,13 +1917,12 @@ private fun BannerOverlay(banner: Banner?, modifier: Modifier = Modifier) {
         val text = banner?.text ?: ""
         val sub = banner?.sub ?: ""
         val isWin = banner?.kind == BannerKind.HU
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(bottom = 24.dp),
-        ) {
+        val ringSize = if (isWin) 104.dp else 84.dp
+        // 提示圈直接以屏幕正中心为圆心；副标题绝对下偏移，避免把圆圈顶离圆心。
+        Box(contentAlignment = Alignment.Center) {
             Box(
                 Modifier
-                    .size(if (isWin) 104.dp else 84.dp)
+                    .size(ringSize)
                     .clip(RoundedCornerShape(999.dp))
                     .background(Color.Black.copy(alpha = if (isWin) 0.5f else 0.38f))
                     .border(
@@ -1926,12 +1942,13 @@ private fun BannerOverlay(banner: Banner?, modifier: Modifier = Modifier) {
                 )
             }
             if (sub.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                MjText(
-                    sub,
-                    LocalMjType.current.label.copy(fontWeight = FontWeight.SemiBold),
-                    if (isWin) colors.tableGold else colors.onTable2,
-                )
+                Box(Modifier.offset(y = ringSize / 2 + 12.dp)) {
+                    MjText(
+                        sub,
+                        LocalMjType.current.label.copy(fontWeight = FontWeight.SemiBold),
+                        if (isWin) colors.tableGold else colors.onTable2,
+                    )
+                }
             }
         }
     }
