@@ -20,14 +20,9 @@ private let gTimeFormatter: DateFormatter = {
     return formatter
 }()
 
-// 崩溃前预分配的缓冲区：信号处理器里不能做内存分配，所以安装时就把
-// 「上一条启动阶段」和「SIGNAL 前缀」写进固定大小的 C 缓冲区，崩溃时直接 write。
-private var gBufA: UnsafeMutablePointer<CChar>?
-private var gBufB: UnsafeMutablePointer<CChar>?
-private var gWhich: Int32 = 0
-private var gSignalLine: UnsafeMutablePointer<CChar>?
+/// 信号处理器里不能分配内存，前缀写成固定字节数组，崩溃时直接 write。
+private let gSignalWord: [CChar] = [83, 73, 71, 78, 65, 76, 32] // "SIGNAL "
 private var gCrashFd: Int32 = -1
-private let gSignalPrefix: [CChar] = [83, 73, 71, 78, 65, 76, 32] // "SIGNAL "
 
 private func gDocumentsDirectory() -> String {
     NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first
@@ -62,33 +57,27 @@ private func gTail(lines count: Int) -> String {
     return content.components(separatedBy: "\n").suffix(count).joined(separator: "\n")
 }
 
-/// 信号处理器里只做：写出预分配的 stage 字符串 + 信号编号，fsync，然后把默认行为还回去，
-/// 让系统照常生成 .ips 崩溃报告。
+/// 信号处理器只做三件事：补一条 `SIGNAL n`、fsync、把默认行为还回去，
+/// 让系统照常生成 .ips 崩溃报告。真正「崩在哪一步」由紧挨在它上面的 STAGE 行回答。
 private func handleSignal(_ sig: Int32) {
-    if gCrashFd >= 0 {
-        if let buffer = (gWhich == 0 ? gBufA : gBufB) {
-            _ = write(gCrashFd, buffer, Int(strlen(buffer)))
-        }
-        if let line = gSignalLine {
-            var index = 0
-            for char in gSignalPrefix {
-                line[index] = char
-                index += 1
+    let fd = gCrashFd
+    if fd >= 0 {
+        gSignalWord.withUnsafeBufferPointer { pointer in
+            if let base = pointer.baseAddress {
+                _ = write(fd, base, pointer.count)
             }
-            var value = sig
-            if value >= 10 {
-                line[index] = CChar(48 + value / 10)
-                index += 1
-                value = value % 10
-            }
-            line[index] = CChar(48 + value)
-            index += 1
-            line[index] = 10
-            index += 1
-            line[index] = 0
-            _ = write(gCrashFd, line, index)
         }
-        _ = fsync(gCrashFd)
+        var value = sig
+        if value >= 10 {
+            var tens = CChar(48 + (value / 10) % 10)
+            _ = write(fd, &tens, 1)
+            value = value % 10
+        }
+        var units = CChar(48 + value)
+        _ = write(fd, &units, 1)
+        var newLine: CChar = 10
+        _ = write(fd, &newLine, 1)
+        _ = fsync(fd)
     }
     signal(sig, SIG_DFL)
     _ = kill(getpid(), sig)
@@ -99,7 +88,7 @@ private func handleSignal(_ sig: Int32) {
 /// 目标：App 在首帧阶段崩溃、用户手边又没有 Mac / Xcode 时，仍能把「崩在哪一步」取出来。
 /// 做法分两层：
 /// 1. 每个启动阶段（stage）立刻写进 UserDefaults 并 fsync 到 `Documents/crash.log`；
-/// 2. 进程被信号打死或抛 NSException 时，用预分配缓冲区再补一条记录。
+/// 2. 进程被信号打死或抛 NSException 时，再补一条记录。
 ///
 /// 下次启动时 SwiftUI 会抢在 Compose 之前把上一次的记录显示出来，用户可一键复制。
 enum CrashLogger {
@@ -115,7 +104,7 @@ enum CrashLogger {
     // MARK: - 安装
 
     static func install() {
-        allocateSignalBuffers()
+        _ = gSignalWord // 提前初始化这个全局常量，避免首次访问发生在信号处理器里
         trimIfNeeded()
         openLog()
 
@@ -158,7 +147,6 @@ enum CrashLogger {
         defaults.set(time, forKey: gStageTimeKey)
         defaults.synchronize()
         gAppendLine("STAGE \(time) \(stage)")
-        refreshSignalBuffer("last-stage=\(stage) at \(time)\n")
     }
 
     // MARK: - 读取 / 清理
@@ -214,33 +202,5 @@ enum CrashLogger {
         for sig in [SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGTRAP] {
             signal(sig, handleSignal)
         }
-    }
-
-    private static func allocateSignalBuffers() {
-        guard gBufA == nil else { return }
-        _ = gSignalPrefix // 提前初始化这个全局常量，避免首次访问发生在信号处理器里
-        let a = UnsafeMutablePointer<CChar>.allocate(capacity: 512)
-        let b = UnsafeMutablePointer<CChar>.allocate(capacity: 512)
-        let line = UnsafeMutablePointer<CChar>.allocate(capacity: 64)
-        a.initialize(repeating: 0, count: 512)
-        b.initialize(repeating: 0, count: 512)
-        line.initialize(repeating: 0, count: 64)
-        gBufA = a
-        gBufB = b
-        gSignalLine = line
-    }
-
-    private static func refreshSignalBuffer(_ text: String) {
-        guard let a = gBufA, let b = gBufB else { return }
-        let next = gWhich == 0 ? b : a
-        text.withCString { source in
-            var index = 0
-            while index < 511 && source[index] != 0 {
-                next[index] = source[index]
-                index += 1
-            }
-            next[index] = 0
-        }
-        gWhich = gWhich == 0 ? 1 : 0
     }
 }
