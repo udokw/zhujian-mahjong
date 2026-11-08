@@ -12,11 +12,11 @@ import java.util.concurrent.Executors
 
 private const val TAG = "MJSound"
 private const val MAX_EFFECT_STREAMS = 8
-private const val MAX_PENDING_VOICE = 2
+// 保留自然语速后单条明显变长（约 0.5~0.8s），积压窗口放宽，避免连报时丢掉前一条。
+private const val MAX_PENDING_VOICE = 6
 private const val MAX_TRACKED_EFFECTS = 24
-private const val VOICE_GAP_MS = 55L
-private const val FALLBACK_VOICE_MS = 420
-private const val VOICE_SET_COUNT = 9
+private const val VOICE_GAP_MS = 40L
+private const val FALLBACK_VOICE_MS = 650
 
 private val ACTION_VOICES = listOf("chi", "peng", "gang", "hu", "zimo", "liuju")
 
@@ -42,7 +42,7 @@ private val EFFECT_CLIPS = buildList {
 }
 
 private val VOICE_CLIPS = buildList {
-    // 9 套人声 × 34 种牌名 + 9 套动作语音，命名与 tools/sfx/generate_audio.py 一致。
+    // 9 套人声 × 34 种牌名 + 9 套动作语音，命名与 tools/sfx/voice_bank_cosyvoice3.py 一致。
     for (set in 1..VOICE_SET_COUNT) {
         for (i in 0..33) add("voice${set}_tile_" + i.toString().padStart(2, '0'))
         for (action in ACTION_VOICES) add("voice${set}_$action")
@@ -85,7 +85,7 @@ private object AndroidAudio {
             if (initStarted) return
             initStarted = true
         }
-        // 9 套人声共 360 条，逐条解码较慢；放后台线程加载，避免阻塞主线程触发 ANR。
+        // 人声按 9 套 360 条命名探测；资源缺失时只探测一次并静默，不阻塞启动。
         Thread({ loadAll() }, "mj-audio-init").apply { isDaemon = true }.start()
     }
 
@@ -110,7 +110,7 @@ private object AndroidAudio {
         voices.setOnLoadCompleteListener { _, sampleId, status ->
             if (status != 0) Log.w(TAG, "报牌语音加载失败 sample=$sampleId status=$status")
         }
-        // 先发布压力小的音效池：敲桌/洗牌/发牌在开局就要用，不能等 360 条人声加载完。
+        // 先发布压力小的音效池：敲桌/洗牌/发牌在开局就要用，不能等 640 条人声加载完。
         effectPool = effects
         voicePool = voices
         EFFECT_CLIPS.forEach { name ->
@@ -122,27 +122,37 @@ private object AndroidAudio {
             val sample = effects.load(context, id, 1)
             if (sample == 0) Log.w(TAG, "音效加载返回 0：$name") else effectIds[name] = sample
         }
-        VOICE_CLIPS.forEach { name ->
-            val id = rawId(context, name)
-            if (id == 0) {
-                Log.w(TAG, "缺少报牌资源 $name")
-                return@forEach
+        // 人声资源可能被整体清空：先探测是否存在，全部缺失时只记一条日志，避免逐条刷屏。
+        val presentVoices = VOICE_CLIPS.filter { rawId(context, it) != 0 }
+        if (presentVoices.isEmpty()) {
+            Log.i(TAG, "报牌语音资源已清空（0 条），报牌与动作配音将静默；音效不受影响")
+        } else {
+            presentVoices.forEach { name ->
+                val id = rawId(context, name)
+                val sample = voices.load(context, id, 1)
+                if (sample == 0) {
+                    Log.w(TAG, "报牌语音加载返回 0：$name")
+                } else {
+                    voiceIds[name] = sample
+                    voiceDurations[name] = wavDurationMs(context, id)
+                }
             }
-            val sample = voices.load(context, id, 1)
-            if (sample == 0) {
-                Log.w(TAG, "报牌语音加载返回 0：$name")
-            } else {
-                voiceIds[name] = sample
-                voiceDurations[name] = wavDurationMs(context, id)
+            val missing = VOICE_CLIPS.size - presentVoices.size
+            if (missing > 0) {
+                Log.i(TAG, "报牌语音缺少 $missing 条，按已存在的 ${presentVoices.size} 条加载")
             }
         }
 
         val longest = voiceDurations.values.maxOrNull() ?: 0
-        Log.i(
-            TAG,
-            "音频就绪：敲桌/动作 ${effectIds.size} 条，报牌语音 ${voiceIds.size} 条" +
-                "（${VOICE_SET_COUNT} 套人声，最长 ${longest}ms）",
-        )
+        if (voiceIds.isEmpty()) {
+            Log.i(TAG, "音频就绪：敲桌/动作 ${effectIds.size} 条，报牌语音已清空（0 条），报牌静默")
+        } else {
+            Log.i(
+                TAG,
+                "音频就绪：敲桌/动作 ${effectIds.size} 条，报牌语音 ${voiceIds.size} 条" +
+                    "（最长 ${longest}ms）",
+            )
+        }
     }
 
     fun playEffect(clip: String, volume: Float) {

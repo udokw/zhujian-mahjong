@@ -31,6 +31,13 @@ data class AppSettings(
     val aiSpeed: AiSpeed = AiSpeed.NORMAL,
     val sound: Boolean = true,
     val voice: Boolean = true,
+    /** 己方报牌音色：0 = 自动随机，1..9 对应 tools/sfx/voice_bank_common.py 的套号。 */
+    val voiceSetId: Int = 0,
+    /**
+     * 房主/单机为三家座位指定的音色：下标 1..3 = 下家/对家/上家，0 = 随机。
+     * 下标 0 不使用（房主自己的音色走 [voiceSetId]）。
+     */
+    val seatVoiceIds: List<Int> = List(4) { 0 },
     val haptics: Boolean = true,
     val reduceMotion: Boolean = false,
     val volume: Float = 0.7f,

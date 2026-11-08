@@ -9,13 +9,10 @@
 来源与分工：
   1. 本脚本：敲桌、摸牌、吃碰杠、胡牌、开局洗牌、结算等音效，用 numpy 程序化
      合成，不含任何第三方采样，无版权风险。
-  2. 报牌人声（voice1..voice9 × 34 张牌 + 6 个动作 = 360 条）已改用
-     **VoxCPM2** 本地推理生成，9 套分别是中国 9 大方言，脚本见
-     tools/sfx/generate_voice_voxcpm.py；本脚本不再生成人声，也不再依赖
-     edge-tts。
-     方言与套号：voice1 四川话 / voice2 广东话 / voice3 吴语 / voice4 东北话 /
-     voice5 河南话 / voice6 陕西话 / voice7 山东话 / voice8 天津话 / voice9 闽南话。
-     VoxCPM2 权重与代码以 Apache-2.0 发布，允许商用；详见 assets/audio/SOURCES.md。
+  2. 报牌人声（原 voice1..voice16）方案**未采用，已清理**：合成人声的方言发音不准，
+     相关音频与生成产物已全部删除，语音这条线停止。历史脚本
+     tools/sfx/generate_voice_voxcpm.py 仅作参考保留（文件头标注“当前未采用”），请勿再运行。
+  3. 本脚本不生成任何语音。
 
 依赖：numpy、soundfile。
 用法：python tools/sfx/generate_audio.py

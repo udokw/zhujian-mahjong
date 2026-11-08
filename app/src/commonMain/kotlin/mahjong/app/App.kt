@@ -193,9 +193,24 @@ fun App() {
         if (screen == Screen.SPLASH) screen = Screen.LOBBY
     }
 
-    // 设置里的音效开关/音量直接同步给播放层，UI 按钮无需再逐处传参。
-    LaunchedEffect(settings.sound, settings.volume) {
-        GameAudio.configure(settings.sound, settings.volume)
+    // 设置里的音效开关/音量/报牌音色直接同步给播放层，UI 按钮无需再逐处传参。
+    // 联机只有房主能指定三家座位音色；非房主沿用“随机”，避免拿自己当房主时的旧配置。
+    val onlineInRoom = onlineSession?.room != null
+    val seatVoiceEnabled = !onlineInRoom || onlineSession?.isHost == true
+    LaunchedEffect(
+        settings.sound,
+        settings.volume,
+        settings.voiceSetId,
+        settings.seatVoiceIds,
+        seatVoiceEnabled,
+    ) {
+        GameAudio.configure(
+            sound = settings.sound,
+            volume = settings.volume,
+            preferredSet = settings.voiceSetId,
+            seatPrefs = settings.seatVoiceIds,
+            seatPrefsEnabled = seatVoiceEnabled,
+        )
     }
 
     LaunchedEffect(screen, onlineSession?.table) {

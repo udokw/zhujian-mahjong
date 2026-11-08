@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -37,6 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import mahjong.app.platformAppVersion
 import mahjong.app.platformDefaultServerUrl
+import mahjong.app.audio.GameAudio
+import mahjong.app.audio.VOICE_SET_COUNT
+import mahjong.app.audio.VoiceSeatNames
+import mahjong.app.audio.VoiceSets
+import mahjong.app.audio.voiceSeatLabel
+import mahjong.app.audio.voiceSetLabel
 import mahjong.app.settings.AiSpeed
 import mahjong.app.settings.AppSettings
 import mahjong.app.settings.SettingsRepository
@@ -50,8 +57,11 @@ import mahjong.app.theme.ThemeMode
 import mahjong.app.theme.mjColors
 import mahjong.app.ui.ChevronRow
 import mahjong.app.ui.ChoiceRow
+import mahjong.app.ui.DialogMessage
+import mahjong.app.ui.DialogTitle
 import mahjong.app.ui.DividerLine
 import mahjong.app.ui.MjCard
+import mahjong.app.ui.MjDialog
 import mahjong.app.ui.MjIcon
 import mahjong.app.ui.MjIconKind
 import mahjong.app.ui.MjSwitch
@@ -102,6 +112,7 @@ fun SettingsScreen(
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
+    var voicePickerTarget by remember { mutableStateOf<Int?>(null) }
     Box(Modifier.fillMaxSize().drawPageBackdrop(colors)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(
@@ -319,6 +330,45 @@ fun SettingsScreen(
                     }
                 }
 
+                Spacer(Modifier.height(12.dp))
+                SettingsGroup("报牌语音", "9 套普通话 · 点击可试听") {
+                    SettingRow(
+                        title = "我的报牌音色",
+                        subtitle = if (settings.voiceSetId == 0) {
+                            "自动随机（每局四家洗牌分配）"
+                        } else {
+                            voiceSetLabel(settings.voiceSetId)
+                        },
+                        onClick = { voicePickerTarget = 0 },
+                        trailing = {
+                            MjIcon(MjIconKind.CHEVRON_RIGHT, size = 16.dp, tint = colors.ink3)
+                        },
+                    )
+                    for (seat in 1..3) {
+                        DividerLine()
+                        val seatId = settings.seatVoiceIds.getOrElse(seat) { 0 }
+                        SettingRow(
+                            title = "${VoiceSeatNames[seat]}音色",
+                            subtitle = if (seatId == 0) {
+                                "随机（从剩余音色里分配）"
+                            } else {
+                                voiceSeatLabel(seatId)
+                            },
+                            onClick = { voicePickerTarget = seat },
+                            showDivider = seat != 3,
+                            trailing = {
+                                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 16.dp, tint = colors.ink3)
+                            },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                MjText(
+                    "下家/对家/上家用于房主指定三家座位，也用于单机 AI；联机时该分配在房主本机播放生效。",
+                    type.caption,
+                    colors.ink3,
+                )
+
                 Spacer(Modifier.height(22.dp))
                 MjText("联机", type.label.copy(fontWeight = FontWeight.SemiBold), colors.ink2)
                 Spacer(Modifier.height(8.dp))
@@ -366,6 +416,30 @@ fun SettingsScreen(
                 Spacer(Modifier.height(28.dp))
                 }
             }
+        }
+        voicePickerTarget?.let { seat ->
+            val isSelf = seat == 0
+            VoicePickerDialog(
+                title = if (isSelf) "选择我的报牌音色" else "选择${VoiceSeatNames[seat]}音色",
+                message = if (isSelf) {
+                    "选中后立即生效；每局开始四家按此分配。点右侧喇叭可试听。"
+                } else {
+                    "房主/单机可为三家座位指定固定音色；不选则从剩余音色里随机。"
+                },
+                current = if (isSelf) settings.voiceSetId else settings.seatVoiceIds.getOrElse(seat) { 0 },
+                onDismiss = { voicePickerTarget = null },
+                onSelect = { id ->
+                    if (isSelf) {
+                        onChange(settings.copy(voiceSetId = id))
+                    } else {
+                        val ids = settings.seatVoiceIds.toMutableList()
+                        while (ids.size < 4) ids += 0
+                        ids[seat] = id
+                        onChange(settings.copy(seatVoiceIds = ids))
+                    }
+                    voicePickerTarget = null
+                },
+            )
         }
     }
 }
@@ -496,5 +570,106 @@ private fun FieldBox(
             ),
             cursorBrush = SolidColor(colors.primary),
         )
+    }
+}
+
+/** 报牌音色选择：9 套普通话音色 + 随机，每一行都能单独试听。 */
+@Composable
+private fun VoicePickerDialog(
+    title: String,
+    message: String,
+    current: Int,
+    onDismiss: () -> Unit,
+    onSelect: (Int) -> Unit,
+) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    MjDialog(onDismiss = onDismiss, maxWidth = 380.dp) {
+        DialogTitle(title)
+        Spacer(Modifier.height(4.dp))
+        DialogMessage("$message 试听只播一条「五万」。")
+        Spacer(Modifier.height(10.dp))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = 380.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            VoicePickerRow(
+                title = "随机",
+                subtitle = "己方每局随机，或该座位从剩余音色里分配",
+                selected = current == 0,
+                onSelect = { onSelect(0) },
+                onPreview = null,
+            )
+            DividerLine()
+            VoiceSets.forEachIndexed { index, set ->
+                VoicePickerRow(
+                    title = "${set.dialect} · ${set.timbre}",
+                    subtitle = "普通话 ${set.id}/$VOICE_SET_COUNT",
+                    selected = current == set.id,
+                    onSelect = { onSelect(set.id) },
+                    onPreview = { GameAudio.previewVoiceSet(set.id) },
+                )
+                if (index != VoiceSets.lastIndex) DividerLine()
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(MjRadius.small))
+                .clickable { onDismiss() }
+                .padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            MjText("取消", type.body, colors.ink2)
+        }
+    }
+}
+
+@Composable
+private fun VoicePickerRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onPreview: (() -> Unit)?,
+) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onSelect() }
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            MjText(
+                title,
+                type.body.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium),
+                if (selected) colors.primaryDeep else colors.ink,
+                maxLines = 2,
+            )
+            Spacer(Modifier.height(1.dp))
+            MjText(subtitle, type.caption, colors.ink3, maxLines = 1)
+        }
+        if (onPreview != null) {
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(colors.surface2)
+                    .clickable { onPreview() }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            ) {
+                MjText("试听", type.caption, colors.primaryDeep)
+            }
+        }
+        if (selected) {
+            Spacer(Modifier.width(8.dp))
+            MjIcon(MjIconKind.CHECK, size = 16.dp, tint = colors.primary)
+        }
     }
 }

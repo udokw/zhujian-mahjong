@@ -25,8 +25,8 @@ import platform.Foundation.NSURL
  * 资源通过 Xcode 工程里的 `raw` 文件夹引用随 App bundle 打包，
  * 运行时用 NSBundle 的 pathForResource(..., inDirectory = "raw") 查找。
  */
-private const val MAX_PENDING_VOICE = 2
-private const val VOICE_GAP_MS = 55L
+private const val MAX_PENDING_VOICE = 6
+private const val VOICE_GAP_MS = 40L
 private const val MAX_ACTIVE_EFFECTS = 12
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
