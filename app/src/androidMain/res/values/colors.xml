@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 图标背景层：与启动页、对局桌同源的桌绿。 -->
+    <color name="ic_launcher_background">#174337</color>
+</resources>
