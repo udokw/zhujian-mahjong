@@ -41,6 +41,7 @@ object MessageType {
     const val SEAT_REMOVE_AI = "seat_remove_ai"
     const val SEAT_KICK = "seat_kick"
     const val GAME_START = "game_start"
+    const val TING_LOCK = "ting_lock"
 
     const val ROOM_STATE = "room_state"
     const val SEAT_GRANTED = "seat_granted"

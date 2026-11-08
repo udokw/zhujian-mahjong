@@ -143,6 +143,8 @@ data class OpponentView(
     val flowerCount: Int,
     val score: Int,
     val seatWind: Int,
+    /** 该玩家已听牌锁定（听牌后摸打等胡）；旧客户端忽略此字段。 */
+    val tingLocked: Boolean = false,
 )
 
 @Serializable
@@ -192,6 +194,8 @@ data class StateView(
     val lastDiscard: LastDiscardView? = null,
     val legal: LegalView,
     val window: WindowView? = null,
+    /** 自己是否已进入听牌锁定；缺省 false 兼容旧客户端。 */
+    val tingLocked: Boolean = false,
 )
 
 @Serializable
@@ -216,6 +220,12 @@ data class ActionBody(
     val tiles: List<Int> = emptyList(),
     val claimed: Int? = null,
     val kind: String? = null,
+)
+
+/** 听牌锁定开关：enabled=true 锁定为摸打等胡。 */
+@Serializable
+data class TingLockBody(
+    val enabled: Boolean = true,
 )
 
 @Serializable

@@ -10,6 +10,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
+import mahjong.core.api.Hints
 import mahjong.core.engine.MahjongGame
 import mahjong.core.model.Action
 import mahjong.core.model.GameEvent
@@ -72,6 +73,8 @@ private class Seat(val index: Int) {
     var lastScore = 0
     /** 该座位最近一次实际动作的时间，用于按客户端设置的思考时长放慢 AI 节奏。 */
     var lastActionAt = 0L
+    /** 听牌锁定：听牌后锁定手牌，摸打等胡；由本人开启，服务端校验听牌。 */
+    var tingLocked = false
 }
 
 /**
@@ -313,6 +316,7 @@ class Room(
         actions.clear()
         pendingDeadline = 0
         windowNotified.clear()
+        seats.forEach { it.tingLocked = false }
         roomPhase = RoomPhase.PLAYING
 
         val initialEvents = newGame.drainEvents()
@@ -446,6 +450,25 @@ class Room(
         }
     }
 
+    /**
+     * 听牌锁定开关。开启前必须确实听牌；服务端记录并广播，随后由 tick 按“摸打等胡”代打，
+     * 让所有玩家看到的出牌与状态一致。
+     */
+    suspend fun setTingLock(session: RoomSession, enabled: Boolean) = mutex.withLock {
+        val seat = seatOf(session) ?: throw RoomError(ErrorCode.NOT_IN_ROOM, "不在房间内")
+        val currentGame = game ?: throw RoomError(ErrorCode.NOT_PLAYING, "当前不在对局中")
+        if (roomPhase != RoomPhase.PLAYING) throw RoomError(ErrorCode.NOT_PLAYING, "当前不在对局中")
+        if (enabled && !Hints.tenpaiHint(currentGame.viewFor(seat)).tenpai) {
+            throw RoomError(ErrorCode.ILLEGAL_ACTION, "尚未听牌，暂不能开启听牌锁定")
+        }
+        val changed = seats[seat].tingLocked != enabled
+        seats[seat].tingLocked = enabled
+        if (changed) {
+            seats[seat].lastActionAt = 0
+            broadcastState()
+        }
+    }
+
     suspend fun onDisconnect(session: RoomSession) = mutex.withLock {
         val seat = seatOf(session) ?: return@withLock
         val s = seats[seat]
@@ -500,7 +523,11 @@ class Room(
                     for (seat in 0..3) {
                         if (currentGame.legalActions(seat).isEmpty()) continue
                         if (shouldAutoPlay(seat, timestamp)) {
-                            val action = brains[seat].decide(currentGame, seat) ?: Action.Pass(seat)
+                            val action = if (seats[seat].tingLocked) {
+                                tingLockAction(currentGame, seat) ?: continue
+                            } else {
+                                brains[seat].decide(currentGame, seat) ?: Action.Pass(seat)
+                            }
                             applyInternal(action)
                             return@withLock
                         }
@@ -510,8 +537,12 @@ class Room(
                 Phase.AWAIT_DISCARD -> {
                     val actor = st.currentPlayer
                     if (shouldAutoPlay(actor, timestamp)) {
-                        val action = brains[actor].decide(currentGame, actor)
-                            ?: Action.Discard(actor, st.players[actor].hand.first())
+                        val action = if (seats[actor].tingLocked) {
+                            tingLockAction(currentGame, actor) ?: return@withLock
+                        } else {
+                            brains[actor].decide(currentGame, actor)
+                                ?: Action.Discard(actor, st.players[actor].hand.first())
+                        }
                         applyInternal(action)
                     }
                 }
@@ -521,18 +552,36 @@ class Room(
         }
     }
 
+    /**
+     * 听牌锁定座位的代打策略：能胡就胡；被叫牌只过不碰杠；自己的回合摸什么打什么。
+     * 绝不调用 AI 决策，避免拆牌或改听口。
+     */
+    private fun tingLockAction(currentGame: MahjongGame, seat: Int): Action? {
+        val legal = currentGame.legalActions(seat)
+        if (legal.isEmpty()) return null
+        legal.filterIsInstance<Action.Hu>().firstOrNull()?.let { return it }
+        if (currentGame.state.phase != Phase.AWAIT_DISCARD) {
+            return legal.filterIsInstance<Action.Pass>().firstOrNull()
+        }
+        val drawn = currentGame.state.lastDrawnTile
+        return legal.filterIsInstance<Action.Discard>().firstOrNull { it.tile == drawn }
+            ?: legal.filterIsInstance<Action.Discard>().firstOrNull()
+    }
+
     private fun shouldAutoPlay(seat: Int, timestamp: Long): Boolean {
         val s = seats[seat]
         val controlled = when (s.kind) {
             SeatKind.AI -> true
-            SeatKind.HUMAN -> !s.online &&
-                (s.aiControlled || (s.offlineSince > 0 && timestamp - s.offlineSince >= settings.autoplayDelayMs))
+            // 听牌锁定把真人座位也交给本机代打（服务端执行），但策略只有摸打/胡。
+            SeatKind.HUMAN -> s.tingLocked || (!s.online &&
+                (s.aiControlled || (s.offlineSince > 0 && timestamp - s.offlineSince >= settings.autoplayDelayMs)))
             SeatKind.EMPTY -> true
         }
         if (!controlled) return false
         // 思考时长 > 0 时，同一座位的两次动作至少间隔这么久；
         // 于是「摸牌 → 停顿 → 出牌」整条链自然放慢，而不是只在某一帧加延迟。
-        return aiThinkMs <= 0L || timestamp - s.lastActionAt >= aiThinkMs
+        val pacing = if (s.tingLocked) maxOf(aiThinkMs, TING_LOCK_THINK_MS) else aiThinkMs
+        return pacing <= 0L || timestamp - s.lastActionAt >= pacing
     }
 
     private suspend fun applyInternal(action: Action) {
@@ -748,6 +797,7 @@ class Room(
                     flowerCount = o.flowerCount,
                     score = o.score,
                     seatWind = o.seatWind,
+                    tingLocked = seats[o.seat]?.tingLocked ?: false,
                 )
             },
             wallRemaining = view.wallRemaining,
@@ -761,6 +811,7 @@ class Room(
                 discardable = legal.filterIsInstance<Action.Discard>().map { it.tile }.distinct().sorted(),
             ),
             window = if (isClaim && legal.isNotEmpty()) buildWindow(seat, legal, st) else null,
+            tingLocked = seats[seat]?.tingLocked ?: false,
         )
     }
 
@@ -1135,3 +1186,6 @@ class Room(
     private inline fun <reified T> json(value: T): JsonObject =
         Wire.json.encodeToJsonElement(value).jsonObject
 }
+
+/** 听牌锁定后摸打的固定停顿，保证双端节奏一致。 */
+private const val TING_LOCK_THINK_MS = 480L

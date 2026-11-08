@@ -132,6 +132,7 @@ internal data class OpponentDto(
     val flowerCount: Int = 0,
     val score: Int = 0,
     val seatWind: Int = 0,
+    val tingLocked: Boolean = false,
 )
 
 @Serializable
@@ -174,6 +175,7 @@ internal data class StateDto(
     val lastDiscard: LastDiscardDto? = null,
     val legal: LegalDto = LegalDto(),
     val window: WindowDto? = null,
+    val tingLocked: Boolean = false,
 )
 
 @Serializable
@@ -300,6 +302,8 @@ class OnlineGameSession(
     var table by mutableStateOf<TableUi?>(null)
         private set
     var autoPlaying by mutableStateOf(false)
+        private set
+    var tingLocked by mutableStateOf(false)
         private set
     var errorMessage by mutableStateOf<String?>(null)
         private set
@@ -483,6 +487,9 @@ class OnlineGameSession(
     }
 
     fun startGame() = send("game_start")
+
+    /** 听牌锁定开关：服务端校验是否已听牌并广播状态，客户端不自行锁定。 */
+    fun toggleTingLock() = send("ting_lock", buildJsonObject { put("enabled", !tingLocked) })
 
     fun leave() {
         // 先置 closing：离开是主动行为，断线后不该再自动重连回这个座位。
@@ -809,6 +816,7 @@ class OnlineGameSession(
         val kongs = buildKongs(dto, actions)
         val claim = window?.let { buildClaim(it) }
         val seats = buildSeats(dto)
+        tingLocked = dto.tingLocked
 
         val hint = when {
             claim != null && claim.options.contains(ClaimOption.Hu) -> "可以胡牌 · 还有 ${secondsLeft(claim)} 秒"
@@ -844,6 +852,7 @@ class OnlineGameSession(
             fanCap = ruleConfig(ruleSet).effectiveFanCap,
             hintsAvailable = true,
             winShow = table?.winShow,
+            tingLocked = dto.tingLocked,
         )
         scheduleAnalysis(dto, drawn)
     }
@@ -973,6 +982,7 @@ class OnlineGameSession(
                     score = info?.score ?: 0,
                     online = true,
                     thinking = false,
+                    tingLocked = dto.tingLocked,
                 )
             } else {
                 val opponent = dto.opponents.firstOrNull { it.seat == seat }
@@ -991,6 +1001,7 @@ class OnlineGameSession(
                     score = opponent?.score ?: info?.score ?: 0,
                     online = info?.online ?: false,
                     thinking = dto.currentPlayer == seat,
+                    tingLocked = opponent?.tingLocked ?: false,
                 )
             }
         }

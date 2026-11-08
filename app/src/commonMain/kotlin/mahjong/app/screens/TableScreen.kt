@@ -121,6 +121,8 @@ fun TableScreen(
     myName: String = "我",
     showTing: Boolean = true,
     onToggleTing: (() -> Unit)? = null,
+    tingLocked: Boolean = false,
+    onToggleTingLock: (() -> Unit)? = null,
 ) {
     val colors = LocalMjColors.current
     val reduceMotion = LocalReduceMotion.current
@@ -172,20 +174,11 @@ fun TableScreen(
                 onToggleTing = onToggleTing,
                 autoPlaying = autoPlaying,
                 onToggleAuto = onToggleAuto,
+                tingLocked = tingLocked,
+                onToggleTingLock = onToggleTingLock,
             )
 
             val hasTing = showTing && hasTingContent(table) && table.winShow == null
-            AnimatedVisibility(
-                visible = hasTing,
-                enter = fadeIn(tween(if (reduceMotion) 0 else MjMotion.small)),
-                exit = fadeOut(tween(if (reduceMotion) 0 else MjMotion.small)),
-            ) {
-                TingBar(
-                    table = table,
-                    onExpand = { showAdvice = !showAdvice },
-                    expanded = showAdvice,
-                )
-            }
 
             Row(Modifier.weight(1f).fillMaxWidth()) {
                 SideSeat(
@@ -223,6 +216,20 @@ fun TableScreen(
                             },
                             onClose = { showAdvice = false },
                         )
+                    }
+                    // 听牌提示是覆盖层：浮在牌桌之上，不参与任何尺寸计算。
+                    if (hasTing) {
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            TingBar(
+                                table = table,
+                                onExpand = { showAdvice = !showAdvice },
+                                expanded = showAdvice,
+                            )
+                        }
                     }
                 }
                 SideSeat(
@@ -285,6 +292,16 @@ fun TableScreen(
             )
         }
 
+        // 中心局况锚定桌布圆心（与 drawTableFelt 的罗盘同心），不参与任何流式布局。
+        Box(
+            Modifier
+                .fillMaxSize()
+                .offset(y = -(maxHeight * 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            CenterInfo(table)
+        }
+
         BannerOverlay(
             if (table.winShow == null) table.banner else null,
             Modifier.align(Alignment.Center),
@@ -335,6 +352,8 @@ private fun LandscapeHud(
     onToggleTing: (() -> Unit)?,
     autoPlaying: Boolean,
     onToggleAuto: (() -> Unit)?,
+    tingLocked: Boolean,
+    onToggleTingLock: (() -> Unit)?,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
@@ -380,6 +399,14 @@ private fun LandscapeHud(
                 label = "听牌提示",
                 active = showTing,
                 onClick = onToggleTing,
+            )
+        }
+        if (onToggleTingLock != null) {
+            Spacer(Modifier.width(6.dp))
+            HudChip(
+                label = if (tingLocked) "已听牌" else "听牌",
+                active = tingLocked,
+                onClick = onToggleTingLock,
             )
         }
         if (onToggleAuto != null) {
@@ -443,12 +470,12 @@ private fun TingBar(table: TableUi, expanded: Boolean, onExpand: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .height(26.dp)
-            .padding(horizontal = 10.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.Black.copy(alpha = 0.18f))
+            .height(30.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(colors.table3.copy(alpha = 0.94f))
+            .border(1.dp, colors.tableLine, RoundedCornerShape(10.dp))
             .clickable { onExpand() }
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         MjText(
@@ -539,6 +566,10 @@ private fun TopSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, height: D
                 WindDot(seat.seatWind, isCurrent)
                 Spacer(Modifier.width(4.dp))
                 MjText("${seat.score}", type.caption.copy(fontSize = 9.sp), colors.onTable2, maxLines = 1)
+                if (seat.tingLocked) {
+                    Spacer(Modifier.width(4.dp))
+                    TingMark()
+                }
             }
             if (seat.melds.isNotEmpty()) {
                 MjText(
@@ -589,6 +620,10 @@ private fun SideSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, width: D
         Avatar(seat.name, size = 26.dp, dim = !seat.isAI)
         Spacer(Modifier.height(3.dp))
         MjText(seat.name, type.caption.copy(fontSize = 10.sp), colors.onTable, maxLines = 1)
+        if (seat.tingLocked) {
+            Spacer(Modifier.height(2.dp))
+            TingMark()
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             WindDot(seat.seatWind, isCurrent, small = true)
             Spacer(Modifier.width(3.dp))
@@ -610,6 +645,20 @@ private fun SideSeat(seat: SeatUi?, table: TableUi, isCurrent: Boolean, width: D
             )
         }
         }
+    }
+}
+
+@Composable
+private fun TingMark() {
+    val colors = LocalMjColors.current
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(colors.primaryDeep.copy(alpha = 0.9f))
+            .border(0.5.dp, colors.tableGold.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 4.dp, vertical = 1.dp),
+    ) {
+        MjText("听", LocalMjType.current.caption.copy(fontSize = 8.sp), colors.onTable, maxLines = 1)
     }
 }
 
@@ -676,6 +725,7 @@ private fun CompactRiver(
                 alignBottom = true,
                 highlight = if (top != null && top.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
                 winning = winTiles.any { it.first == top?.seat },
+                rowAlign = Alignment.CenterHorizontally,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RiverGrid(
@@ -688,7 +738,7 @@ private fun CompactRiver(
                     highlight = if (left != null && left.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
                     winning = winTiles.any { it.first == left?.seat },
                 )
-                CenterInfo(table)
+                Spacer(Modifier.width(92.dp))
                 RiverGrid(
                     tiles = right?.discards ?: emptyList(),
                     columns = 8,
@@ -698,6 +748,7 @@ private fun CompactRiver(
                     alignBottom = false,
                     highlight = if (right != null && right.seat == table.lastDiscardSeat) table.lastDiscardTile else null,
                     winning = winTiles.any { it.first == right?.seat },
+                    rowAlign = Alignment.End,
                 )
             }
             RiverGrid(
@@ -709,6 +760,7 @@ private fun CompactRiver(
                 alignBottom = false,
                 highlight = if (table.meSeat == table.lastDiscardSeat) table.lastDiscardTile else null,
                 winning = false,
+                rowAlign = Alignment.CenterHorizontally,
             )
         }
     }
@@ -724,17 +776,23 @@ private fun RiverGrid(
     alignBottom: Boolean,
     highlight: Int?,
     winning: Boolean,
+    rowAlign: Alignment.Horizontal = Alignment.Start,
 ) {
     val reduceMotion = LocalReduceMotion.current
     val rowHeight = cell * 4f / 3f + gap
+    // 固定列宽：牌数变化只影响这一块内部，不会反向挤压其他元素。
+    val gridWidth = cell * columns.toFloat() + gap * (columns - 1).toFloat()
     Column(
-        modifier = Modifier.height(rowHeight * maxRows),
+        modifier = Modifier.width(gridWidth).height(rowHeight * maxRows),
         verticalArrangement = if (alignBottom) Arrangement.Bottom else Arrangement.Top,
     ) {
         if (tiles.isEmpty()) return@Column
         val shown = if (tiles.size > maxRows * columns) tiles.takeLast(maxRows * columns) else tiles
         shown.chunked(columns).forEachIndexed { rowIndex, rowTiles ->
-            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(gap, rowAlign),
+            ) {
                 rowTiles.forEachIndexed { colIndex, tile ->
                     val absolute = if (tiles.size > maxRows * columns) {
                         tiles.size - shown.size + rowIndex * columns + colIndex
@@ -778,17 +836,19 @@ private fun CenterInfo(table: TableUi) {
     val type = LocalMjType.current
     Column(
         modifier = Modifier
-            .width(86.dp)
+            // 固定尺寸：余牌数/局数文案长短都不能改变外框，保证圆心绝对不动。
+            .size(width = 86.dp, height = 60.dp)
             .drawBehind {
-                val r = minOf(size.width, size.height) * 0.52f
+                val r = 28.dp.toPx()
                 drawCircle(colors.onTable.copy(alpha = 0.05f), radius = r)
                 drawCircle(colors.tableLine, radius = r, style = Stroke(1.dp.toPx()))
             }
             .padding(horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        MjText("余牌", type.caption.copy(fontSize = 8.sp), colors.onTable2)
-        MjText("${table.wallRemaining}", type.h2, colors.onTable)
+        MjText("余牌", type.caption.copy(fontSize = 8.sp), colors.onTable2, maxLines = 1)
+        MjText("${table.wallRemaining}", type.h2, colors.onTable, maxLines = 1)
         Row(
             Modifier
                 .clip(RoundedCornerShape(6.dp))
@@ -899,6 +959,10 @@ private fun ActionRow(
         // 单手操作区统一贴右下，缩短拇指移动距离。
         horizontalArrangement = Arrangement.End,
     ) {
+        if (table.tingLocked) {
+            TingLockBadge()
+            Spacer(Modifier.width(8.dp))
+        }
         if (claim != null) {
             ClaimCountdown(claim, Modifier.width(78.dp))
             Spacer(Modifier.width(8.dp))
@@ -998,6 +1062,32 @@ private fun ActionRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TingLockBadge() {
+    val colors = LocalMjColors.current
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(colors.primaryDeep.copy(alpha = 0.86f))
+            .border(1.dp, colors.tableGold.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(5.dp)
+                .background(colors.tableGold, RoundedCornerShape(50)),
+        )
+        Spacer(Modifier.width(5.dp))
+        MjText(
+            "已听牌 · 摸打等胡",
+            LocalMjType.current.caption.copy(fontSize = 9.sp),
+            colors.onTable,
+            maxLines = 1,
+        )
     }
 }
 

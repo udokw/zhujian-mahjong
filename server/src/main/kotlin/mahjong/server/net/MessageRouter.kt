@@ -19,6 +19,7 @@ import mahjong.server.protocol.PingBody
 import mahjong.server.protocol.PongView
 import mahjong.server.protocol.PROTOCOL_VERSION
 import mahjong.server.protocol.ProtocolException
+import mahjong.server.protocol.TingLockBody
 import mahjong.server.protocol.ReconnectBody
 import mahjong.server.protocol.RoomCreateBody
 import mahjong.server.protocol.RoomJoinBody
@@ -61,6 +62,7 @@ class MessageRouter(
                 MessageType.SEAT_KICK -> handleSeatKick(session, envelope)
                 MessageType.GAME_START -> handleGameStart(session)
                 MessageType.ACTION -> handleAction(session, envelope)
+                MessageType.TING_LOCK -> handleTingLock(session, envelope)
                 MessageType.RECONNECT -> handleReconnect(session, envelope)
                 MessageType.SYNC_REQUEST -> handleSyncRequest(session, envelope)
                 else -> fail(session, envelope, ErrorCode.BAD_JSON, "未知消息类型 ${envelope.t}")
@@ -173,6 +175,13 @@ class MessageRouter(
         val room = requireRoom(session, envelope)
         val body = Wire.payload<ActionBody>(envelope)
         room.handleAction(session, body, envelope.sid)
+    }
+
+    private suspend fun handleTingLock(session: ClientSession, envelope: Envelope) {
+        val room = requireRoom(session, envelope)
+        val body = Wire.payload<TingLockBody>(envelope)
+        room.setTingLock(session, body.enabled)
+        reply(session, MessageType.ACTION_ACK, json(ActionAckView(envelope.sid, true)), envelope.sid)
     }
 
     private suspend fun handleReconnect(session: ClientSession, envelope: Envelope) {

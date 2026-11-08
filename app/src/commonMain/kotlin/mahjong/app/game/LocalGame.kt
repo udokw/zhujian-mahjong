@@ -34,6 +34,9 @@ import kotlin.random.Random
 
 private const val CLAIM_WINDOW_MS = 8_000L
 
+/** 听牌锁定后摸打的停顿，避免每巡瞬间闪过、看不清刚摸的牌。 */
+private const val TING_LOCK_THINK_MS = 480L
+
 /**
  * 本地人机局：包一层 core 的 MahjongGame + 三个 AiBot，把引擎状态投影成 UI 模型。
  */
@@ -85,13 +88,35 @@ class LocalGameSession(
     var autoPlay by mutableStateOf(false)
         private set
 
+    /** 听牌锁定：听牌后锁定手牌，摸什么打什么，只等胡。与托管互斥。 */
+    var tingLocked by mutableStateOf(false)
+        private set
+
     fun toggleAuto() {
         autoPlay = !autoPlay
         if (autoPlay) {
+            tingLocked = false
             // 正在等玩家出牌时立刻交给 AI，避免托管后仍卡在等待。
             val legal = game.legalActions(meSeat)
             if (legal.isNotEmpty()) pending?.complete(autoAction(legal))
         }
+    }
+
+    /**
+     * 切换听牌锁定。只有已经听牌（引擎给出有效听口）才允许进入；
+     * 返回 false 表示条件不满足，由界面提示用户。
+     */
+    fun toggleTingLock(): Boolean {
+        if (!tingLocked) {
+            val ting = table?.tingInfo
+            if (ting == null || ting.waits.isEmpty()) return false
+            tingLocked = true
+            autoPlay = false
+        } else {
+            tingLocked = false
+        }
+        publish(game.legalActions(meSeat))
+        return true
     }
 
     val gameResult: GameResult? get() = game.gameResult
@@ -103,6 +128,8 @@ class LocalGameSession(
 
     fun start() {
         if (loopJob != null) return
+        tingLocked = false
+        autoPlay = false
         // 一局开始给四家随机分配互不相同的人声套数，整局固定。
         GameAudio.beginGame()
         playSfx(SoundEffect.SHUFFLE)
@@ -322,6 +349,31 @@ class LocalGameSession(
                     delay(settings().aiSpeed.thinkMs)
                     applyAction(autoAction(legal))
                     continue
+                }
+                if (tingLocked) {
+                    // 听牌锁定：能胡立刻胡；被叫牌窗口只过不碰杠；自己的回合摸什么打什么。
+                    val hu = legal.filterIsInstance<Action.Hu>().firstOrNull()
+                    if (hu != null) {
+                        delay(TING_LOCK_THINK_MS)
+                        applyAction(hu)
+                        continue
+                    }
+                    if (game.state.phase != Phase.AWAIT_DISCARD) {
+                        val pass = legal.filterIsInstance<Action.Pass>().firstOrNull()
+                        if (pass != null) {
+                            applyAction(pass)
+                            continue
+                        }
+                    }
+                    val drawn = game.state.lastDrawnTile
+                    val discard = legal.filterIsInstance<Action.Discard>()
+                        .firstOrNull { it.tile == drawn }
+                        ?: legal.filterIsInstance<Action.Discard>().firstOrNull()
+                    if (discard != null) {
+                        delay(TING_LOCK_THINK_MS)
+                        applyAction(discard)
+                        continue
+                    }
                 }
                 val isClaim = game.state.phase != Phase.AWAIT_DISCARD
                 if (isClaim) {
@@ -582,6 +634,7 @@ class LocalGameSession(
             fanCap = config.effectiveFanCap,
             hintsAvailable = true,
             winShow = table?.winShow,
+            tingLocked = tingLocked,
         )
         scheduleAnalysis(me.hand, me.melds, state, legal)
     }
@@ -726,6 +779,7 @@ class LocalGameSession(
                 discards = player.discards,
                 flowers = player.flowers,
                 score = player.score,
+                tingLocked = player.seat == meSeat && tingLocked,
             )
         }
     }

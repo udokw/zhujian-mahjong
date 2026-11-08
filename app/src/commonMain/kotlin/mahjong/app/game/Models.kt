@@ -20,6 +20,8 @@ data class SeatUi(
     val score: Int,
     val online: Boolean = true,
     val thinking: Boolean = false,
+    /** 该玩家已进入听牌锁定（听牌后摸打等胡）。 */
+    val tingLocked: Boolean = false,
 )
 
 data class ClaimUi(
@@ -120,6 +122,8 @@ data class TableUi(
     val hintsAvailable: Boolean = false,
     /** 胡牌演出；非 null 时桌面进入逐段演出并屏蔽操作。 */
     val winShow: WinShowUi? = null,
+    /** 已进入听牌锁定：摸什么打什么，只等胡牌。 */
+    val tingLocked: Boolean = false,
 )
 
 data class WinnerUi(

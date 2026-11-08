@@ -284,6 +284,14 @@ fun App() {
                             } else {
                                 null
                             },
+                            tingLocked = online?.tingLocked ?: session?.tingLocked ?: false,
+                            onToggleTingLock = {
+                                if (onlineTable != null) {
+                                    online?.toggleTingLock()
+                                } else if (session?.toggleTingLock() == false) {
+                                    showToast("尚未听牌，暂不能开启听牌锁定")
+                                }
+                            },
                         )
                     } else {
                         Box(
