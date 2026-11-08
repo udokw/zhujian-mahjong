@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -110,7 +111,8 @@ private class IosLanDiscovery : LanDiscoveryNode {
         val buffer = ByteArray(2_048)
         var lastAnnounce = 0L
         val targets = lanBroadcastTargets()
-        while (scope.isActive) {
+        // 注意：必须看协程自身状态，不能看 scope（scope 永不取消，stop 后这里会空转）。
+        while (currentCoroutineContext().isActive) {
             val now = nowWallMillis()
             if (now - lastAnnounce >= 2_000 || lastAnnounce == 0L) {
                 lastAnnounce = now
@@ -136,7 +138,7 @@ private class IosLanDiscovery : LanDiscoveryNode {
         val buffer = ByteArray(2_048)
         var lastQuery = 0L
         val targets = lanBroadcastTargets()
-        while (scope.isActive) {
+        while (currentCoroutineContext().isActive) {
             val now = nowWallMillis()
             if (now - lastQuery >= 1_500 || lastQuery == 0L) {
                 lastQuery = now

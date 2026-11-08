@@ -254,8 +254,10 @@ private class IosLanConn(private val fd: Int) : LanConn {
                 var offset = 0
                 var failed = false
                 while (offset < frame.size) {
+                    // 显式写成 platform.posix.send：本类有同名成员 send(String)，
+                    // 不加限定符容易踩到重载解析的坑。
                     val written = frame.usePinned { pinned ->
-                        send(fd, pinned.addressOf(offset), (frame.size - offset).convert(), 0)
+                        platform.posix.send(fd, pinned.addressOf(offset), (frame.size - offset).convert(), 0)
                     }
                     if (written <= 0) {
                         failed = true
@@ -278,7 +280,8 @@ private class IosLanConn(private val fd: Int) : LanConn {
         if (closed) return
         closed = true
         writeQueue.close()
-        runCatching { close(fd) }
+        // 同理显式限定，避免与本类的 close() 混淆。
+        runCatching { platform.posix.close(fd) }
         onClosed?.invoke()
         onClosed = null
     }
