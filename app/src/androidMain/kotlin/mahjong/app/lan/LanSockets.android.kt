@@ -129,6 +129,9 @@ private class AndroidLanConn(private val socket: Socket) : LanConn {
 
     init {
         runCatching { socket.soTimeout = 250 }
+        // 房主 accept 出来的连接默认开着 Nagle，状态帧很小，会被合并到几十毫秒后才发出；
+        // 客机端连出时已设置，这里补齐房主侧，保证双向都即时。
+        runCatching { socket.tcpNoDelay = true }
     }
 
     private fun startReader() {

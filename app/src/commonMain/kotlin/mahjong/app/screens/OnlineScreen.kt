@@ -205,52 +205,60 @@ fun OnlineScreen(
                 }
             }
 
+            // 标题区固定在顶部中心，不参与下方容器的滚动。
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = MjSpace.page),
+            ) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // 左右各三张迷你牌：一条、六万、九筒 / 中、发、白，整组与标题一起居中。
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        listOf(18, 5, 17).forEach { MjTile(it, width = 16.dp) }
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        MjText(
+                            if (room != null) "房间 ${room.room}" else "好友房",
+                            type.display,
+                            colors.ink,
+                            maxLines = 1,
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        MjText(
+                            if (room != null) "邀请好友，空位由 AI 补齐" else "创建或加入房间，四人一桌",
+                            type.caption,
+                            colors.ink3,
+                            maxLines = 1,
+                        )
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        listOf(31, 32, 33).forEach { MjTile(it, width = 16.dp) }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // 下方两个容器独立滚动。
             Column(
                 Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = MjSpace.page),
             ) {
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            MjText(
-                                if (room != null) "房间 ${room.room}" else "好友房",
-                                type.display,
-                                colors.ink,
-                                maxLines = 1,
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Box(
-                                Modifier
-                                    .width(26.dp)
-                                    .height(2.dp)
-                                    .clip(RoundedCornerShape(999.dp))
-                                    .background(colors.primary.copy(alpha = 0.55f)),
-                            )
-                        }
-                        Spacer(Modifier.height(3.dp))
-                        MjText(
-                            if (room != null) "邀请好友，空位由 AI 补齐" else "创建或加入房间，四人一桌",
-                            type.caption,
-                            colors.ink3,
-                        )
-                    }
-                    // 页头右侧的牌面装饰，避免标题行显得空。
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        listOf(4, 13, 22).forEach { MjTile(it, width = 16.dp) }
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
                 if (session.status == OnlineStatus.ERROR) {
                     Spacer(Modifier.height(12.dp))
                     MjCard {

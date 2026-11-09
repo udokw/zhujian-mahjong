@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
@@ -306,6 +308,10 @@ class OnlineGameSession(
     /** 连接代号：只允许最新一次连接的回调改动状态，避免「离开后立刻建房」时旧连接的收尾把新房间冲掉。 */
     private var connectionId = 0
     private var socketRef: LanConn? = null
+    /** 收包串行锁：保证消息按到达顺序应用，同时允许解析阶段离开主线程。 */
+    private val inboxMutex = Mutex()
+    /** 客机本地乐观出牌前的快照：被服务端拒绝时回滚，正常收到 state 后丢弃。 */
+    private var optimisticTable: TableUi? = null
 
     /** 本机作为房主时的实例；非房主为 null。 */
     private var lanHost: LanHost? = null
@@ -495,7 +501,17 @@ class OnlineGameSession(
                     timeoutMs = 4_000,
                     onText = { text ->
                         scope.launch {
-                            if (connId == connectionId) handle(text)
+                            if (connId != connectionId) return@launch
+                            // 大帧 JSON 解析放到 Default，避免占住主线程造成掉帧；
+                            // 用互斥锁串行应用，保证 state / window / event 的处理顺序不变。
+                            inboxMutex.withLock {
+                                val envelope = withContext(Dispatchers.Default) {
+                                    runCatching {
+                                        json.decodeFromString(EnvelopeDto.serializer(), text)
+                                    }.getOrNull()
+                                } ?: return@withLock
+                                handle(envelope)
+                            }
                         }
                     },
                     onClosed = { closed.complete(Unit) },
@@ -705,6 +721,45 @@ class OnlineGameSession(
 
     fun discard(tile: Int) {
         feedback(0)
+        // 客机先本地落牌：自己的出牌不必等房主回推就能看到手牌变化，
+        // 服务端 state 到达后会覆盖；若被拒绝（action_ack 失败）再回滚。
+        val current = table
+        if (current != null && current.canDiscard) {
+            val isDrawn = current.drawnTile == tile
+            // 摸到的牌单独显示、不进 hand；优先按「打出摸牌」处理，
+            // 否则手上同值的牌会被误删，手牌先少一张再被服务端补回，视觉上就是一顿。
+            val inHand = !isDrawn && current.hand.contains(tile)
+            if (inHand || isDrawn) {
+                optimisticTable = current
+                val hand = if (inHand) {
+                    current.hand.toMutableList().also { it.remove(tile) }
+                } else {
+                    current.hand
+                }
+                // 同步把这张牌落到自己的牌河里，动作反馈不必等事件回推。
+                val seats = current.seats.map { seat ->
+                    if (seat.seat == current.meSeat) {
+                        seat.copy(
+                            handCount = (seat.handCount - 1).coerceAtLeast(0),
+                            discards = seat.discards + tile,
+                        )
+                    } else {
+                        seat
+                    }
+                }
+                table = current.copy(
+                    hand = hand,
+                    drawnTile = null,
+                    seats = seats,
+                    claim = null,
+                    turnOptions = TurnOptions(canHu = false, kongs = emptyList()),
+                    canDiscard = false,
+                    lastDiscardTile = tile,
+                    lastDiscardSeat = current.meSeat,
+                    hint = "已出牌，等待房主确认…",
+                )
+            }
+        }
         sendAsync(
             "action",
             buildJsonObject {
@@ -770,8 +825,7 @@ class OnlineGameSession(
 
     // ------------------------------------------------------------ 收包
 
-    private suspend fun handle(text: String) {
-        val envelope = runCatching { json.decodeFromString(EnvelopeDto.serializer(), text) }.getOrNull() ?: return
+    private suspend fun handle(envelope: EnvelopeDto) {
         if (envelope.v != 1) return
         if (envelope.sseq > 0 && envelope.t in publicTypes) {
             if (envelope.sseq <= lastSseq) return
@@ -852,6 +906,11 @@ class OnlineGameSession(
             "action_ack" -> {
                 val dto = decode(ActionAckDto.serializer(), envelope.p) ?: return
                 if (!dto.ok) {
+                    // 本地乐观出牌被房主拒绝：恢复出牌前的牌面，避免手牌与服务端不一致。
+                    optimisticTable?.let {
+                        table = it
+                        optimisticTable = null
+                    }
                     playSfx(SoundEffect.INVALID)
                     onMessage(dto.message ?: "操作未被接受")
                 }
@@ -981,6 +1040,8 @@ class OnlineGameSession(
     // ------------------------------------------------------------ 状态投影
 
     private fun publish(dto: StateDto, window: WindowDto?) {
+        // 服务端快照是唯一权威：到达后本地乐观状态自动作废。
+        optimisticTable = null
         mySeat = dto.seat
         latestWindow = window
         val inTurn = dto.currentPlayer == dto.seat && dto.phase == "AWAIT_DISCARD"

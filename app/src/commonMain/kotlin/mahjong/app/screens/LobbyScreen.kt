@@ -3,8 +3,11 @@ package mahjong.app.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -150,9 +153,18 @@ fun LobbyScreen(
                 RuleSummary("买马", if (settings.preset == RulePreset.GD_TUIDAOHU) "开启" else "—")
 
                 Spacer(Modifier.height(12.dp))
-                TablePreview(Modifier.weight(1f).fillMaxWidth())
+                // 主题预览整体缩小约 30%，避免它在左侧抢走视觉重心；
+                // 用可伸缩容器，窄屏时预览先让位，版本号不会被挤出屏幕。
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    TablePreview(
+                        Modifier
+                            .fillMaxWidth(0.72f)
+                            .heightIn(max = 104.dp)
+                            .fillMaxHeight()
+                            .align(Alignment.TopStart),
+                    )
+                }
 
-                Spacer(Modifier.height(10.dp))
                 MjText(
                     "记录与设置保存在本机 · v${platformAppVersion()}",
                     type.caption.copy(fontSize = 8.sp),
@@ -282,76 +294,161 @@ fun LobbyScreen(
         if (showRulesSheet) {
             ModalSheet(onDismiss = { showRulesSheet = false }) {
                 SheetTitle("胡牌牌型与番数", "国标 8 番起和；广东玩法按 2 的番数次方计分")
-                RulesSection(
-                    "国标常见番种",
-                    listOf(
-                        "88 番" to "十三幺、大三元、大四喜、绿一色、九莲宝灯",
-                        "64 番" to "清幺九、字一色、小四喜、小三元",
-                        "24 番" to "七对、清一色",
-                        "6 番" to "碰碰和、混一色",
-                        "2 番" to "平和、断幺",
-                        "1 番" to "自摸、花牌（每张）",
-                    ),
-                )
-                Spacer(Modifier.height(12.dp))
-                RulesSection(
-                    "推倒胡 / 鸡平胡",
-                    listOf(
-                        "1 番" to "平胡",
-                        "2 番" to "碰碰胡、混一色、七对",
-                        "4 番" to "清一色、混碰、清一色七对",
-                        "5 番" to "清碰、小四喜、小三元、混幺九",
-                        "6 番" to "十三幺、九莲宝灯、连七对、字一色、大三元、大四喜",
-                        "加番" to "自摸 +1 番",
-                    ),
-                )
-                Spacer(Modifier.height(8.dp))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 268.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    MjText(
+                        "常见牌型：牌面是一副可胡的摆法，名称后为番值",
+                        type.caption.copy(fontSize = 9.sp),
+                        colors.ink3,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    PatternGrid(
+                        listOf(
+                            PatternSpec(
+                                "十三幺", "88 番",
+                                listOf(0, 0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33),
+                                "十三种幺九各一张，其中一种再配一张成对",
+                            ),
+                            PatternSpec(
+                                "大三元", "88 番",
+                                listOf(31, 31, 31, 32, 32, 32, 33, 33, 33, 9, 10, 11, 22, 22),
+                                "中、发、白各一副刻子，其余顺子加一对将",
+                            ),
+                            PatternSpec(
+                                "大四喜", "88 番",
+                                listOf(27, 27, 27, 28, 28, 28, 29, 29, 29, 30, 30, 30, 31, 31),
+                                "东、南、西、北各一副刻子，另加一对将",
+                            ),
+                            PatternSpec(
+                                "绿一色", "88 番",
+                                listOf(19, 19, 19, 20, 20, 20, 21, 21, 21, 23, 23, 23, 25, 25),
+                                "只由二三四六八条和发财组成",
+                            ),
+                            PatternSpec(
+                                "九莲宝灯", "88 番",
+                                listOf(0, 0, 0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 8, 8),
+                                "同花色 1112345678999，再摸到该花色任意一张",
+                            ),
+                            PatternSpec(
+                                "清幺九", "64 番",
+                                listOf(0, 0, 0, 8, 8, 8, 9, 9, 9, 17, 17, 17, 18, 18),
+                                "所有牌都是一或九",
+                            ),
+                            PatternSpec(
+                                "字一色", "64 番",
+                                listOf(27, 27, 27, 28, 28, 28, 31, 31, 31, 32, 32, 32, 33, 33),
+                                "所有牌都是字牌",
+                            ),
+                            PatternSpec(
+                                "小四喜", "64 番",
+                                listOf(27, 27, 27, 28, 28, 28, 29, 29, 29, 30, 30, 31, 31, 31),
+                                "三副风刻子，第四种风作将",
+                            ),
+                            PatternSpec(
+                                "小三元", "64 番",
+                                listOf(31, 31, 31, 32, 32, 32, 33, 33, 0, 1, 2, 9, 10, 11),
+                                "两副箭刻子，第三种箭作将",
+                            ),
+                            PatternSpec(
+                                "七对", "24 番",
+                                listOf(0, 0, 3, 3, 9, 9, 13, 13, 18, 18, 27, 27, 33, 33),
+                                "七组对子，不需要顺子或刻子",
+                            ),
+                            PatternSpec(
+                                "清一色", "24 番",
+                                listOf(0, 0, 1, 1, 2, 2, 3, 4, 4, 4, 5, 6, 7, 8),
+                                "全部是同一花色",
+                            ),
+                            PatternSpec(
+                                "碰碰和", "6 番",
+                                listOf(0, 0, 0, 1, 1, 1, 10, 10, 10, 21, 21, 21, 26, 26),
+                                "四副刻子加一对将",
+                            ),
+                            PatternSpec(
+                                "混一色", "6 番",
+                                listOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 27, 27, 27, 31, 31),
+                                "一种花色加字牌",
+                            ),
+                        ),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    MjText(
+                        "平和、断幺、自摸、花牌是番种而不是固定牌型，所以不配牌面图：平和为四副顺子加数牌将，断幺不含幺九与字牌，自摸与花牌按次/张加番。",
+                        type.caption.copy(fontSize = 9.sp),
+                        colors.ink3,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    RulesSection(
+                        "推倒胡 / 鸡平胡",
+                        listOf(
+                            "1 番" to "平胡",
+                            "2 番" to "碰碰胡、混一色、七对",
+                            "4 番" to "清一色、混碰、清一色七对",
+                            "5 番" to "清碰、小四喜、小三元、混幺九",
+                            "6 番" to "十三幺、九莲宝灯、连七对、字一色、大三元、大四喜",
+                            "加番" to "自摸 +1 番",
+                        ),
+                    )
+                }
             }
         }
     }
 }
 
-/** 好友房入口：浅色底 + 描边，作为次级入口，把视觉重心让给「开始牌局」。 */
+/** 好友房入口：浅色底 + 描边，名称下方是三组示例牌型。 */
 @Composable
 private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
-    Box(
+    Column(
         modifier = modifier
             .clip(RoundedCornerShape(MjRadius.card))
             .background(colors.primarySoft)
             .border(1.dp, colors.primary.copy(alpha = 0.18f), RoundedCornerShape(MjRadius.card))
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
-        Row(
-            Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            listOf(4, 13, 22).forEach { MjTile(it, width = 22.dp) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MjText("好友房", type.h2, colors.primaryDeep, maxLines = 1)
+            Spacer(Modifier.width(6.dp))
+            MjIcon(MjIconKind.CHEVRON_RIGHT, size = 15.dp, tint = colors.primaryDeep.copy(alpha = 0.75f))
         }
-        Column(
-            Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 16.dp, end = 92.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MjText("好友房", type.h2, colors.primaryDeep, maxLines = 1)
-                Spacer(Modifier.width(6.dp))
-                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 15.dp, tint = colors.primaryDeep.copy(alpha = 0.75f))
+        Spacer(Modifier.height(3.dp))
+        MjText(
+            "局域网四人同桌 · 房号邀请",
+            type.caption.copy(fontSize = 9.sp),
+            colors.primaryDeep.copy(alpha = 0.66f),
+            maxLines = 1,
+        )
+        Spacer(Modifier.weight(1f))
+        // 三行示例牌型：十三幺 / 大三元 / 大四喜，按卡片实际宽度均分牌宽。
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val gap = 1.5.dp
+            val tileWidth = ((maxWidth - gap * 13) / 14).coerceIn(8.dp, 16.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                friendEntryPatterns.forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                        row.forEach { MjTile(it, width = tileWidth) }
+                    }
+                }
             }
-            Spacer(Modifier.height(3.dp))
-            MjText(
-                "局域网四人同桌 · 房号邀请",
-                type.caption.copy(fontSize = 9.sp),
-                colors.primaryDeep.copy(alpha = 0.66f),
-                maxLines = 1,
-            )
         }
     }
 }
+
+/** 好友房入口的三行牌：十三幺、大三元、大四喜，各 14 张。 */
+private val friendEntryPatterns: List<List<Int>> = listOf(
+    // 十三幺：十三种幺九各一张，一万成对作将。
+    listOf(0, 0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33),
+    // 大三元：中中中 发发发 白白白 一二三筒 五五条。
+    listOf(31, 31, 31, 32, 32, 32, 33, 33, 33, 9, 10, 11, 22, 22),
+    // 大四喜：东东东 南南南 西西西 北北北 中中。
+    listOf(27, 27, 27, 28, 28, 28, 29, 29, 29, 30, 30, 30, 31, 31),
+)
 
 /** 人机练习参数行：左标签右数值，整行铺满，避免右栏出现大片留白。 */
 @Composable
@@ -379,6 +476,55 @@ private fun InfoRow(
             Spacer(Modifier.width(4.dp))
             MjIcon(MjIconKind.CHEVRON_RIGHT, size = 12.dp, tint = colors.ink3)
         }
+    }
+}
+
+/** 玩法里的一个胡牌牌型：牌面示例 + 番值 + 一句话说明。 */
+private data class PatternSpec(
+    val name: String,
+    val fan: String,
+    val tiles: List<Int>,
+    val note: String,
+)
+
+/** 双栏排布牌型图，一行两个，窄屏也能放下 14 张牌。 */
+@Composable
+private fun PatternGrid(patterns: List<PatternSpec>) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        patterns.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
+                row.forEach { spec ->
+                    PatternCell(spec, Modifier.weight(1f))
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PatternCell(spec: PatternSpec, modifier: Modifier = Modifier) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MjText(spec.name, type.label.copy(fontWeight = FontWeight.SemiBold), colors.ink, maxLines = 1)
+            Spacer(Modifier.width(6.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(colors.primarySoft)
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            ) {
+                MjText(spec.fan, type.caption.copy(fontSize = 8.sp), colors.primaryDeep, maxLines = 1)
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp)) {
+            spec.tiles.forEach { MjTile(it, width = 18.dp) }
+        }
+        Spacer(Modifier.height(3.dp))
+        MjText(spec.note, type.caption.copy(fontSize = 9.sp), colors.ink3, maxLines = 2)
     }
 }
 
@@ -416,7 +562,7 @@ private fun TablePreview(modifier: Modifier = Modifier) {
     Box(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 96.dp)
+            .heightIn(min = 72.dp)
             .clip(RoundedCornerShape(18.dp))
             .drawTableFelt(colors)
             .border(1.dp, colors.tableGold.copy(alpha = 0.30f), RoundedCornerShape(18.dp)),

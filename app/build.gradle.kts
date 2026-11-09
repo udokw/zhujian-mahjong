@@ -57,8 +57,8 @@ android {
         applicationId = "mahjong.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.0.12"
+        versionCode = 14
+        versionName = "1.0.13"
     }
 
     sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")

@@ -161,6 +161,15 @@ actual fun lanLocalIpv4(): String {
 private class IosLanConn(private val fd: Int) : LanConn {
     private var closed = false
 
+    init {
+        // 状态帧很小，Nagle 会把它们攒到几十甚至两百毫秒后才发，客机就会「慢一拍」。
+        // Darwin 的 TCP_NODELAY 固定为 1，用字面量避免不同 SDK 绑定差异。
+        memScoped {
+            val enabled = alloc<IntVar>().apply { value = 1 }
+            setsockopt(fd, IPPROTO_TCP, 1, enabled.ptr, sizeOf<IntVar>().convert())
+        }
+    }
+
     private var readerStarted = false
 
     private val writeQueue = Channel<ByteArray>(Channel.UNLIMITED)
