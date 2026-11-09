@@ -12,6 +12,7 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import mahjong.core.api.Hints
 import mahjong.core.engine.MahjongGame
+import mahjong.core.engine.RoundRotation
 import mahjong.core.model.Action
 import mahjong.core.model.GameEvent
 import mahjong.core.model.GameResult
@@ -60,6 +61,8 @@ class Room(
     private val settings: LanConfig,
     /** 房主客户端设置的 AI 思考时长；0 表示沿用默认节奏。 */
     private val aiThinkMs: Long = 0L,
+    /** 连续对局：开启时每局延续圈风、局数与庄家；关闭时每局重置回东风圈第一局。 */
+    private val continuousRounds: Boolean = true,
     private val scope: CoroutineScope,
     private val onClose: (Room) -> Unit,
     private val now: () -> Long = { Clock.now() },
@@ -80,9 +83,15 @@ class Room(
     private val windowNotified = HashSet<Int>()
     private val actions = ArrayList<RecordedAction>()
     private val scores = IntArray(4) { config.startingScore }
-    private var dealerSeat = 0
+    private var dealerSeat = random.nextInt(4)
     private var roundWind = 0
     private var dealerStreak = 0
+    /** 已轮转的庄家数，满四家进下一圈风。 */
+    private var rotations = 0
+    /** 当前是房间里的第几局（连续对局时递增）。 */
+    private var handNumber = 1
+    /** 换人/换桌后置位：下一局视为新一串，圈风与轮庄清零（庄家已在座位变动时重新随机）。 */
+    private var seriesDirty = false
     private var closed = false
 
     /** 供局域网发现读取的公开摘要，所有字段都在 [mutex] 内刷新。 */
@@ -128,6 +137,8 @@ class Room(
         s.resigned = false
         s.lastScore = scores[seat]
         if (hostSeat < 0) hostSeat = seat
+        seriesDirty = true
+        dealerSeat = random.nextInt(4)
         sendSeatGranted(seat)
         broadcastRoomState()
         seat
@@ -177,6 +188,9 @@ class Room(
         s.resigned = false
         s.lastScore = scores[seat]
         brains[seat] = AiBrain(lv)
+        // 座位换人即视为新一串：重新随机定庄，并清零上一串的圈风与轮庄。
+        seriesDirty = true
+        dealerSeat = random.nextInt(4)
         broadcastRoomState()
     }
 
@@ -275,9 +289,25 @@ class Room(
             throw RoomError(ErrorCode.NOT_ALL_READY, "还有玩家未准备")
         }
 
+        // 换人/加 AI 已经在座位变动时重新随机了庄家，这里只把上一串的圈风与轮庄清零。
+        if (seriesDirty) {
+            roundWind = 0
+            dealerStreak = 0
+            rotations = 0
+            handNumber = 1
+            seriesDirty = false
+        }
+
         val seed = random.nextLong()
         seedHex = seed.toULong().toString(16)
-        val newGame = MahjongGame(config, seed, dealerSeat, roundWind, dealerStreak, scores.toList())
+        val newGame = MahjongGame(
+            config = config,
+            seed = seed,
+            dealer = dealerSeat,
+            roundWind = roundWind,
+            dealerStreak = dealerStreak,
+            initialScores = scores.toList(),
+        )
         game = newGame
         gameId = "g-${now()}-${(seed and 0xffff).toString(16).padStart(4, '0')}"
         actions.clear()
@@ -301,6 +331,7 @@ class Room(
                         seed = seedHex,
                         dealer = dealerSeat,
                         roundWind = roundWind,
+                        handNumber = handNumber,
                         seatWind = view.seatWind,
                         initialHand = view.hand,
                         scores = scores.toList(),
@@ -661,6 +692,7 @@ class Room(
             dealer = result.dealer,
             roundWind = result.roundWind,
             dealerContinues = result.dealerContinues,
+            handNumber = handNumber,
         )
         for (i in 0..3) {
             scores[i] = newScores[i]
@@ -668,12 +700,22 @@ class Room(
         }
         broadcastJson(MessageType.GAME_OVER) { json(over) }
 
-        if (result.dealerContinues) {
-            dealerStreak++
+        if (continuousRounds) {
+            // 与单机共用 core 的轮转规则：连庄则庄家不变，否则下家坐庄、轮满四家进一圈。
+            val rotated = RoundRotation(dealerSeat, roundWind, dealerStreak, rotations)
+                .next(result.dealerContinues)
+            dealerSeat = rotated.dealer
+            roundWind = rotated.roundWind
+            dealerStreak = rotated.dealerStreak
+            rotations = rotated.rotations
+            handNumber++
         } else {
-            dealerSeat = (dealerSeat + 1) % 4
+            // 关闭连续对局：下一局从东风圈第一局重新开始，并重新随机定庄。
+            dealerSeat = random.nextInt(4)
+            roundWind = 0
             dealerStreak = 0
-            if (dealerSeat == 0) roundWind = (roundWind + 1) % 4
+            rotations = 0
+            handNumber = 1
         }
 
         game = null
@@ -761,6 +803,7 @@ class Room(
             wallRemaining = view.wallRemaining,
             dealer = view.dealer,
             roundWind = view.roundWind,
+            handNumber = handNumber,
             seatWind = view.seatWind,
             currentPlayer = view.currentPlayer,
             lastDiscard = view.lastDiscard?.let { LastDiscardView(it.player, it.tile, it.turn) },
@@ -856,6 +899,10 @@ class Room(
             )
         },
         gameId = gameId,
+        dealer = dealerSeat,
+        roundWind = roundWind,
+        handNumber = handNumber,
+        continuous = continuousRounds,
     )
 
     private fun currentScore(seat: Int): Int = game?.state?.players?.get(seat)?.score ?: scores[seat]
@@ -1103,6 +1150,8 @@ class Room(
         s.offlineSince = 0
         s.aiControlled = false
         s.resigned = false
+        seriesDirty = true
+        if (roomPhase != RoomPhase.PLAYING) dealerSeat = random.nextInt(4)
         if (hostSeat == seat) transferHostFrom(seat)
     }
 

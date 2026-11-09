@@ -50,6 +50,7 @@ class RoomManager(
         ruleSetName: String,
         password: String?,
         aiThinkMs: Long = 0L,
+        continuous: Boolean = true,
     ): Room {
         if (current != null) {
             throw RoomError(ErrorCode.ILLEGAL_ACTION, "本机已经有房间在运行")
@@ -61,6 +62,7 @@ class RoomManager(
             passwordHash = password?.takeIf { it.isNotBlank() }?.let { Password.hash(it) },
             settings = config,
             aiThinkMs = aiThinkMs.coerceIn(0L, 5_000L),
+            continuousRounds = continuous,
             scope = scope,
             onClose = { closed -> if (current === closed) current = null },
         )

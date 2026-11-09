@@ -5,6 +5,30 @@ import mahjong.core.model.GameResult
 import mahjong.core.model.PlayerView
 import mahjong.core.rules.RuleConfig
 
+/**
+ * 一局结束后的轮转状态：庄家、圈风、连庄次数与已轮转的庄家数。
+ * 单机（App.playAgain）与联机（LanRoom）共用这一份，避免两套轮庄规则。
+ */
+data class RoundRotation(
+    val dealer: Int = 0,
+    val roundWind: Int = 0,
+    val dealerStreak: Int = 0,
+    val rotations: Int = 0,
+) {
+    /** [continues] 为 true 表示本局连庄（庄家不变），否则庄家交给下家、轮满四家进一圈。 */
+    fun next(continues: Boolean): RoundRotation = if (continues) {
+        copy(dealerStreak = dealerStreak + 1)
+    } else {
+        val nextRotations = rotations + 1
+        copy(
+            dealer = (dealer + 1) % 4,
+            roundWind = if (nextRotations % 4 == 0) (roundWind + 1) % 4 else roundWind,
+            dealerStreak = 0,
+            rotations = nextRotations,
+        )
+    }
+}
+
 data class RoundRecord(
     val index: Int,
     val dealer: Int,
@@ -65,14 +89,12 @@ class Match(
         val record = RoundRecord(roundIndex, dealer, roundWind, dealerStreak, result, scores.toList())
         roundIndex++
 
-        if (result.dealerContinues) {
-            dealerStreak++
-        } else {
-            dealerStreak = 0
-            dealer = (dealer + 1) % 4
-            rotationCount++
-            if (rotationCount % 4 == 0) roundWind = (roundWind + 1) % 4
-        }
+        val rotated = RoundRotation(dealer, roundWind, dealerStreak, rotationCount)
+            .next(result.dealerContinues)
+        dealer = rotated.dealer
+        roundWind = rotated.roundWind
+        dealerStreak = rotated.dealerStreak
+        rotationCount = rotated.rotations
         return record
     }
 }

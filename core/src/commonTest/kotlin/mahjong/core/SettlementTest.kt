@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import mahjong.core.engine.RoundRotation
 import mahjong.core.engine.Settlement
 import mahjong.core.rules.RuleConfig
 import mahjong.core.score.WinResult
@@ -258,6 +259,36 @@ class SettlementTest {
         kotlin.test.assertFailsWith<IllegalArgumentException> {
             RuleConfig.mcr().copy(buyHorseEnabled = true)
         }
+    }
+
+    // ---------------------------------------------------------------- 轮庄/圈风
+
+    @Test
+    fun dealerKeepsSeatWhileContinuing() {
+        val state = RoundRotation(dealer = 2, roundWind = 0)
+        val next = state.next(continues = true)
+        assertEquals(2, next.dealer)
+        assertEquals(0, next.roundWind)
+        assertEquals(1, next.dealerStreak)
+        assertEquals(0, next.rotations)
+    }
+
+    @Test
+    fun windsAdvanceAfterEveryFourRotations() {
+        var state = RoundRotation()
+        // 庄家轮着走一圈（东→南→西→北）后进南风圈。
+        repeat(4) { state = state.next(continues = false) }
+        assertEquals(0, state.dealer)
+        assertEquals(1, state.roundWind)
+
+        // 再轮一圈进西风圈。
+        repeat(4) { state = state.next(continues = false) }
+        assertEquals(2, state.roundWind)
+
+        // 连庄不推进圈风。
+        val stayed = state.next(continues = true)
+        assertEquals(state.roundWind, stayed.roundWind)
+        assertEquals(state.dealer, stayed.dealer)
     }
 
     // ---------------------------------------------------------------- 工具

@@ -161,6 +161,8 @@ data class SettlementUi(
     val horseCount: Int = 0,
     /** 买马结算明细，用于解释实得分为何与基本分不同。 */
     val horses: List<String> = emptyList(),
+    /** 引擎给出的连庄结果：下一局是否由同一庄家继续。 */
+    val dealerContinues: Boolean = false,
 )
 
 val WindNames = listOf("东", "南", "西", "北")
@@ -241,6 +243,7 @@ fun GameResult.toSettlement(
         flowerCountsTowardMin = flowerCountsTowardMin,
         horseCount = horseCount,
         horses = horses,
+        dealerContinues = dealerContinues,
     )
 }
 

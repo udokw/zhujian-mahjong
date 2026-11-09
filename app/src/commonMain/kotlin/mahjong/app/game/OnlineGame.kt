@@ -117,6 +117,14 @@ data class RoomStateDto(
     val phase: String = "waiting",
     val seats: List<SeatInfoDto> = emptyList(),
     val gameId: String? = null,
+    /** 当前庄家座位。 */
+    val dealer: Int = 0,
+    /** 当前圈风 0..3（东南西北）。 */
+    val roundWind: Int = 0,
+    /** 房间内第几局。 */
+    val handNumber: Int = 1,
+    /** 房主是否开启连续对局。 */
+    val continuous: Boolean = true,
 )
 
 @Serializable
@@ -187,6 +195,8 @@ internal data class StateDto(
     val legal: LegalDto = LegalDto(),
     val window: WindowDto? = null,
     val tingLocked: Boolean = false,
+    /** 房间内第几局；旧服务端缺省 1。 */
+    val handNumber: Int = 1,
 )
 
 @Serializable
@@ -239,6 +249,8 @@ internal data class GameOverDto(
     val dealer: Int = 0,
     val roundWind: Int = 0,
     val dealerContinues: Boolean = false,
+    /** 本局是房间内第几局。 */
+    val handNumber: Int = 1,
 )
 
 @Serializable
@@ -492,11 +504,11 @@ class OnlineGameSession(
     // ------------------------------------------------------------ 连接入口
 
     /** 建房：本机直接成为房主，不再需要任何服务器地址。 */
-    fun createRoom(presetId: String, password: String? = null) {
+    fun createRoom(presetId: String, password: String? = null, continuous: Boolean = true) {
         stopLobbyScan()
         stopLanHost()
         ruleSet = wireRule(presetId)
-        val host = LanHost.start(ruleSet, password, settings().aiSpeed.thinkMs)
+        val host = LanHost.start(ruleSet, password, settings().aiSpeed.thinkMs, continuous)
         if (host == null) {
             errorMessage = "无法开启局域网房间：端口被占用"
             status = OnlineStatus.ERROR
@@ -1154,7 +1166,7 @@ class OnlineGameSession(
             canDiscard = canDiscard,
             hint = hint,
             modeLabel = modeLabel(ruleSet),
-            handNumber = table?.handNumber ?: 1,
+            handNumber = dto.handNumber,
             banner = banner,
             autoPlaying = autoPlaying,
             minFan = ruleConfig(ruleSet).minFan,
@@ -1489,7 +1501,7 @@ class OnlineGameSession(
         val settlement = SettlementUi(
             draw = dto.draw,
             title = if (dto.draw) "荒庄流局" else "本局结算",
-            subtitle = "${WindFullNames.getOrElse(dto.roundWind) { "东风" }} · 联机对局",
+            subtitle = "${WindFullNames.getOrElse(dto.roundWind) { "东风" }} · 第 ${dto.handNumber} 局",
             reason = when (dto.reason) {
                 "self_draw" -> "自摸"
                 "discard" -> "点炮"

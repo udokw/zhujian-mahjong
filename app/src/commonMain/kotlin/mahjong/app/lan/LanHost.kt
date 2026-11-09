@@ -88,7 +88,12 @@ class LanHost private constructor(
          * 起一个局域网房主。[ruleSetId] 与客户端设置里的规则 ID 一致；
          * 返回 null 表示端口全忙或规则未知。
          */
-        fun start(ruleSetId: String, password: String?, aiThinkMs: Long = 0L): LanHost? {
+        fun start(
+            ruleSetId: String,
+            password: String?,
+            aiThinkMs: Long = 0L,
+            continuous: Boolean = true,
+        ): LanHost? {
             LanLog.reset()
             LanDiag.reset()
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -100,7 +105,7 @@ class LanHost private constructor(
                 scope.cancel()
                 return null
             }
-            val room: Room = rooms.create(rule.config, rule.name, password, aiThinkMs)
+            val room: Room = rooms.create(rule.config, rule.name, password, aiThinkMs, continuous)
             val iid = "h-" + (0 until 3).joinToString("") {
                 Random.nextInt(0x10000).toString(16).padStart(4, '0')
             }

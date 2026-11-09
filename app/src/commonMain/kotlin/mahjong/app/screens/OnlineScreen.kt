@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import mahjong.app.game.OnlineGameSession
 import mahjong.app.game.OnlineStatus
 import mahjong.app.game.RoomStateDto
+import mahjong.app.game.WindFullNames
 import mahjong.app.game.SeatInfoDto
 import mahjong.app.lan.LanDiag
 import mahjong.app.lan.LanLog
@@ -66,6 +67,7 @@ import mahjong.app.ui.MjDialog
 import mahjong.app.ui.MjIcon
 import mahjong.app.ui.MjIconKind
 import mahjong.app.ui.MjText
+import mahjong.app.ui.MjSwitch
 import mahjong.app.ui.MjTile
 import mahjong.app.ui.PrimaryButton
 import mahjong.app.ui.SettingsGroup
@@ -79,6 +81,7 @@ private val onlineModuleHeight = 216.dp
 fun OnlineScreen(
     session: OnlineGameSession,
     settings: AppSettings,
+    onSettingsChange: (AppSettings) -> Unit,
     onBack: () -> Unit,
     onSettings: () -> Unit,
     onToast: (String) -> Unit,
@@ -311,8 +314,9 @@ fun OnlineScreen(
                             roomInput = roomInput,
                             onRoomInput = { roomInput = it.filter { ch -> ch.isDigit() }.take(4) },
                             connecting = session.status == OnlineStatus.CONNECTING,
-                            onCreate = { session.createRoom(settings.preset.id) },
+                            onCreate = { session.createRoom(settings.preset.id, null, settings.continuousRounds) },
                             onJoin = { session.joinRoom(roomInput) },
+                            onContinuousChange = { onSettingsChange(settings.copy(continuousRounds = it)) },
                             modifier = modifier,
                         )
                     }
@@ -463,6 +467,7 @@ private fun EntryCard(
     connecting: Boolean,
     onCreate: () -> Unit,
     onJoin: () -> Unit,
+    onContinuousChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalMjColors.current
@@ -474,6 +479,18 @@ private fun EntryCard(
                 Spacer(Modifier.height(2.dp))
                 MjText("规则：${settings.preset.displayName}", type.caption, colors.ink3)
             }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                MjText("连续对局", type.caption, colors.ink2)
+                MjText(
+                    if (settings.continuousRounds) "下一局延续圈风与庄家" else "每局回到东风圈第一局",
+                    type.caption.copy(fontSize = 10.sp),
+                    colors.ink3,
+                )
+            }
+            MjSwitch(settings.continuousRounds, onChange = onContinuousChange)
         }
         Spacer(Modifier.height(10.dp))
         PrimaryButton(
@@ -536,6 +553,15 @@ private fun RoomCodeCard(room: RoomStateDto, onCopy: () -> Unit) {
                         else -> "国标麻将"
                     },
                     type.caption,
+                    colors.ink3,
+                )
+                Spacer(Modifier.height(2.dp))
+                // 房内进度：让玩家知道自己在打第几圈、第几局、谁是庄。
+                MjText(
+                    "${WindFullNames.getOrElse(room.roundWind) { "东风" }}圈 · 第 ${room.handNumber} 局" +
+                        " · 庄家 ${room.dealer + 1} 号位" +
+                        if (room.continuous) "" else " · 每局重置",
+                    type.caption.copy(fontSize = 10.sp),
                     colors.ink3,
                 )
             }

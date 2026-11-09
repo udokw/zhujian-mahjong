@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 import mahjong.app.audio.GameAudio
 import mahjong.app.audio.SoundEffect
 import mahjong.app.audio.platformInitAudio
@@ -49,6 +50,7 @@ import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.MahjongTheme
 import mahjong.app.theme.MjRadius
 import mahjong.app.ui.MjText
+import mahjong.core.engine.RoundRotation
 import mahjong.core.rules.GameMode
 import mahjong.core.rules.RuleConfig
 
@@ -84,6 +86,8 @@ private data class GameMeta(
     val dealer: Int = 0,
     val roundWind: Int = 0,
     val dealerStreak: Int = 0,
+    /** 已轮转的庄家数（0..），用于满四家进下一圈风。 */
+    val rotations: Int = 0,
     val scores: List<Int>? = null,
 )
 
@@ -97,6 +101,8 @@ fun App() {
     var settlement by remember { mutableStateOf<SettlementUi?>(null) }
     var settlementOnline by remember { mutableStateOf(false) }
     var meta by remember { mutableStateOf(GameMeta()) }
+    /** 当前牌桌是否由联机房间驱动；本地人机局为 false。 */
+    var tableIsOnline by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -185,6 +191,7 @@ fun App() {
         session = next
         next.start()
         DebugScenario.consume()?.let { next.debugInject(it) }
+        tableIsOnline = false
         screen = Screen.TABLE
     }
 
@@ -195,17 +202,29 @@ fun App() {
         val nextScores = previous.mapIndexed { index, score ->
             score + ui.deltas.getOrElse(index) { 0 }
         }
-        val dealerWon = ui.winners.any { it.seat == meta.dealer }
-        val continues = if (ui.draw) config.dealerContinuesOnDraw else dealerWon && config.dealerContinuesOnWin
-        val nextDealer = if (continues) meta.dealer else (meta.dealer + 1) % 4
-        val nextWind = if (!continues && nextDealer == 0) (meta.roundWind + 1) % 4 else meta.roundWind
-        val next = GameMeta(
-            handNumber = meta.handNumber + 1,
-            dealer = nextDealer,
-            roundWind = nextWind,
-            dealerStreak = if (continues) meta.dealerStreak + 1 else 0,
-            scores = nextScores,
-        )
+        // 轮庄/进圈与联机共用 core 的 RoundRotation，避免单机与好友房两套规则。
+        // 连续对局沿用上一局轮转结果；关闭连续对局时每局算新牌局，重新随机定庄。
+        val next = if (settings.continuousRounds) {
+            val rotated = RoundRotation(meta.dealer, meta.roundWind, meta.dealerStreak, meta.rotations)
+                .next(ui.dealerContinues)
+            GameMeta(
+                handNumber = meta.handNumber + 1,
+                dealer = rotated.dealer,
+                roundWind = rotated.roundWind,
+                dealerStreak = rotated.dealerStreak,
+                rotations = rotated.rotations,
+                scores = nextScores,
+            )
+        } else {
+            GameMeta(
+                handNumber = 1,
+                dealer = Random.nextInt(4),
+                roundWind = 0,
+                dealerStreak = 0,
+                rotations = 0,
+                scores = nextScores,
+            )
+        }
         meta = next
         settlement = null
         settlementOnline = false
@@ -242,6 +261,7 @@ fun App() {
         onlineSession = null
         settlement = null
         settlementOnline = false
+        tableIsOnline = false
         meta = GameMeta()
         screen = Screen.LOBBY
     }
@@ -250,6 +270,7 @@ fun App() {
         session?.cancel()
         session = null
         settlement = null
+        tableIsOnline = false
         meta = GameMeta()
         screen = Screen.LOBBY
     }
@@ -299,9 +320,11 @@ fun App() {
     LaunchedEffect(screen, onlineSession?.table) {
         val onlineTable = onlineSession?.table
         if (screen == Screen.ONLINE && onlineTable != null) {
+            tableIsOnline = true
             screen = Screen.TABLE
-        } else if (screen == Screen.TABLE && onlineSession != null && onlineTable == null) {
+        } else if (screen == Screen.TABLE && tableIsOnline && onlineTable == null) {
             // 重连回来发现本局已经结束：牌桌状态被清空，回到房间页而不是停在空桌。
+            // 本地人机局（tableIsOnline=false）在发牌前 table 也为 null，不能被误推回房间页。
             screen = Screen.ONLINE
         }
     }
@@ -321,7 +344,8 @@ fun App() {
                     settings = settings,
                     onChange = { update(it) },
                     onQuickStart = {
-                        val fresh = GameMeta()
+                        // 新牌局：随机定庄，之后连续对局按轮庄规则推进。
+                        val fresh = GameMeta(dealer = Random.nextInt(4))
                         meta = fresh
                         startLocal(fresh)
                     },
@@ -441,6 +465,7 @@ fun App() {
                         OnlineScreen(
                             session = online,
                             settings = settings,
+                            onSettingsChange = { update(it) },
                             onBack = { leaveOnlineToLobby() },
                             onSettings = {
                                 settingsReturn = Screen.ONLINE

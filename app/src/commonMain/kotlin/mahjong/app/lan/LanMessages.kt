@@ -34,6 +34,8 @@ data class RoomCreateBody(
     val password: String? = null,
     /** 房主设置的 AI 思考时长（毫秒），0 表示沿用服务端节奏。 */
     val aiThinkMs: Long = 0L,
+    /** 连续对局：每局延续圈风/局数/庄家；缺省开启。 */
+    val continuous: Boolean = true,
 )
 
 @Serializable
@@ -90,6 +92,14 @@ data class RoomStateView(
     val phase: String,
     val seats: List<SeatInfoView>,
     val gameId: String? = null,
+    /** 当前庄家座位；连续对局关闭时每局归零。 */
+    val dealer: Int = 0,
+    /** 当前圈风 0..3（东南西北）。 */
+    val roundWind: Int = 0,
+    /** 房间内第几局。 */
+    val handNumber: Int = 1,
+    /** 房主是否开启连续对局。 */
+    val continuous: Boolean = true,
 )
 
 @Serializable
@@ -125,6 +135,8 @@ data class GameStartView(
     val scores: List<Int>,
     val wallRemaining: Int,
     val flowers: List<Int>,
+    /** 房间内第几局；缺省 1 兼容旧客户端。 */
+    val handNumber: Int = 1,
 )
 
 @Serializable
@@ -198,6 +210,8 @@ data class StateView(
     val window: WindowView? = null,
     /** 自己是否已进入听牌锁定；缺省 false 兼容旧客户端。 */
     val tingLocked: Boolean = false,
+    /** 房间内第几局；缺省 1 兼容旧客户端。 */
+    val handNumber: Int = 1,
 )
 
 @Serializable
@@ -270,6 +284,8 @@ data class GameOverView(
     val dealer: Int,
     val roundWind: Int,
     val dealerContinues: Boolean,
+    /** 本局是房间内第几局。 */
+    val handNumber: Int = 1,
 )
 
 @Serializable

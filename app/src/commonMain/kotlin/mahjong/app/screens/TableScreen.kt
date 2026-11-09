@@ -401,7 +401,7 @@ private fun LandscapeHud(
             }
             Spacer(Modifier.width(6.dp))
             MjText(
-                "${table.modeLabel} · ${WindNames.getOrElse(table.roundWind) { "东" }}风 · 第 ${table.handNumber} 局",
+                "${table.modeLabel} · ${WindNames.getOrElse(table.roundWind) { "东" }}风 · 第 ${table.handNumber} 局 · 庄家 ${table.dealer + 1} 号位",
                 type.caption.copy(fontWeight = FontWeight.SemiBold, fontSize = 11.sp),
                 colors.onTable,
                 maxLines = 1,

@@ -92,7 +92,7 @@ class MessageRouter(
         val body = Wire.payload<RoomCreateBody>(envelope)
         val rule = ruleOf(body.ruleSet)
         leaveCurrentRoom(session)
-        val room = rooms.create(rule.config, rule.name, body.password, body.aiThinkMs)
+        val room = rooms.create(rule.config, rule.name, body.password, body.aiThinkMs, body.continuous)
         session.room = room
         room.join(session, body.password)
         log.info("房间创建 code=${room.code} rule=${rule.name} by=${session.nickname}")

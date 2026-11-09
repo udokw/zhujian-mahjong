@@ -53,6 +53,8 @@ data class AppSettings(
     val nickname: String = "林知远",
     val serverUrl: String = "",
     val arenaIndex: Int = 0,
+    /** 连续对局：每局延续圈风/局数/庄家；关闭则每局回到东风圈第一局。 */
+    val continuousRounds: Boolean = true,
 ) {
     val aiLevel: AiLevel get() = AiLevel.fromId(aiLevelId) ?: AiLevel.NORMAL
     val preset: RulePreset get() = RulePreset.fromId(rulePresetId) ?: RulePreset.GD_JIPINGHU
