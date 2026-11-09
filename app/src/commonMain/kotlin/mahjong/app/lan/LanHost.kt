@@ -61,7 +61,9 @@ class LanHost private constructor(
         conn.onClosed = {
             scope.launch {
                 session.room?.let { current ->
-                    runCatching { current.leave(session) }
+                    // 传输断开不等于主动离开：这里必须保留重连令牌，
+                    // 否则断线瞬间座位就被判为认输，客机永远无法再占回座位。
+                    runCatching { current.onDisconnect(session) }
                 }
             }
         }
