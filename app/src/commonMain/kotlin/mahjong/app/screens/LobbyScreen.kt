@@ -433,8 +433,8 @@ private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) 
             // 间距和牌组必须同在一个 Column 里：Box 内的子元素是层叠的，
             // 直接放 Spacer 不会把牌组往下推。
             Column {
-                // 标题块与牌组之间留两行牌的高度：比上一版宽松，又不会顶到卡片上下沿。
-                Spacer(Modifier.height(tileWidth * 4f / 3f * 2f))
+                // 副标题下方还有约半行行高，间距按 0.6 行给，肉眼看到的空隙约为一整行。
+                Spacer(Modifier.height(tileWidth * 4f / 3f * 0.6f))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     friendEntryPatterns.forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
