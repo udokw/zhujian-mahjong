@@ -26,6 +26,7 @@ import mahjong.app.audio.GameAudio
 import mahjong.app.audio.SoundEffect
 import mahjong.app.audio.VoiceLine
 import mahjong.app.keyValueStore
+import mahjong.app.lan.ErrorCode
 import mahjong.app.lan.LanConn
 import mahjong.app.lan.LanDiag
 import mahjong.app.lan.LanDirectory
@@ -263,6 +264,9 @@ private const val KEY_SEAT = "online_resume_seat"
 private const val KEY_RULE = "online_resume_rule"
 private const val KEY_SERVER = "online_server_url"
 
+/** 连续重连失败到这个次数，就认定房间已经散了，退回大厅。 */
+private const val MAX_RECONNECT_ATTEMPTS = 3
+
 class OnlineGameSession(
     private val scope: CoroutineScope,
     private val settings: () -> AppSettings,
@@ -292,6 +296,10 @@ class OnlineGameSession(
     private var myDiscards = mutableListOf<Int>()
     private var finished = false
     private var closing = false
+    /** 连续重连失败次数；超过上限说明房间真的没了，要退回大厅而不是无限重试。 */
+    private var reconnectAttempts = 0
+    /** 当前这轮连接是不是"重连"：只有重连的占座失败才允许直接踢回大厅。 */
+    private var awaitingResumeAck = false
     /** 上一次胡牌事件时间，用来识别一炮多响并切到 hu_multi。 */
     private var lastHuAt = 0L
 
@@ -461,6 +469,9 @@ class OnlineGameSession(
         val connId = ++connectionId
         closing = false
         pending = action
+        // 只有"重连"才累积失败次数；主动建房/入房是新一轮，计数清零。
+        awaitingResumeAck = action is PendingAction.Resume
+        if (action !is PendingAction.Resume) reconnectAttempts = 0
         errorMessage = null
         notice = null
         status = OnlineStatus.CONNECTING
@@ -519,10 +530,17 @@ class OnlineGameSession(
                 if (connId == connectionId) {
                     socketRef = null
                     if (!closing && hasSavedSeat) {
-                        status = OnlineStatus.CONNECTING
-                        scope.launch {
-                            delay(1_400)
-                            if (connId == connectionId && !closing && hasSavedSeat) resumeSaved()
+                        reconnectAttempts++
+                        if (reconnectAttempts <= MAX_RECONNECT_ATTEMPTS) {
+                            status = OnlineStatus.CONNECTING
+                            scope.launch {
+                                delay(1_400)
+                                if (connId == connectionId && !closing && hasSavedSeat) resumeSaved()
+                            }
+                        } else {
+                            // 一直连不上说明房间真的没了（房主退出/解散）。
+                            // 继续重试只会把界面留在牌桌上假装在线，直接退回大厅。
+                            abandonRoom("与房主的连接已断开，房间可能已解散")
                         }
                     } else if (status != OnlineStatus.ERROR) {
                         status = OnlineStatus.OFFLINE
@@ -794,6 +812,8 @@ class OnlineGameSession(
             "seat_granted" -> {
                 val dto = decode(SeatGrantedDto.serializer(), envelope.p) ?: return
                 mySeat = dto.seat
+                awaitingResumeAck = false
+                reconnectAttempts = 0
                 if (envelope.room.isNotBlank()) roomCode = envelope.room
                 if (roomCode.isNotBlank()) {
                     store.put(KEY_ROOM, roomCode)
@@ -834,6 +854,9 @@ class OnlineGameSession(
                 lastSseq = dto.lastSseq
                 dto.state?.let { publish(it, dto.window ?: it.window) }
                 if (dto.autoPlaying) notice = "已在 AI 托管中"
+                // 重连成功：座位号与手牌快照都从 sync 里拿到了，失败计数归零。
+                awaitingResumeAck = false
+                reconnectAttempts = 0
                 status = OnlineStatus.CONNECTED
             }
 
@@ -873,13 +896,18 @@ class OnlineGameSession(
             "error" -> {
                 val dto = decode(ErrorDto.serializer(), envelope.p)
                 val message = dto?.message ?: "服务端返回错误"
-                if (dto?.code == "E_RESUME_EXPIRED") {
-                    clearSaved()
-                    onMessage("重连凭证已过期，请重新创建房间")
+                val reconnectRejected = when (dto?.code) {
+                    ErrorCode.RESUME_EXPIRED, ErrorCode.NOT_IN_ROOM, ErrorCode.ROOM_NOT_FOUND -> true
+                    else -> false
+                }
+                if (reconnectRejected && awaitingResumeAck) {
+                    // 房主侧已经没有这个座位/房间（解散、被 AI 顶掉、凭证过期）：
+                    // 重连不可能成功，必须明确提示并退回大厅，不能停在牌桌。
+                    abandonRoom("重连失败：房间已解散或座位已被收回")
                 } else {
                     onMessage(message)
+                    if (dto?.code == ErrorCode.ROOM_NOT_FOUND) errorMessage = message
                 }
-                if (dto?.code == "E_ROOM_NOT_FOUND") errorMessage = message
             }
 
             "game_start" -> {
@@ -1376,6 +1404,29 @@ class OnlineGameSession(
     private fun flagFeedback(dto: GameOverDto) {
         val meWin = dto.winners.any { it.seat == mySeat }
         feedback(if (meWin) 2 else 0)
+    }
+
+    /**
+     * 重连彻底失败的统一收尾：清掉本地残留并退回大厅。
+     * 只清 saved 而不清 room/table，界面会停在牌桌上显示"已连接"，实际早就没有座位。
+     */
+    private fun abandonRoom(reason: String) {
+        closing = true
+        pending = null
+        awaitingResumeAck = false
+        reconnectAttempts = 0
+        clearSaved()
+        room = null
+        table = null
+        mySeat = -1
+        roomCode = ""
+        autoPlaying = false
+        latestWindow = null
+        errorMessage = null
+        status = OnlineStatus.OFFLINE
+        runCatching { socketRef?.close() }
+        socketRef = null
+        onClosure(reason)
     }
 
     private fun clearSaved() {
