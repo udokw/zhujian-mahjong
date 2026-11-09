@@ -10,14 +10,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import platform.posix.AF_INET
+import platform.posix.F_SETFL
 import platform.posix.IPPROTO_UDP
+import platform.posix.O_NONBLOCK
 import platform.posix.SO_BROADCAST
-import platform.posix.SO_RCVTIMEO
 import platform.posix.SO_REUSEADDR
 import platform.posix.SOL_SOCKET
 import platform.posix.SOCK_DGRAM
 import platform.posix.bind
 import platform.posix.close
+import platform.posix.fcntl
 import platform.posix.gettimeofday
 import platform.posix.memset
 import platform.posix.recvfrom
@@ -37,6 +39,9 @@ actual fun nowWallMillis(): Long = memScoped {
 }
 
 actual fun createLanDiscovery(): LanDiscoveryNode = IosLanDiscovery()
+
+/** 非阻塞轮询间隔：够快（发现延迟 ≤60ms），又不会让循环空转。 */
+private const val DISCOVERY_POLL_MS = 60L
 
 @OptIn(ExperimentalForeignApi::class)
 private class IosLanDiscovery : LanDiscoveryNode {
@@ -91,11 +96,11 @@ private class IosLanDiscovery : LanDiscoveryNode {
             val enable = alloc<IntVar>().apply { value = 1 }
             setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, enable.ptr, sizeOf<IntVar>().convert())
             setsockopt(sock, SOL_SOCKET, SO_BROADCAST, enable.ptr, sizeOf<IntVar>().convert())
-            val wait = alloc<timeval>().apply {
-                tv_sec = 0
-                tv_usec = 250_000
-            }
-            setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, wait.ptr, sizeOf<timeval>().convert())
+            // 锁屏/切后台时 socket 可能先失效，写失败只返回 -1，绝不能被 SIGPIPE 杀掉进程。
+            setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, enable.ptr, sizeOf<IntVar>().convert())
+            // 非阻塞 + 循环里主动 delay：原来靠 SO_RCVTIMEO 250ms 阻塞轮询，
+            // 一旦 recvfrom 立即返回（fd 失效/被抢占）就会变成无间隔忙等，吃满一个核。
+            fcntl(sock, F_SETFL, O_NONBLOCK)
             val addr = alloc<sockaddr_in>()
             memset(addr.ptr, 0, sizeOf<sockaddr_in>().convert())
             addr.sin_family = AF_INET.convert()
@@ -125,17 +130,20 @@ private class IosLanDiscovery : LanDiscoveryNode {
                     LanDiag.announcesSent++
                 }
             }
-            val received = receive(sock, buffer) ?: continue
-            val (text, sender, port) = received
-            val parsed = parseLanPacket(text, sender) ?: continue
-            val (type, _) = parsed
-            if (type == LanPacketType.QUERY) {
-                LanDiag.queriesReceived++
-                val reply = buildLanPacket(LanPacketType.REPLY, info())
-                val ok = sendTo(sock, reply, sender, port)
-                if (ok) LanDiag.repliesSent++
-                LanLog.info("收到查询 $sender:$port，已应答=$ok")
+            // 非阻塞收包：一次把积压的都处理掉，然后主动让出线程。
+            while (true) {
+                val (text, sender, port) = receive(sock, buffer) ?: break
+                val parsed = parseLanPacket(text, sender) ?: continue
+                val (type, _) = parsed
+                if (type == LanPacketType.QUERY) {
+                    LanDiag.queriesReceived++
+                    val reply = buildLanPacket(LanPacketType.REPLY, info())
+                    val ok = sendTo(sock, reply, sender, port)
+                    if (ok) LanDiag.repliesSent++
+                    LanLog.info("收到查询 $sender:$port，已应答=$ok")
+                }
             }
+            delay(DISCOVERY_POLL_MS)
         }
     }
 
@@ -149,19 +157,21 @@ private class IosLanDiscovery : LanDiscoveryNode {
                 lastQuery = now
                 if (sendAll(sock, buildLanQuery(selfIid), targets)) LanDiag.queriesSent++
             }
-            val received = receive(sock, buffer) ?: continue
-            val (text, sender, _) = received
-            val parsed = parseLanPacket(text, sender) ?: continue
-            val (type, packet) = parsed
-            when (type) {
-                LanPacketType.REPLY -> LanDiag.repliesReceived++
-                LanPacketType.ANNOUNCE -> LanDiag.announcesReceived++
-                LanPacketType.QUERY -> continue
+            while (true) {
+                val (text, sender, _) = receive(sock, buffer) ?: break
+                val parsed = parseLanPacket(text, sender) ?: continue
+                val (type, packet) = parsed
+                when (type) {
+                    LanPacketType.REPLY -> LanDiag.repliesReceived++
+                    LanPacketType.ANNOUNCE -> LanDiag.announcesReceived++
+                    LanPacketType.QUERY -> continue
+                }
+                if (packet.iid == selfIid) continue
+                val peer = packet.toPeer(sender)
+                LanDirectory.upsert(peer)
+                onPeer(peer)
             }
-            if (packet.iid == selfIid) continue
-            val peer = packet.toPeer(sender)
-            LanDirectory.upsert(peer)
-            onPeer(peer)
+            delay(DISCOVERY_POLL_MS)
         }
     }
 

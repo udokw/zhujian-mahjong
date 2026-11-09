@@ -15,4 +15,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent { App() }
     }
+
+    // 前后台：后台停掉 UDP 发现轮询与心跳，回前台由会话按需重连。
+    override fun onStart() {
+        super.onStart()
+        AppLifecycle.update(true)
+    }
+
+    override fun onStop() {
+        AppLifecycle.update(false)
+        super.onStop()
+    }
 }

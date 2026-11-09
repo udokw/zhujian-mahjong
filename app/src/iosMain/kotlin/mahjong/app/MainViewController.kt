@@ -18,7 +18,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.ComposeUIViewController
 import kotlinx.coroutines.delay
 import platform.Foundation.NSBundle
+import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
+import platform.Foundation.NSOperationQueue
+import platform.UIKit.UIApplicationDidEnterBackgroundNotification
+import platform.UIKit.UIApplicationWillEnterForegroundNotification
 import platform.UIKit.UIViewController
 
 /**
@@ -75,5 +79,26 @@ private fun RootContent() {
 fun MainViewController(): UIViewController {
     Diag.install()
     Diag.mark("kotlin.mainvc")
+    // 通知中心会持有 block，挂在进程生命周期上即可，无需手动移除。
+    observeAppLifecycle()
     return ComposeUIViewController { RootContent() }
+}
+
+/**
+ * 把 iOS 的前后台通知桥接到 commonMain 的 [AppLifecycle]。
+ * 进后台要停掉 UDP 发现轮询并释放 socket，否则锁屏后后台线程仍在跑。
+ */
+private fun observeAppLifecycle() {
+    val center = NSNotificationCenter.defaultCenter
+    val queue = NSOperationQueue.mainQueue
+    center.addObserverForName(
+        UIApplicationDidEnterBackgroundNotification,
+        null,
+        queue,
+    ) { AppLifecycle.update(false) }
+    center.addObserverForName(
+        UIApplicationWillEnterForegroundNotification,
+        null,
+        queue,
+    ) { AppLifecycle.update(true) }
 }

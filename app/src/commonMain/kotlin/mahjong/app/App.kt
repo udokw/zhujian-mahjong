@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +54,31 @@ import mahjong.core.rules.RuleConfig
 
 private enum class Screen { SPLASH, LOBBY, TABLE, SETTLEMENT, SETTINGS, RECORDS, ONLINE }
 
+/**
+ * 进程级前后台状态。平台层只负责上报（Android onStart/onStop、iOS 的
+ * UIApplication 通知），业务侧订阅后停/启局域网发现与联机 socket。
+ */
+object AppLifecycle {
+    private var foreground = true
+    private val listeners = mutableListOf<(Boolean) -> Unit>()
+
+    fun addListener(listener: (Boolean) -> Unit) {
+        listeners += listener
+        listener(foreground)
+    }
+
+    fun removeListener(listener: (Boolean) -> Unit) {
+        listeners -= listener
+    }
+
+    fun update(next: Boolean) {
+        if (foreground == next) return
+        foreground = next
+        // 拷一份再回调：监听器内部可能增删监听（会话重建），不能边遍历边改。
+        listeners.toList().forEach { runCatching { it(next) } }
+    }
+}
+
 private data class GameMeta(
     val handNumber: Int = 1,
     val dealer: Int = 0,
@@ -73,6 +99,18 @@ fun App() {
     var meta by remember { mutableStateOf(GameMeta()) }
     var toast by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    // 前后台切换统一转给联机会话：后台停发现/心跳并释放 socket，回前台按需重连。
+    DisposableEffect(Unit) {
+        val listener: (Boolean) -> Unit = { active ->
+            val session = onlineSession
+            if (session != null) {
+                if (active) session.onAppForeground() else session.onAppBackground()
+            }
+        }
+        AppLifecycle.addListener(listener)
+        onDispose { AppLifecycle.removeListener(listener) }
+    }
 
     fun update(next: AppSettings) {
         settings = next
@@ -259,8 +297,12 @@ fun App() {
     }
 
     LaunchedEffect(screen, onlineSession?.table) {
-        if (screen == Screen.ONLINE && onlineSession?.table != null) {
+        val onlineTable = onlineSession?.table
+        if (screen == Screen.ONLINE && onlineTable != null) {
             screen = Screen.TABLE
+        } else if (screen == Screen.TABLE && onlineSession != null && onlineTable == null) {
+            // 重连回来发现本局已经结束：牌桌状态被清空，回到房间页而不是停在空桌。
+            screen = Screen.ONLINE
         }
     }
 
@@ -391,11 +433,6 @@ fun App() {
 
                 Screen.RECORDS -> RecordsScreen(
                     onBack = { screen = Screen.LOBBY },
-                    onLobby = { screen = Screen.LOBBY },
-                    onSettings = {
-                        settingsReturn = Screen.RECORDS
-                        screen = Screen.SETTINGS
-                    },
                 )
 
                 Screen.ONLINE -> {

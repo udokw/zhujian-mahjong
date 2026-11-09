@@ -410,7 +410,9 @@ private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) 
             .background(colors.primarySoft)
             .border(1.dp, colors.primary.copy(alpha = 0.18f), RoundedCornerShape(MjRadius.card))
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        // 标题块与牌组作为一整组在卡片里居中，不再用 weight 把牌组顶到底部。
+        verticalArrangement = Arrangement.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MjText("好友房", type.h1.copy(fontSize = 24.sp), colors.primaryDeep, maxLines = 1)
@@ -424,17 +426,20 @@ private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) 
             colors.primaryDeep.copy(alpha = 0.7f),
             maxLines = 1,
         )
-        // 标题块整体加高约一行牌组，向上贴近效果图的比例。
-        Spacer(Modifier.height(14.dp))
-        Spacer(Modifier.weight(1f))
         // 三行示例牌型：十三幺 / 大三元 / 大四喜，按卡片实际宽度均分牌宽。
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val gap = 1.5.dp
             val tileWidth = ((maxWidth - gap * 13) / 14).coerceIn(8.dp, 16.dp)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                friendEntryPatterns.forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        row.forEach { MjTile(it, width = tileWidth) }
+            // 间距和牌组必须同在一个 Column 里：Box 内的子元素是层叠的，
+            // 直接放 Spacer 不会把牌组往下推。
+            Column {
+                // 标题块与牌组之间留两行牌的高度：比上一版宽松，又不会顶到卡片上下沿。
+                Spacer(Modifier.height(tileWidth * 4f / 3f * 2f))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    friendEntryPatterns.forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                            row.forEach { MjTile(it, width = tileWidth) }
+                        }
                     }
                 }
             }

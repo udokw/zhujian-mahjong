@@ -37,6 +37,13 @@ import platform.posix.timeval
 @OptIn(ExperimentalForeignApi::class)
 private val lanIoScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+/**
+ * Darwin 的 SO_NOSIGPIPE：往已断开的 TCP socket 写数据时内核会发 SIGPIPE，
+ * 默认动作是直接终止进程且不产生崩溃报告（表现就是「一切正常但 App 被杀」）。
+ * 监听/连接/accept 出来的 fd 都要单独设，socket 选项不会从监听 fd 继承。
+ */
+internal const val SO_NOSIGPIPE = 0x1022
+
 @OptIn(ExperimentalForeignApi::class)
 actual fun lanListen(ports: IntRange, onAccept: (LanConn) -> Unit): LanServer? {
     for (port in ports) {
@@ -45,6 +52,7 @@ actual fun lanListen(ports: IntRange, onAccept: (LanConn) -> Unit): LanServer? {
             if (fd < 0) return null
             val enable = alloc<IntVar>().apply { value = 1 }
             setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, enable.ptr, sizeOf<IntVar>().convert())
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, enable.ptr, sizeOf<IntVar>().convert())
             val addr = alloc<sockaddr_in>()
             memset(addr.ptr, 0, sizeOf<sockaddr_in>().convert())
             addr.sin_family = AF_INET.convert()
@@ -167,6 +175,8 @@ private class IosLanConn(private val fd: Int) : LanConn {
         memScoped {
             val enabled = alloc<IntVar>().apply { value = 1 }
             setsockopt(fd, IPPROTO_TCP, 1, enabled.ptr, sizeOf<IntVar>().convert())
+            // accept 出来的 socket 不会继承监听 fd 的选项，这里必须再设一次。
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, enabled.ptr, sizeOf<IntVar>().convert())
         }
     }
 

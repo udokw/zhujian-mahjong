@@ -35,54 +35,6 @@ import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.MjRadius
 
 @Composable
-fun BottomTabBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val colors = LocalMjColors.current
-    val type = LocalMjType.current
-    val items = listOf(
-        Triple("大厅", MjIconKind.HOME, 0),
-        Triple("牌桌", MjIconKind.TABLE, 1),
-        Triple("战绩", MjIconKind.RECORD, 2),
-        Triple("我的", MjIconKind.USER, 3),
-    )
-    Column(modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(76.dp)
-                .background(colors.surface)
-                .navigationBarsPadding(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items.forEach { (label, icon, index) ->
-                val active = index == selected
-                val tint = if (active) colors.primary else colors.ink3
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { onSelect(index) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    MjIcon(icon, size = 21.dp, tint = tint, stroke = if (active) 1.9.dp else 1.6.dp)
-                    Spacer(Modifier.height(5.dp))
-                    MjText(
-                        label,
-                        type.caption.copy(fontSize = 10.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium),
-                        tint,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun IconSquare(
     icon: MjIconKind,
     onClick: () -> Unit,

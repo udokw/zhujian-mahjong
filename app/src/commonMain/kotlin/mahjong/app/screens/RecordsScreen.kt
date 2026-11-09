@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -33,20 +32,15 @@ import mahjong.app.theme.LocalMjColors
 import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.MjRadius
 import mahjong.app.theme.MjSpace
-import mahjong.app.ui.BottomTabBar
 import mahjong.app.ui.MjCard
 import mahjong.app.ui.MjIcon
 import mahjong.app.ui.MjIconKind
 import mahjong.app.ui.MjText
 
-/** 列表框最多露出 5 条记录的高度，超出的部分在框内滚动。 */
-private val recentListMaxHeight = 32.dp * 5 + 6.dp * 4
-
+/** 记录列表直接吃满页面剩余高度，条数多时在框内滚动。 */
 @Composable
 fun RecordsScreen(
     onBack: () -> Unit,
-    onLobby: () -> Unit,
-    onSettings: () -> Unit,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
@@ -64,26 +58,28 @@ fun RecordsScreen(
                     .statusBarsPadding()
                     .padding(horizontal = MjSpace.page),
             ) {
-                Row(
-                    Modifier.fillMaxWidth().height(56.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                // 顶部与好友房页一致：返回和标题同一行贴住上沿，只留极小距离。
+                Box(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MjText("战绩", type.title, colors.ink)
+                    }
                     Box(
                         Modifier
-                            .size(36.dp)
+                            .size(34.dp)
+                            .align(Alignment.CenterStart)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { onBack() },
                         contentAlignment = Alignment.Center,
                     ) {
                         MjIcon(MjIconKind.BACK, size = 18.dp, tint = colors.ink2)
                     }
-                    Spacer(Modifier.weight(1f))
-                    MjText("战绩", type.title, colors.ink)
-                    Spacer(Modifier.weight(1f))
-                    Spacer(Modifier.size(36.dp))
                 }
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     MjText("本机战绩", type.h2, colors.ink)
                     Spacer(Modifier.width(8.dp))
@@ -107,9 +103,7 @@ fun RecordsScreen(
                 }
 
                 Spacer(Modifier.height(12.dp))
-                val visible = records.size.coerceAtMost(5)
-                val listHeight = if (visible == 0) 0.dp else 32.dp * visible + 6.dp * (visible - 1)
-                MjCard(Modifier.weight(1f, fill = false).fillMaxWidth(), padding = 10.dp) {
+                MjCard(Modifier.weight(1f).fillMaxWidth(), padding = 10.dp) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         MjText(
                             "最近对局",
@@ -117,14 +111,14 @@ fun RecordsScreen(
                             colors.ink2,
                         )
                         Spacer(Modifier.weight(1f))
-                        MjText("最多显示 5 条", type.caption.copy(fontSize = 9.sp), colors.ink3)
+                        MjText("共 $total 条", type.caption.copy(fontSize = 9.sp), colors.ink3)
                     }
                     Spacer(Modifier.height(6.dp))
                     if (records.isEmpty()) {
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .height(96.dp),
+                                .weight(1f),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -141,11 +135,11 @@ fun RecordsScreen(
                             }
                         }
                     } else {
-                        // 只让这个框内滚动：最多露出 5 条的高度，页面本身不随记录数拉长。
+                        // 去掉底部导航栏后，整块剩余高度都交给列表，超出时在框内滚动。
                         Column(
                             Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = listHeight, max = recentListMaxHeight)
+                                .weight(1f)
                                 .verticalScroll(rememberScrollState()),
                         ) {
                             records.forEachIndexed { index, record ->
@@ -158,17 +152,6 @@ fun RecordsScreen(
                     }
                 }
             }
-
-            BottomTabBar(
-                selected = 2,
-                onSelect = { index ->
-                    when (index) {
-                        0, 1 -> onLobby()
-                        3 -> onSettings()
-                        else -> Unit
-                    }
-                },
-            )
         }
     }
 }

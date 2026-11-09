@@ -320,6 +320,10 @@ class OnlineGameSession(
     private var lanEndpoint: Pair<String, Int>? = null
     private var lobbyNode: LanDiscoveryNode? = null
     private var lobbySweep: Job? = null
+    /** 发现页是否处于「应该扫描」的状态；前后台切换后据此恢复。 */
+    private var lobbyActive = false
+    /** 进后台时还在房间/连接中，回前台需要重连。 */
+    private var resumeAfterBackground = false
     private val _lobbyPeers = MutableStateFlow<List<LanPeer>>(emptyList())
     val lobbyPeers: StateFlow<List<LanPeer>> = _lobbyPeers.asStateFlow()
 
@@ -378,6 +382,7 @@ class OnlineGameSession(
      */
     fun startLobbyScan() {
         stopLobbyScan()
+        lobbyActive = true
         LanDirectory.clear()
         // 换了角色（房主 → 客机）后计数应从零开始，否则诊断页会混着上一局房主的数据。
         LanLog.reset()
@@ -404,6 +409,7 @@ class OnlineGameSession(
     }
 
     fun stopLobbyScan() {
+        lobbyActive = false
         lobbySweep?.cancel()
         lobbySweep = null
         lobbyNode?.stop()
@@ -415,6 +421,58 @@ class OnlineGameSession(
         lanHost?.stop()
         lanHost = null
         lanEndpoint = null
+    }
+
+    /**
+     * 进程进后台：停掉发现通道的 UDP 轮询并释放联机 socket。
+     *
+     * iOS 进后台后网络会被系统冻结/断开，继续轮询既收不到包也会占线程耗电；
+     * 这里主动收尾，回到前台再按 [hasSavedSeat] 决定是否重连。
+     * 房主的 TCP 服务（[lanHost]）保留：房号不变，其他玩家回来后还能回到同一桌。
+     */
+    fun onAppBackground() {
+        lobbySweep?.cancel()
+        lobbySweep = null
+        lobbyNode?.stop()
+        lobbyNode = null
+        _lobbyPeers.value = emptyList()
+        if (job == null && socketRef == null && room == null) return
+        connectionId++
+        closing = true
+        job?.cancel()
+        job = null
+        // 关闭放到后台线程：Android 的连接 close 会等写线程把队列刷完（最多 400ms），
+        // 直接在 onStop 的主线程里做会让退后台明显卡一下。
+        val conn = socketRef
+        socketRef = null
+        if (conn != null) scope.launch(Dispatchers.Default) { runCatching { conn.close() } }
+        pending = null
+        bannerJob?.cancel()
+        analysisJob?.cancel()
+        analysisJob = null
+        winJob?.cancel()
+        winJob = null
+        status = OnlineStatus.OFFLINE
+        resumeAfterBackground = true
+    }
+
+    /** 回到前台：恢复大厅扫描，或按保存的令牌尝试回座。 */
+    fun onAppForeground() {
+        if (resumeAfterBackground) {
+            resumeAfterBackground = false
+            if (hasSavedSeat) {
+                // 牌桌还停在屏幕上，先说清「在恢复」，避免看起来像卡住。
+                onMessage("正在恢复牌局连接…")
+                resumeSaved()
+            } else {
+                room = null
+                table = null
+                mySeat = -1
+                status = OnlineStatus.OFFLINE
+            }
+        }
+        // 在发现页进的后台：重新开扫描，否则列表会一直空着。
+        if (lobbyActive && room == null && job == null) startLobbyScan()
     }
 
     /** 解析 "host:port" / "1.2.3.4:45232" / 老格式 ws://host:port/ws。 */
@@ -920,17 +978,27 @@ class OnlineGameSession(
                 val dto = decode(SyncDto.serializer(), envelope.p) ?: return
                 // 这一帧是重连后的快照还是首次入房：只有重连才提示"已恢复"。
                 val resumed = awaitingResumeAck
+                val hadTable = table != null
                 roomCode = dto.room.room
                 room = dto.room
                 autoPlaying = dto.autoPlaying
                 lastSseq = dto.lastSseq
                 dto.state?.let { publish(it, dto.window ?: it.window) }
+                // 后台期间本局已经结束（座位被 AI 托管打完）：服务端只剩房间没有牌局，
+                // 不能再把旧牌桌留在屏幕上，否则点牌会一直被房主拒绝。
+                val gameGone = resumed && hadTable && dto.state == null
+                if (gameGone) {
+                    table = null
+                    optimisticTable = null
+                }
                 if (dto.autoPlaying) notice = "已在 AI 托管中"
                 // 重连成功：座位号与手牌快照都从 sync 里拿到了，失败计数归零。
                 awaitingResumeAck = false
                 reconnectAttempts = 0
                 status = OnlineStatus.CONNECTED
-                if (resumed) onMessage("已重新连上房主，座位与手牌已恢复")
+                if (resumed) {
+                    if (gameGone) onMessage("本局已结束，已回到房间") else onMessage("已重新连上房主，座位与手牌已恢复")
+                }
             }
 
             "game_over" -> {
