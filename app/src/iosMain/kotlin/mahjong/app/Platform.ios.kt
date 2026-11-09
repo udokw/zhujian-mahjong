@@ -46,10 +46,12 @@ actual fun platformBeep(volume: Float) {
 actual fun platformDefaultServerUrl(): String = "ws://127.0.0.1:8080/ws"
 
 actual fun platformSetKeepScreenOn(keepOn: Boolean) {
-    UIApplication.sharedApplication.isIdleTimerDisabled = keepOn
+    UIApplication.sharedApplication.idleTimerDisabled = keepOn
 }
 
 actual fun platformFormatTime(epochMs: Long): String = runCatching {
     val formatter = platform.Foundation.NSDateFormatter().apply { dateFormat = "MM-dd HH:mm" }
-    formatter.stringFromDate(platform.Foundation.NSDate(timeIntervalSince1970 = epochMs / 1000.0))
+    // NSDate 只有 referenceDate 构造器；978307200 是 1970-01-01 与 2001-01-01 的秒差。
+    val date = platform.Foundation.NSDate(timeIntervalSinceReferenceDate = epochMs / 1000.0 - 978307200.0)
+    formatter.stringFromDate(date)
 }.getOrDefault("-")

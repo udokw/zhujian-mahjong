@@ -39,7 +39,6 @@ import mahjong.app.theme.LocalMjColors
 import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.MjRadius
 import mahjong.app.ui.Avatar
-import mahjong.app.ui.Badge
 import mahjong.app.ui.ChoiceRow
 import mahjong.app.ui.GhostButton
 import mahjong.app.ui.IconSquare
@@ -115,8 +114,6 @@ fun LobbyScreen(
                         MjText("竹青三段 · 1,280 分", type.caption.copy(fontSize = 9.sp), colors.ink3, maxLines = 1)
                     }
                     IconSquare(MjIconKind.RECORD, onRecords)
-                    Spacer(Modifier.width(6.dp))
-                    IconSquare(MjIconKind.GEAR, onSettings)
                 }
                 Spacer(Modifier.height(14.dp))
                 MjText("竹间麻将", type.h1, colors.ink)
@@ -192,22 +189,8 @@ fun LobbyScreen(
                         height = 38.dp,
                     )
                     Spacer(Modifier.width(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(MjRadius.control))
-                            .background(colors.surface)
-                            .border(1.dp, colors.line, RoundedCornerShape(MjRadius.control))
-                            .clickable { showLevelSheet = true }
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        MjIcon(MjIconKind.ROBOT, size = 15.dp, tint = colors.ink3)
-                        Spacer(Modifier.width(6.dp))
-                        MjText("AI", type.caption.copy(fontSize = 9.sp), colors.ink3)
-                        Spacer(Modifier.width(4.dp))
-                        MjText(levelLabel(settings.aiLevel), type.caption.copy(fontWeight = FontWeight.SemiBold), colors.primaryDeep)
-                    }
+                    // 齿轮接管原 AI 强度胶囊的位置：同为 38dp 高，中心自然对齐。
+                    IconSquare(MjIconKind.GEAR, onSettings)
                 }
                 Spacer(Modifier.height(6.dp))
                 MjText(presetRules(settings.preset), type.caption.copy(fontSize = 9.sp), colors.ink3)
@@ -239,14 +222,21 @@ fun LobbyScreen(
 
                 Spacer(Modifier.height(10.dp))
                 MjCard(Modifier.weight(1f).fillMaxWidth(), padding = 12.dp) {
-                    Column(Modifier.fillMaxSize()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            MjText("人机练习", type.h2, colors.ink)
-                            Spacer(Modifier.width(7.dp))
-                            Badge("本地")
-                            Spacer(Modifier.width(8.dp))
-                            MjText("底分 ${arena.baseScore}", type.caption, colors.ink3)
-                            Spacer(Modifier.weight(1f))
+                    Row(
+                        Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        // 好友房与「开始牌局」左右并排。
+                        FriendRoomEntry(
+                            onClick = onFriendRoom,
+                            modifier = Modifier.weight(1.15f).fillMaxHeight(),
+                        )
+                        Column(
+                            Modifier.weight(1f).fillMaxHeight(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.End,
+                        ) {
+                            // 「人机练习」提示移到开始牌局按钮上方：开始牌局本身就是人机对局入口。
                             Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(MjRadius.small))
@@ -254,28 +244,29 @@ fun LobbyScreen(
                                     .padding(vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                MjIcon(MjIconKind.ROBOT, size = 14.dp, tint = colors.ink3)
-                                Spacer(Modifier.width(5.dp))
-                                MjText("AI 强度", type.caption.copy(fontSize = 9.sp), colors.ink3)
-                                Spacer(Modifier.width(5.dp))
-                                MjText(levelLabel(settings.aiLevel), type.caption.copy(fontWeight = FontWeight.SemiBold), colors.primaryDeep)
+                                MjText(
+                                    "人机练习 · 底分 ${arena.baseScore}",
+                                    type.caption.copy(fontSize = 9.sp),
+                                    colors.ink3,
+                                    maxLines = 1,
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                MjText(
+                                    levelLabel(settings.aiLevel),
+                                    type.caption.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold),
+                                    colors.primaryDeep,
+                                    maxLines = 1,
+                                )
                                 Spacer(Modifier.width(2.dp))
                                 MjIcon(MjIconKind.CHEVRON_RIGHT, size = 12.dp, tint = colors.ink3)
                             }
+                            Spacer(Modifier.height(10.dp))
+                            PrimaryButton(
+                                label = "开始牌局",
+                                onClick = onQuickStart,
+                                height = 48.dp,
+                            )
                         }
-                        Spacer(Modifier.height(8.dp))
-                        // 主入口：好友房放在开始牌局上方，高度约两倍，用深色底 + 牌面图案强化。
-                        FriendRoomEntry(
-                            onClick = onFriendRoom,
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        PrimaryButton(
-                            label = "开始牌局",
-                            subLabel = "底分 ${arena.baseScore} · ${levelLabel(settings.aiLevel)} AI",
-                            onClick = onQuickStart,
-                            height = 44.dp,
-                        )
                     }
                 }
             }
@@ -331,7 +322,7 @@ fun LobbyScreen(
     }
 }
 
-/** 好友房主入口：深色渐变底 + 右侧牌面图案，比「开始牌局」高一倍。 */
+/** 好友房主入口：深色渐变底 + 右侧牌面图案，与「开始牌局」并排。 */
 @Composable
 private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = LocalMjColors.current
@@ -345,25 +336,25 @@ private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) 
         Row(
             Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                .padding(end = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            listOf(4, 13, 22).forEach { MjTile(it, width = 30.dp) }
+            listOf(4, 13, 22).forEach { MjTile(it, width = 26.dp) }
         }
         Column(
             Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 16.dp, end = 130.dp),
+                .padding(start = 16.dp, end = 104.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MjText("好友房", type.h1, colors.onPrimary, maxLines = 1)
-                Spacer(Modifier.width(8.dp))
-                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 18.dp, tint = colors.onPrimary.copy(alpha = 0.85f))
+                Spacer(Modifier.width(6.dp))
+                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 16.dp, tint = colors.onPrimary.copy(alpha = 0.85f))
             }
             Spacer(Modifier.height(3.dp))
             MjText(
-                "局域网四人同桌 · 房号邀请",
+                "局域网四人同桌",
                 type.caption,
                 colors.onPrimary.copy(alpha = 0.78f),
                 maxLines = 1,

@@ -52,6 +52,7 @@ import mahjong.app.lan.LanPeer
 import mahjong.app.settings.AppSettings
 import mahjong.app.theme.LocalMjColors
 import mahjong.app.theme.LocalMjType
+import mahjong.app.theme.MjColors
 import mahjong.app.theme.MjRadius
 import mahjong.app.theme.MjSpace
 import mahjong.app.ui.Avatar
@@ -85,6 +86,7 @@ fun OnlineScreen(
     var aiTarget by remember { mutableStateOf<SeatInfoDto?>(null) }
     var showDiagnostics by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
+    var showLanHint by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
     val room = session.room
@@ -133,8 +135,29 @@ fun OnlineScreen(
                     MjIcon(MjIconKind.BACK, size = 18.dp, tint = colors.ink2)
                 }
                 Spacer(Modifier.weight(1f))
-                MjText("好友房", type.title, colors.ink)
-                Spacer(Modifier.weight(1f))
+                // 联机状态做成轻量指示，放在设置图标左侧；点击才展开说明。
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .clickable { showLanHint = !showLanHint }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(6.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(statusDotColor(session.status, colors)),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    MjText(
+                        statusLabel(session.status),
+                        type.caption.copy(fontSize = 10.sp),
+                        colors.ink2,
+                        maxLines = 1,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
                 Box(
                     Modifier
                         .size(36.dp)
@@ -146,6 +169,37 @@ fun OnlineScreen(
                 }
             }
 
+            AnimatedVisibility(visible = showLanHint) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MjSpace.page, vertical = 4.dp)
+                        .clip(RoundedCornerShape(MjRadius.control))
+                        .background(colors.surface)
+                        .border(1.dp, colors.line, RoundedCornerShape(MjRadius.control))
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(6.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(statusDotColor(session.status, colors)),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    MjText(
+                        if (session.isHost) {
+                            "房主 · 局域网直连 · 房号 ${session.room?.room ?: "-"}"
+                        } else {
+                            "局域网直连，已自动发现"
+                        },
+                        type.caption.copy(fontSize = 10.sp),
+                        colors.ink3,
+                        maxLines = 1,
+                    )
+                }
+            }
+
             Column(
                 Modifier
                     .weight(1f)
@@ -153,8 +207,10 @@ fun OnlineScreen(
                     .padding(horizontal = MjSpace.page),
             ) {
                 Spacer(Modifier.height(6.dp))
-                MjText(if (room != null) "房间 ${room.room}" else "好友房", type.display, colors.ink)
-                Spacer(Modifier.height(4.dp))
+                if (room != null) {
+                    MjText("房间 ${room.room}", type.display, colors.ink)
+                    Spacer(Modifier.height(4.dp))
+                }
                 MjText(
                     if (room != null) "邀请好友，空位由 AI 补齐" else "创建或加入房间，四人一桌",
                     type.caption,
@@ -162,7 +218,6 @@ fun OnlineScreen(
                 )
 
                 Spacer(Modifier.height(16.dp))
-                ConnectionBar(session, settings)
 
                 if (session.status == OnlineStatus.ERROR) {
                     Spacer(Modifier.height(12.dp))
@@ -344,45 +399,18 @@ fun OnlineScreen(
     }
 }
 
-@Composable
-private fun ConnectionBar(session: OnlineGameSession, settings: AppSettings) {
-    val colors = LocalMjColors.current
-    val type = LocalMjType.current
-    val (dot, label) = when (session.status) {
-        OnlineStatus.CONNECTED -> colors.green to "已连接"
-        OnlineStatus.CONNECTING -> colors.gold to "连接中…"
-        OnlineStatus.ERROR -> colors.red to "连接失败"
-        OnlineStatus.OFFLINE -> colors.disabled to "未连接"
-    }
-    MjCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(colors.primarySoft),
-                contentAlignment = Alignment.Center,
-            ) {
-                MjIcon(MjIconKind.WIFI, size = 17.dp, tint = colors.primaryDeep)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(6.dp).clip(RoundedCornerShape(999.dp)).background(dot))
-                    Spacer(Modifier.width(5.dp))
-                    MjText(label, type.label, colors.ink, maxLines = 1)
-                }
-                Spacer(Modifier.height(1.dp))
-                MjText(
-                    if (session.isHost) "房主 · 局域网直连 · 房号 ${session.room?.room ?: "-"}"
-                    else "局域网直连 · 已自动发现",
-                    type.caption,
-                    colors.ink3,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
+private fun statusLabel(status: OnlineStatus): String = when (status) {
+    OnlineStatus.CONNECTED -> "已连接"
+    OnlineStatus.CONNECTING -> "连接中"
+    OnlineStatus.ERROR -> "未连上"
+    OnlineStatus.OFFLINE -> "未连接"
+}
+
+private fun statusDotColor(status: OnlineStatus, colors: MjColors): Color = when (status) {
+    OnlineStatus.CONNECTED -> colors.green
+    OnlineStatus.CONNECTING -> colors.gold
+    OnlineStatus.ERROR -> colors.red
+    OnlineStatus.OFFLINE -> colors.disabled
 }
 
 @Composable
