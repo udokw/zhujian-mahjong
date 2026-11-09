@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -65,10 +66,14 @@ import mahjong.app.ui.MjDialog
 import mahjong.app.ui.MjIcon
 import mahjong.app.ui.MjIconKind
 import mahjong.app.ui.MjText
+import mahjong.app.ui.MjTile
 import mahjong.app.ui.PrimaryButton
 import mahjong.app.ui.SettingsGroup
 import mahjong.app.ui.SettingRow
 import mahjong.app.ui.SmallButton
+
+/** 横屏双栏时「创建房间」与「附近房间」的统一高度。 */
+private val onlineModuleHeight = 216.dp
 
 @Composable
 fun OnlineScreen(
@@ -207,17 +212,44 @@ fun OnlineScreen(
                     .padding(horizontal = MjSpace.page),
             ) {
                 Spacer(Modifier.height(6.dp))
-                if (room != null) {
-                    MjText("房间 ${room.room}", type.display, colors.ink)
-                    Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MjText(
+                                if (room != null) "房间 ${room.room}" else "好友房",
+                                type.display,
+                                colors.ink,
+                                maxLines = 1,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Box(
+                                Modifier
+                                    .width(26.dp)
+                                    .height(2.dp)
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(colors.primary.copy(alpha = 0.55f)),
+                            )
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        MjText(
+                            if (room != null) "邀请好友，空位由 AI 补齐" else "创建或加入房间，四人一桌",
+                            type.caption,
+                            colors.ink3,
+                        )
+                    }
+                    // 页头右侧的牌面装饰，避免标题行显得空。
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        listOf(4, 13, 22).forEach { MjTile(it, width = 16.dp) }
+                    }
                 }
-                MjText(
-                    if (room != null) "邀请好友，空位由 AI 补齐" else "创建或加入房间，四人一桌",
-                    type.caption,
-                    colors.ink3,
-                )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
 
                 if (session.status == OnlineStatus.ERROR) {
                     Spacer(Modifier.height(12.dp))
@@ -256,7 +288,7 @@ fun OnlineScreen(
                         SavedRoomCard(session.savedRoom, onResume = { session.resumeSaved() })
                         Spacer(Modifier.height(12.dp))
                     }
-                    val nearby: @Composable () -> Unit = {
+                    val nearby: @Composable (Modifier) -> Unit = { modifier ->
                         NearbyRoomsCard(
                             rooms = nearbyRooms,
                             scanning = scanning,
@@ -265,9 +297,10 @@ fun OnlineScreen(
                                 if (found.hasPassword) joinTarget = found
                                 else session.joinRoom(found.code, found.endpoint)
                             },
+                            modifier = modifier,
                         )
                     }
-                    val entry: @Composable () -> Unit = {
+                    val entry: @Composable (Modifier) -> Unit = { modifier ->
                         EntryCard(
                             settings = settings,
                             roomInput = roomInput,
@@ -275,21 +308,25 @@ fun OnlineScreen(
                             connecting = session.status == OnlineStatus.CONNECTING,
                             onCreate = { session.createRoom(settings.preset.id) },
                             onJoin = { session.joinRoom(roomInput) },
+                            modifier = modifier,
                         )
                     }
 
-                    // 横屏双栏：左「创建房间」，右「附近房间」；竖屏按同顺序纵向堆叠。
+                    // 横屏双栏：左「创建房间」，右「附近房间」，两块同高；竖屏按同顺序纵向堆叠。
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         if (maxWidth >= 600.dp) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Column(Modifier.weight(1f)) { entry() }
-                                Column(Modifier.weight(1f)) { nearby() }
+                            Row(
+                                Modifier.fillMaxWidth().height(onlineModuleHeight),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                Column(Modifier.weight(1f).fillMaxHeight()) { entry(Modifier.fillMaxSize()) }
+                                Column(Modifier.weight(1f).fillMaxHeight()) { nearby(Modifier.fillMaxSize()) }
                             }
                         } else {
                             Column {
-                                entry()
+                                entry(Modifier)
                                 Spacer(Modifier.height(16.dp))
-                                nearby()
+                                nearby(Modifier.height(onlineModuleHeight))
                             }
                         }
                     }
@@ -421,10 +458,11 @@ private fun EntryCard(
     connecting: Boolean,
     onCreate: () -> Unit,
     onJoin: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
-    MjCard {
+    MjCard(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 MjText("创建房间", type.bodyStrong, colors.ink)
@@ -432,11 +470,16 @@ private fun EntryCard(
                 MjText("规则：${settings.preset.displayName}", type.caption, colors.ink3)
             }
         }
-        Spacer(Modifier.height(12.dp))
-        PrimaryButton(if (connecting) "连接中…" else "创建房间", onCreate, enabled = !connecting)
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(10.dp))
+        PrimaryButton(
+            if (connecting) "连接中…" else "创建房间",
+            onCreate,
+            enabled = !connecting,
+            height = 48.dp,
+        )
+        Spacer(Modifier.height(14.dp))
         DividerLine()
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
         MjText("加入房间", type.bodyStrong, colors.ink)
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -445,7 +488,7 @@ private fun EntryCard(
                     .weight(1f)
                     .clip(RoundedCornerShape(MjRadius.small))
                     .background(colors.surface2)
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
                 if (roomInput.isEmpty()) {
                     MjText("输入 4 位数字房号", type.body, colors.disabled, maxLines = 1)
@@ -758,10 +801,11 @@ private fun NearbyRoomsCard(
     scanning: Boolean,
     onRefresh: () -> Unit,
     onJoin: (LanPeer) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
-    MjCard {
+    MjCard(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MjText("附近房间", type.bodyStrong, colors.ink)
             Spacer(Modifier.weight(1f))
@@ -773,60 +817,87 @@ private fun NearbyRoomsCard(
             Spacer(Modifier.width(8.dp))
             SmallButton("刷新", onRefresh)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         if (rooms.isEmpty()) {
-            MjText("同一 Wi-Fi 下有人创建房间后，会自动出现在这里", type.caption, colors.ink3)
+            Box(
+                Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                MjText(
+                    "同一 Wi-Fi 下有人创建房间后\n会自动出现在这里",
+                    type.caption,
+                    colors.ink3,
+                    textAlign = TextAlign.Center,
+                )
+            }
         } else {
-            rooms.forEach { found ->
-                val joinable = found.phase == "waiting" && found.players < found.capacity
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable(enabled = joinable) { onJoin(found) }
-                        .padding(horizontal = 6.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            MjText(
-                                found.code,
-                                type.h2.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.SemiBold,
-                                ),
-                                colors.ink,
-                                maxLines = 1,
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            MjText(
-                                found.host,
-                                type.caption.copy(fontSize = 9.sp),
-                                colors.ink3,
-                                maxLines = 1,
-                            )
+            // 模块内分双栏，房多时在本模块内滚动，不改变模块大小。
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rooms.chunked(2).forEach { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pair.forEach { found ->
+                            NearbyRoomCell(found, Modifier.weight(1f), onJoin)
                         }
-                        Spacer(Modifier.height(1.dp))
-                        MjText(
-                            "${lanRuleLabel(found.ruleSet)} · ${found.players}/${found.capacity} 人" +
-                                if (found.hasPassword) " · 有密码" else "",
-                            type.caption.copy(fontSize = 10.sp),
-                            colors.ink3,
-                            maxLines = 1,
-                        )
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
-                    MjText(
-                        when {
-                            found.phase != "waiting" -> "对局中"
-                            found.players >= found.capacity -> "已满"
-                            else -> "加入"
-                        },
-                        type.label,
-                        if (joinable) colors.primary else colors.ink3,
-                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NearbyRoomCell(found: LanPeer, modifier: Modifier, onJoin: (LanPeer) -> Unit) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    val joinable = found.phase == "waiting" && found.players < found.capacity
+    Column(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surface2)
+            .clickable(enabled = joinable) { onJoin(found) }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MjText(
+                found.code,
+                type.bodyStrong.copy(fontFamily = FontFamily.Monospace),
+                colors.ink,
+                maxLines = 1,
+            )
+            Spacer(Modifier.weight(1f))
+            MjText(
+                when {
+                    found.phase != "waiting" -> "对局中"
+                    found.players >= found.capacity -> "已满"
+                    else -> "加入"
+                },
+                type.caption.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold),
+                if (joinable) colors.primaryDeep else colors.ink3,
+                maxLines = 1,
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        MjText(
+            found.host.ifBlank { "房主" },
+            type.caption.copy(fontSize = 9.sp),
+            colors.ink3,
+            maxLines = 1,
+        )
+        Spacer(Modifier.height(1.dp))
+        MjText(
+            "${lanRuleLabel(found.ruleSet)} · ${found.players}/${found.capacity} 人" +
+                if (found.hasPassword) " · 密码" else "",
+            type.caption.copy(fontSize = 9.sp),
+            colors.ink3,
+            maxLines = 1,
+        )
     }
 }
 

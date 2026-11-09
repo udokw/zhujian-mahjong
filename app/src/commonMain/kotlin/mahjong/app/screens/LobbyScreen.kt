@@ -28,7 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -233,38 +232,28 @@ fun LobbyScreen(
                         )
                         Column(
                             Modifier.weight(1f).fillMaxHeight(),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            // 「人机练习」提示移到开始牌局按钮上方：开始牌局本身就是人机对局入口。
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(MjRadius.small))
-                                    .clickable { showLevelSheet = true }
-                                    .padding(vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                MjText(
-                                    "人机练习 · 底分 ${arena.baseScore}",
-                                    type.caption.copy(fontSize = 9.sp),
-                                    colors.ink3,
-                                    maxLines = 1,
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                MjIcon(MjIconKind.ROBOT, size = 15.dp, tint = colors.ink3)
                                 Spacer(Modifier.width(6.dp))
                                 MjText(
-                                    levelLabel(settings.aiLevel),
-                                    type.caption.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold),
-                                    colors.primaryDeep,
-                                    maxLines = 1,
+                                    "人机练习",
+                                    type.label.copy(fontWeight = FontWeight.SemiBold),
+                                    colors.ink2,
                                 )
-                                Spacer(Modifier.width(2.dp))
-                                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 12.dp, tint = colors.ink3)
                             }
-                            Spacer(Modifier.height(10.dp))
+                            InfoRow("底分", "${arena.baseScore}")
+                            InfoRow(
+                                "AI 强度",
+                                levelLabel(settings.aiLevel),
+                                onClick = { showLevelSheet = true },
+                            )
+                            Spacer(Modifier.weight(1f))
                             PrimaryButton(
                                 label = "开始牌局",
                                 onClick = onQuickStart,
-                                height = 48.dp,
+                                height = 52.dp,
                             )
                         }
                     }
@@ -322,7 +311,7 @@ fun LobbyScreen(
     }
 }
 
-/** 好友房主入口：深色渐变底 + 右侧牌面图案，与「开始牌局」并排。 */
+/** 好友房入口：浅色底 + 描边，作为次级入口，把视觉重心让给「开始牌局」。 */
 @Composable
 private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = LocalMjColors.current
@@ -330,35 +319,65 @@ private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(MjRadius.card))
-            .background(Brush.horizontalGradient(listOf(colors.primary, colors.primaryDeep)))
+            .background(colors.primarySoft)
+            .border(1.dp, colors.primary.copy(alpha = 0.18f), RoundedCornerShape(MjRadius.card))
             .clickable { onClick() },
     ) {
         Row(
             Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 14.dp),
+                .padding(end = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            listOf(4, 13, 22).forEach { MjTile(it, width = 26.dp) }
+            listOf(4, 13, 22).forEach { MjTile(it, width = 22.dp) }
         }
         Column(
             Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 16.dp, end = 104.dp),
+                .padding(start = 16.dp, end = 92.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MjText("好友房", type.h1, colors.onPrimary, maxLines = 1)
+                MjText("好友房", type.h2, colors.primaryDeep, maxLines = 1)
                 Spacer(Modifier.width(6.dp))
-                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 16.dp, tint = colors.onPrimary.copy(alpha = 0.85f))
+                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 15.dp, tint = colors.primaryDeep.copy(alpha = 0.75f))
             }
             Spacer(Modifier.height(3.dp))
             MjText(
-                "局域网四人同桌",
-                type.caption,
-                colors.onPrimary.copy(alpha = 0.78f),
+                "局域网四人同桌 · 房号邀请",
+                type.caption.copy(fontSize = 9.sp),
+                colors.primaryDeep.copy(alpha = 0.66f),
                 maxLines = 1,
             )
+        }
+    }
+}
+
+/** 人机练习参数行：左标签右数值，整行铺满，避免右栏出现大片留白。 */
+@Composable
+private fun InfoRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MjRadius.control))
+            .background(colors.surface2)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MjText(label, type.caption.copy(fontSize = 10.sp), colors.ink3, maxLines = 1)
+        Spacer(Modifier.weight(1f))
+        MjText(value, type.bodyStrong, colors.ink, maxLines = 1)
+        if (onClick != null) {
+            Spacer(Modifier.width(4.dp))
+            MjIcon(MjIconKind.CHEVRON_RIGHT, size = 12.dp, tint = colors.ink3)
         }
     }
 }
