@@ -13,16 +13,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import mahjong.app.records.GameRecord
+import mahjong.app.records.GameRecordsRepository
 import mahjong.app.theme.LocalMjColors
 import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.MjRadius
@@ -43,6 +47,12 @@ fun RecordsScreen(
 ) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
+    // 进入本页时读一次本地存储；打完一局会回到这里重新组合，拿到的是最新列表。
+    val records = remember { GameRecordsRepository.load() }
+    val total = records.size
+    val wins = records.count { it.won }
+    val bestFan = records.maxOfOrNull { it.fan } ?: 0
+
     Box(Modifier.fillMaxSize().background(colors.bg)) {
         Column(Modifier.fillMaxSize()) {
             Column(
@@ -78,25 +88,44 @@ fun RecordsScreen(
 
                 Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatCard("总局数", "0", "局", Modifier.weight(1f))
-                    StatCard("胜率", "—", "", Modifier.weight(1f))
-                    StatCard("最高番", "—", "番", Modifier.weight(1f))
+                    StatCard("总局数", if (total == 0) "0" else total.toString(), "局", Modifier.weight(1f))
+                    StatCard(
+                        "胜率",
+                        if (total == 0) "—" else "${wins * 100 / total}%",
+                        "",
+                        Modifier.weight(1f),
+                    )
+                    StatCard("最高番", if (bestFan == 0) "—" else bestFan.toString(), "番", Modifier.weight(1f))
                 }
 
                 Spacer(Modifier.height(22.dp))
                 SettingsGroup("最近对局", "完成一局后自动记录") {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(132.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            MjIcon(MjIconKind.RECORD, size = 26.dp, tint = colors.disabled)
-                            Spacer(Modifier.height(8.dp))
-                            MjText("还没有牌局记录", type.bodyStrong, colors.ink3)
-                            Spacer(Modifier.height(2.dp))
-                            MjText("打完一局人机或好友房后显示在这里", type.caption, colors.ink3, textAlign = TextAlign.Center)
+                    if (records.isEmpty()) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(132.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                MjIcon(MjIconKind.RECORD, size = 26.dp, tint = colors.disabled)
+                                Spacer(Modifier.height(8.dp))
+                                MjText("还没有牌局记录", type.bodyStrong, colors.ink3)
+                                Spacer(Modifier.height(2.dp))
+                                MjText(
+                                    "打完一局人机或好友房后显示在这里",
+                                    type.caption,
+                                    colors.ink3,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                    } else {
+                        records.forEachIndexed { index, record ->
+                            if (index > 0) {
+                                Spacer(Modifier.height(8.dp))
+                            }
+                            RecordRow(record)
                         }
                     }
                 }
@@ -118,6 +147,51 @@ fun RecordsScreen(
                         else -> Unit
                     }
                 },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecordRow(record: GameRecord) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    val resultColor = when {
+        record.draw -> colors.ink3
+        record.won -> colors.green
+        else -> colors.red
+    }
+    MjCard(padding = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MjText(record.result, type.bodyStrong, resultColor, maxLines = 1)
+                    // 未胡但正分只可能来自杠分或买马，标注出来避免看起来自相矛盾。
+                    if (!record.won && !record.draw && record.delta > 0) {
+                        Spacer(Modifier.width(4.dp))
+                        MjText("杠分/买马", type.caption.copy(fontSize = 9.sp), colors.ink3, maxLines = 1)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    MjText(
+                        "${record.mode} · ${record.rule}",
+                        type.caption.copy(fontSize = 9.sp),
+                        colors.ink3,
+                        maxLines = 1,
+                    )
+                }
+                Spacer(Modifier.height(3.dp))
+                MjText(record.time, type.caption.copy(fontSize = 9.sp), colors.disabled, maxLines = 1)
+            }
+            if (record.fan > 0) {
+                MjText("${record.fan} 番", type.label, colors.gold, maxLines = 1)
+                Spacer(Modifier.width(12.dp))
+            }
+            val sign = if (record.delta > 0) "+" else ""
+            MjText(
+                "$sign${record.delta}",
+                type.num,
+                if (record.delta > 0) colors.green else if (record.delta < 0) colors.red else colors.ink3,
+                maxLines = 1,
             )
         }
     }

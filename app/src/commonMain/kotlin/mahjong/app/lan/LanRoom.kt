@@ -336,11 +336,28 @@ class Room(
         }
     }
 
-    suspend fun reconnect(session: RoomSession, token: String, lastSseq: Long): Int = mutex.withLock {
-        val seat = seats.indexOfFirst {
+    suspend fun reconnect(
+        session: RoomSession,
+        token: String,
+        lastSseq: Long,
+        seatHint: Int = -1,
+    ): Int = mutex.withLock {
+        var seat = seats.indexOfFirst {
             it.kind == SeatKind.HUMAN && it.resumeToken != null && it.resumeToken == token
         }
-        if (seat < 0) throw RoomError(ErrorCode.RESUME_EXPIRED, "重连令牌无效或已过期")
+        if (seat < 0) {
+            // 令牌失效（本地缓存丢失、房主升级等）时按「座位 + 设备 + 离线时长」兜底：
+            // 10 分钟内该座位仍空着且属于同一台设备，就补发新令牌直接回座。
+            seat = seatHint.takeIf { it in 0..3 }?.takeIf { candidate ->
+                val c = seats[candidate]
+                c.kind == SeatKind.HUMAN && !c.online && c.session == null && !c.resigned &&
+                    c.offlineSince > 0 && now() - c.offlineSince <= settings.resumeExpireMs &&
+                    (c.playerId == null || c.playerId == session.playerId)
+            } ?: -1
+            if (seat < 0) throw RoomError(ErrorCode.RESUME_EXPIRED, "重连令牌无效或已过期")
+            seats[seat].resumeToken = newToken()
+            logger.info("房间 $code 座位 $seat 令牌失效，按设备+座位兜底恢复")
+        }
         val s = seats[seat]
         val old = s.session
         if (old != null && old !== session) {
@@ -442,6 +459,8 @@ class Room(
         s.session = null
         s.online = false
         s.offlineSince = now()
+        // 掉线立即交给 AI 托管，不卡住其他三家；重连成功会取消托管。
+        s.aiControlled = true
         broadcastSeatOnline(seat, false)
         broadcastRoomState()
     }
@@ -455,13 +474,18 @@ class Room(
             if (closed) return@withLock
             val timestamp = now()
 
-            // 宽限期到：托管令牌作废；等待中的座位直接释放
+            // 掉线 180 秒交 AI 托管但保留令牌；10 分钟后才彻底失效。
             var stateChanged = false
             for (s in seats) {
-                if (s.kind == SeatKind.HUMAN && !s.online && s.session == null &&
-                    s.resumeToken != null && s.offlineSince > 0 &&
-                    timestamp - s.offlineSince >= settings.resumeGraceMs
-                ) {
+                if (s.kind != SeatKind.HUMAN || s.online || s.session != null || s.offlineSince <= 0) continue
+                val offlineFor = timestamp - s.offlineSince
+                if (!s.aiControlled && offlineFor >= settings.resumeGraceMs) {
+                    s.aiControlled = true
+                    stateChanged = true
+                    // 等待阶段没人能托管，直接释放座位给新房客。
+                    if (roomPhase == RoomPhase.WAITING) vacate(s.index)
+                }
+                if (s.resumeToken != null && offlineFor >= settings.resumeExpireMs) {
                     s.resumeToken = null
                     s.aiControlled = true
                     if (roomPhase == RoomPhase.WAITING) vacate(s.index)

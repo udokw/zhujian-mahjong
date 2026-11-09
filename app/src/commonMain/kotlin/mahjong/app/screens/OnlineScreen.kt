@@ -1,10 +1,12 @@
 package mahjong.app.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -81,6 +84,7 @@ fun OnlineScreen(
     var kickTarget by remember { mutableStateOf<SeatInfoDto?>(null) }
     var aiTarget by remember { mutableStateOf<SeatInfoDto?>(null) }
     var showDiagnostics by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
     val room = session.room
@@ -94,6 +98,11 @@ fun OnlineScreen(
         onDispose {
             if (room == null) session.stopLobbyScan()
         }
+    }
+
+    LaunchedEffect(room == null, session.status) {
+        // 加入失败会停掉发现节点；回到空闲态要自动重开，否则列表永远停在失败前那一份。
+        if (room == null && session.status == OnlineStatus.ERROR) session.refreshLobby()
     }
 
     LaunchedEffect(session.notice) {
@@ -170,8 +179,13 @@ fun OnlineScreen(
                             PrimaryButton(
                                 "重试",
                                 {
-                                    if (session.hasSavedSeat) session.resumeSaved()
-                                    else onToast("请重新创建或加入房间")
+                                    if (room != null && session.hasSavedSeat) {
+                                        session.resumeSaved()
+                                    } else {
+                                        // 加入失败后重拉列表，而不是对着已经不存在的旧房间反复重试。
+                                        session.refreshLobby()
+                                        onToast("已刷新附近房间")
+                                    }
                                 },
                                 modifier = Modifier.weight(1f),
                             )
@@ -182,48 +196,72 @@ fun OnlineScreen(
 
                 if (room == null) {
                     Spacer(Modifier.height(16.dp))
-                    NearbyRoomsCard(
-                        rooms = nearbyRooms,
-                        scanning = scanning,
-                        onJoin = { found ->
-                            if (found.hasPassword) joinTarget = found
-                            else session.joinRoom(found.code, found.endpoint)
-                        },
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-                    EntryCard(
-                        settings = settings,
-                        roomInput = roomInput,
-                        onRoomInput = { roomInput = it.filter { ch -> ch.isDigit() }.take(4) },
-                        connecting = session.status == OnlineStatus.CONNECTING,
-                        onCreate = { session.createRoom(settings.preset.id) },
-                        onJoin = { session.joinRoom(roomInput) },
-                    )
-
+                    // 「未完成牌局」放页面最上方，进入好友房第一眼就能回座。
                     if (session.hasSavedSeat) {
+                        SavedRoomCard(session.savedRoom, onResume = { session.resumeSaved() })
                         Spacer(Modifier.height(12.dp))
-                        MjCard {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    MjText("有未完成的房间", type.bodyStrong, colors.ink)
-                                    Spacer(Modifier.height(2.dp))
-                                    MjText("上次在 ${session.savedRoom}", type.caption, colors.ink3)
-                                }
-                                SmallButton("重连", { session.resumeSaved() })
+                    }
+                    val nearby: @Composable () -> Unit = {
+                        NearbyRoomsCard(
+                            rooms = nearbyRooms,
+                            scanning = scanning,
+                            onRefresh = { session.refreshLobby() },
+                            onJoin = { found ->
+                                if (found.hasPassword) joinTarget = found
+                                else session.joinRoom(found.code, found.endpoint)
+                            },
+                        )
+                    }
+                    val entry: @Composable () -> Unit = {
+                        EntryCard(
+                            settings = settings,
+                            roomInput = roomInput,
+                            onRoomInput = { roomInput = it.filter { ch -> ch.isDigit() }.take(4) },
+                            connecting = session.status == OnlineStatus.CONNECTING,
+                            onCreate = { session.createRoom(settings.preset.id) },
+                            onJoin = { session.joinRoom(roomInput) },
+                        )
+                    }
+
+                    // 横屏双栏：左「创建房间」，右「附近房间」；竖屏按同顺序纵向堆叠。
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        if (maxWidth >= 600.dp) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Column(Modifier.weight(1f)) { entry() }
+                                Column(Modifier.weight(1f)) { nearby() }
+                            }
+                        } else {
+                            Column {
+                                entry()
+                                Spacer(Modifier.height(16.dp))
+                                nearby()
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(20.dp))
-                    SettingsGroup("联机说明") {
-                        SettingRow("发现", "同一 Wi-Fi 下建房后自动出现在「附近房间」", showDivider = true)
-                        SettingRow("房号", "4 位数字，只填房号即可加入，不用填地址", showDivider = true)
-                        SettingRow("座位", "四人一桌，房主可补 AI、可移出玩家", showDivider = true)
-                        SettingRow("断线", "3 秒后 AI 托管，180 秒内可重连", showDivider = false)
+                    Spacer(Modifier.height(16.dp))
+                    // 说明抽屉的入口固定在底部一行：左「联机说明」、右「联机诊断」，
+                    // 展开内容只出现在这一行下方，不挤动上面的创建/房间模块。
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        GhostButton(
+                            if (showHelp) "收起说明" else "联机说明",
+                            { showHelp = !showHelp },
+                            modifier = Modifier.weight(1f),
+                        )
+                        GhostButton("联机诊断", { showDiagnostics = true }, modifier = Modifier.weight(1f))
                     }
-                    Spacer(Modifier.height(10.dp))
-                    GhostButton("联机诊断", { showDiagnostics = true })
+                    AnimatedVisibility(visible = showHelp) {
+                        Column {
+                            Spacer(Modifier.height(10.dp))
+                            SettingsGroup("联机说明") {
+                                SettingRow("发现", "同一 Wi-Fi 下建房后自动出现在「附近房间」", showDivider = true)
+                                SettingRow("房号", "4 位数字，只填房号即可加入，不用填地址", showDivider = true)
+                                SettingRow("座位", "四人一桌，房主可补 AI、可移出玩家", showDivider = true)
+                                SettingRow("断线", "立即 AI 托管，10 分钟内可回座", showDivider = false)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(20.dp))
                 } else {
                     Spacer(Modifier.height(14.dp))
                     RoomCodeCard(
@@ -671,9 +709,26 @@ private fun DiagnosticsDialog(
 }
 
 @Composable
+private fun SavedRoomCard(savedRoom: String?, onResume: () -> Unit) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    MjCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                MjText("有未完成的牌局", type.bodyStrong, colors.ink)
+                Spacer(Modifier.height(2.dp))
+                MjText("上次在 ${savedRoom ?: ""}，可直接回座继续", type.caption, colors.ink3)
+            }
+            SmallButton("重连", onResume)
+        }
+    }
+}
+
+@Composable
 private fun NearbyRoomsCard(
     rooms: List<LanPeer>,
     scanning: Boolean,
+    onRefresh: () -> Unit,
     onJoin: (LanPeer) -> Unit,
 ) {
     val colors = LocalMjColors.current
@@ -687,6 +742,8 @@ private fun NearbyRoomsCard(
                 type.caption,
                 colors.ink3,
             )
+            Spacer(Modifier.width(8.dp))
+            SmallButton("刷新", onRefresh)
         }
         Spacer(Modifier.height(8.dp))
         if (rooms.isEmpty()) {
@@ -703,12 +760,24 @@ private fun NearbyRoomsCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        MjText(
-                            "${found.code} · ${found.host}",
-                            type.label.copy(fontWeight = FontWeight.SemiBold),
-                            colors.ink,
-                            maxLines = 1,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MjText(
+                                found.code,
+                                type.h2.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                colors.ink,
+                                maxLines = 1,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            MjText(
+                                found.host,
+                                type.caption.copy(fontSize = 9.sp),
+                                colors.ink3,
+                                maxLines = 1,
+                            )
+                        }
                         Spacer(Modifier.height(1.dp))
                         MjText(
                             "${lanRuleLabel(found.ruleSet)} · ${found.players}/${found.capacity} 人" +

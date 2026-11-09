@@ -2,6 +2,7 @@ package mahjong.app
 
 import platform.Foundation.NSUserDefaults
 import platform.UIKit.UIImpactFeedbackGenerator
+import platform.UIKit.UIApplication
 import platform.UIKit.UIImpactFeedbackStyle
 import platform.UIKit.UIDevice
 
@@ -43,3 +44,12 @@ actual fun platformBeep(volume: Float) {
 }
 
 actual fun platformDefaultServerUrl(): String = "ws://127.0.0.1:8080/ws"
+
+actual fun platformSetKeepScreenOn(keepOn: Boolean) {
+    UIApplication.sharedApplication.isIdleTimerDisabled = keepOn
+}
+
+actual fun platformFormatTime(epochMs: Long): String = runCatching {
+    val formatter = platform.Foundation.NSDateFormatter().apply { dateFormat = "MM-dd HH:mm" }
+    formatter.stringFromDate(platform.Foundation.NSDate(timeIntervalSince1970 = epochMs / 1000.0))
+}.getOrDefault("-")

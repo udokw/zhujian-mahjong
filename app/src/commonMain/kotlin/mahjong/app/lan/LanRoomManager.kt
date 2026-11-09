@@ -13,6 +13,8 @@ data class LanConfig(
     val claimWindowMs: Long = 8_000,
     val autoplayDelayMs: Long = 3_000,
     val resumeGraceMs: Long = 180_000,
+    /** 掉线超过这个时长才彻底失效（令牌作废）；期间即使进入 AI 托管也仍可回座。 */
+    val resumeExpireMs: Long = 600_000,
     val autoplayAiLevel: Int = 2,
 )
 

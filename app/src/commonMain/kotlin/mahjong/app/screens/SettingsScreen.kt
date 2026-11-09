@@ -207,9 +207,16 @@ fun SettingsScreen(
                     SettingRow(
                         title = "减弱动效",
                         subtitle = "关闭碰杠、结算的位移动画",
-                        showDivider = false,
+                        showDivider = true,
                     ) {
                         MjSwitch(settings.reduceMotion, onChange = { onChange(settings.copy(reduceMotion = it)) })
+                    }
+                    SettingRow(
+                        title = "允许超时锁屏",
+                        subtitle = "关闭时大厅、牌局与结算全程保持亮屏",
+                        showDivider = false,
+                    ) {
+                        MjSwitch(settings.allowScreenOff, onChange = { onChange(settings.copy(allowScreenOff = it)) })
                     }
                 }
 

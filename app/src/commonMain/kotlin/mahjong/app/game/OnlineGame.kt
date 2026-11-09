@@ -379,14 +379,22 @@ class OnlineGameSession(
         val node = createLanDiscovery()
         lobbyNode = node
         node.startAsGuest {
-            _lobbyPeers.value = LanDirectory.alive()
+            val alive = LanDirectory.alive()
+            if (alive != _lobbyPeers.value) _lobbyPeers.value = alive
         }
         lobbySweep = scope.launch {
             while (isActive) {
                 delay(2_000)
-                _lobbyPeers.value = LanDirectory.alive()
+                val alive = LanDirectory.alive()
+                if (alive != _lobbyPeers.value) _lobbyPeers.value = alive
             }
         }
+    }
+
+    /** 手动刷新附近房间：清空缓存重新扫描，加入失败后也走这里，避免只重试旧房间。 */
+    fun refreshLobby() {
+        if (room != null) return
+        startLobbyScan()
     }
 
     fun stopLobbyScan() {
@@ -457,8 +465,8 @@ class OnlineGameSession(
     }
 
     fun resumeSaved() {
-        val token = store.get(KEY_TOKEN) ?: return
         val saved = store.get(KEY_ROOM) ?: return
+        val token = store.get(KEY_TOKEN) ?: ""
         roomCode = saved
         ruleSet = store.get(KEY_RULE) ?: "MCR"
         connect(PendingAction.Resume(saved, token))
@@ -958,6 +966,7 @@ class OnlineGameSession(
                     buildJsonObject {
                         put("resumeToken", action.token)
                         put("lastSseq", lastSseq)
+                        store.get(KEY_SEAT)?.toIntOrNull()?.let { put("seat", it) }
                     },
                 )
             }

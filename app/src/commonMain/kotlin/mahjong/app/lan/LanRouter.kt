@@ -174,7 +174,7 @@ class MessageRouter(
             ?: throw RoomError(ErrorCode.ROOM_NOT_FOUND, "房间不存在或已关闭")
         leaveCurrentRoom(session)
         session.room = room
-        room.reconnect(session, body.resumeToken, body.lastSseq)
+        room.reconnect(session, body.resumeToken, body.lastSseq, body.seat)
         log.info("重连成功 room=${room.code} seatToken=${body.resumeToken.take(6)}…")
     }
 

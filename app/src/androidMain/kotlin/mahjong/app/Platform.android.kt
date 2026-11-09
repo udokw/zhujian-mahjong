@@ -1,5 +1,6 @@
 package mahjong.app
 
+import android.app.Activity
 import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -8,6 +9,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings.Secure
+import android.view.WindowManager
 import java.util.UUID
 
 /** Android 侧需要一个 Application Context，由 MainActivity 注入。 */
@@ -15,8 +17,24 @@ object PlatformContext {
     lateinit var app: Context
         private set
 
+    /** 当前前台 Activity，用于窗口级亮屏开关；进程重建后由 MainActivity 重新注入。 */
+    var activity: Activity? = null
+        private set
+
     fun init(context: Context) {
         if (!::app.isInitialized) app = context.applicationContext
+        if (context is Activity) activity = context
+    }
+
+    fun setKeepScreenOn(on: Boolean) {
+        val act = activity ?: return
+        act.runOnUiThread {
+            if (on) {
+                act.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                act.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
     }
 }
 
@@ -87,3 +105,10 @@ actual fun platformBeep(volume: Float) {
 }
 
 actual fun platformDefaultServerUrl(): String = "ws://10.0.2.2:8080/ws"
+
+actual fun platformSetKeepScreenOn(keepOn: Boolean) = PlatformContext.setKeepScreenOn(keepOn)
+
+actual fun platformFormatTime(epochMs: Long): String = runCatching {
+    java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date(epochMs))
+}.getOrDefault("-")

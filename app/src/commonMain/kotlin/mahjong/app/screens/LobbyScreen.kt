@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -27,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,6 +94,7 @@ fun LobbyScreen(
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     var showLevelSheet by remember { mutableStateOf(false) }
+    var showRulesSheet by remember { mutableStateOf(false) }
     val arena = Arenas[settings.arenaIndex.coerceIn(0, Arenas.lastIndex)]
     val presetIndex = presetOptions.indexOf(settings.preset).coerceAtLeast(0)
 
@@ -150,10 +153,10 @@ fun LobbyScreen(
                 RuleSummary("一炮多响", if (settings.multipleWinners) "允许" else "单响")
                 RuleSummary("买马", if (settings.preset == RulePreset.GD_TUIDAOHU) "开启" else "—")
 
-                Spacer(Modifier.height(14.dp))
-                TablePreview()
+                Spacer(Modifier.height(12.dp))
+                TablePreview(Modifier.weight(1f).fillMaxWidth())
 
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(10.dp))
                 MjText(
                     "记录与设置保存在本机 · v${platformAppVersion()}",
                     type.caption.copy(fontSize = 8.sp),
@@ -167,7 +170,17 @@ fun LobbyScreen(
             // ---- 右侧：玩法、场次、快速开局
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    MjText("玩法", type.label.copy(fontWeight = FontWeight.SemiBold), colors.ink2)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(MjRadius.control))
+                            .clickable { showRulesSheet = true }
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MjText("玩法", type.label.copy(fontWeight = FontWeight.SemiBold), colors.ink2)
+                        Spacer(Modifier.width(2.dp))
+                        MjIcon(MjIconKind.CHEVRON_RIGHT, size = 13.dp, tint = colors.ink3)
+                    }
                     Spacer(Modifier.width(10.dp))
                     Segmented(
                         options = listOf("国标", "推倒胡", "鸡平胡"),
@@ -201,88 +214,68 @@ fun LobbyScreen(
 
                 Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     MjText("场次", type.label.copy(fontWeight = FontWeight.SemiBold), colors.ink2)
-                    Spacer(Modifier.weight(1f))
-                    MjText("AI 强度随场次提升", type.caption.copy(fontSize = 9.sp), colors.ink3)
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    for (index in Arenas.indices.take(4)) {
-                        ArenaCard(
-                            index = index,
-                            selected = settings.arenaIndex == index,
-                            modifier = Modifier.weight(1f).height(92.dp),
-                            onClick = {
-                                onChange(
-                                    settings.copy(
-                                        arenaIndex = index,
-                                        aiLevelId = Arenas[index].aiLevel.id,
-                                    ),
-                                )
-                            },
-                        )
+                    Spacer(Modifier.width(10.dp))
+                    Row(
+                        Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        for (index in Arenas.indices.take(4)) {
+                            ArenaChip(
+                                index = index,
+                                selected = settings.arenaIndex == index,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    onChange(
+                                        settings.copy(
+                                            arenaIndex = index,
+                                            aiLevelId = Arenas[index].aiLevel.id,
+                                        ),
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
 
                 Spacer(Modifier.height(10.dp))
-                MjCard(Modifier.weight(1f).fillMaxWidth(), padding = 14.dp) {
-                    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                MjText("人机练习", type.h2, colors.ink)
-                                Spacer(Modifier.width(7.dp))
-                                Badge("本地")
-                                Spacer(Modifier.width(6.dp))
-                                MjText("底分 ${arena.baseScore}", type.caption, colors.ink3)
-                            }
-                            Spacer(Modifier.height(3.dp))
-                            MjText("一位真人 + 三位 AI，完整计番与结算", type.caption, colors.ink3)
-                            Spacer(Modifier.height(10.dp))
+                MjCard(Modifier.weight(1f).fillMaxWidth(), padding = 12.dp) {
+                    Column(Modifier.fillMaxSize()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MjText("人机练习", type.h2, colors.ink)
+                            Spacer(Modifier.width(7.dp))
+                            Badge("本地")
+                            Spacer(Modifier.width(8.dp))
+                            MjText("底分 ${arena.baseScore}", type.caption, colors.ink3)
+                            Spacer(Modifier.weight(1f))
                             Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(MjRadius.small))
                                     .clickable { showLevelSheet = true }
-                                    .padding(vertical = 3.dp),
+                                    .padding(vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                MjIcon(MjIconKind.ROBOT, size = 15.dp, tint = colors.ink3)
-                                Spacer(Modifier.width(6.dp))
-                                MjText("AI 强度", type.caption, colors.ink2)
-                                Spacer(Modifier.width(8.dp))
+                                MjIcon(MjIconKind.ROBOT, size = 14.dp, tint = colors.ink3)
+                                Spacer(Modifier.width(5.dp))
+                                MjText("AI 强度", type.caption.copy(fontSize = 9.sp), colors.ink3)
+                                Spacer(Modifier.width(5.dp))
                                 MjText(levelLabel(settings.aiLevel), type.caption.copy(fontWeight = FontWeight.SemiBold), colors.primaryDeep)
-                                Spacer(Modifier.width(3.dp))
-                                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 13.dp, tint = colors.ink3)
+                                Spacer(Modifier.width(2.dp))
+                                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 12.dp, tint = colors.ink3)
                             }
                         }
-                        Spacer(Modifier.width(16.dp))
-                        Column(Modifier.width(250.dp)) {
-                            PrimaryButton(
-                                label = "开始牌局",
-                                subLabel = "底分 ${arena.baseScore} · ${levelLabel(settings.aiLevel)} AI",
-                                onClick = onQuickStart,
-                                height = 46.dp,
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                GhostButton(
-                                    label = "好友房",
-                                    onClick = onFriendRoom,
-                                    modifier = Modifier.weight(1f),
-                                    height = 38.dp,
-                                )
-                                GhostButton(
-                                    label = "残局",
-                                    onClick = { onToast("残局练习正在准备中") },
-                                    modifier = Modifier.weight(1f),
-                                    height = 38.dp,
-                                )
-                                GhostButton(
-                                    label = "设置",
-                                    onClick = onSettings,
-                                    modifier = Modifier.weight(1f),
-                                    height = 38.dp,
-                                )
-                            }
-                        }
+                        Spacer(Modifier.height(8.dp))
+                        // 主入口：好友房放在开始牌局上方，高度约两倍，用深色底 + 牌面图案强化。
+                        FriendRoomEntry(
+                            onClick = onFriendRoom,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        PrimaryButton(
+                            label = "开始牌局",
+                            subLabel = "底分 ${arena.baseScore} · ${levelLabel(settings.aiLevel)} AI",
+                            onClick = onQuickStart,
+                            height = 44.dp,
+                        )
                     }
                 }
             }
@@ -305,18 +298,115 @@ fun LobbyScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
+
+        if (showRulesSheet) {
+            ModalSheet(onDismiss = { showRulesSheet = false }) {
+                SheetTitle("胡牌牌型与番数", "国标 8 番起和；广东玩法按 2 的番数次方计分")
+                RulesSection(
+                    "国标常见番种",
+                    listOf(
+                        "88 番" to "十三幺、大三元、大四喜、绿一色、九莲宝灯",
+                        "64 番" to "清幺九、字一色、小四喜、小三元",
+                        "24 番" to "七对、清一色",
+                        "6 番" to "碰碰和、混一色",
+                        "2 番" to "平和、断幺",
+                        "1 番" to "自摸、花牌（每张）",
+                    ),
+                )
+                Spacer(Modifier.height(12.dp))
+                RulesSection(
+                    "推倒胡 / 鸡平胡",
+                    listOf(
+                        "1 番" to "平胡",
+                        "2 番" to "碰碰胡、混一色、七对",
+                        "4 番" to "清一色、混碰、清一色七对",
+                        "5 番" to "清碰、小四喜、小三元、混幺九",
+                        "6 番" to "十三幺、九莲宝灯、连七对、字一色、大三元、大四喜",
+                        "加番" to "自摸 +1 番",
+                    ),
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+/** 好友房主入口：深色渐变底 + 右侧牌面图案，比「开始牌局」高一倍。 */
+@Composable
+private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(MjRadius.card))
+            .background(Brush.horizontalGradient(listOf(colors.primary, colors.primaryDeep)))
+            .clickable { onClick() },
+    ) {
+        Row(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            listOf(4, 13, 22).forEach { MjTile(it, width = 30.dp) }
+        }
+        Column(
+            Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 16.dp, end = 130.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MjText("好友房", type.h1, colors.onPrimary, maxLines = 1)
+                Spacer(Modifier.width(8.dp))
+                MjIcon(MjIconKind.CHEVRON_RIGHT, size = 18.dp, tint = colors.onPrimary.copy(alpha = 0.85f))
+            }
+            Spacer(Modifier.height(3.dp))
+            MjText(
+                "局域网四人同桌 · 房号邀请",
+                type.caption,
+                colors.onPrimary.copy(alpha = 0.78f),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+/** 番数说明里的一组牌型。 */
+@Composable
+private fun RulesSection(title: String, rows: List<Pair<String, String>>) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    MjText(title, type.label.copy(fontWeight = FontWeight.SemiBold), colors.ink2)
+    Spacer(Modifier.height(6.dp))
+    rows.forEachIndexed { index, row ->
+        if (index > 0) Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.Top) {
+            Box(
+                Modifier
+                    .width(46.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colors.primarySoft)
+                    .padding(vertical = 2.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                MjText(row.first, type.caption.copy(fontSize = 9.sp), colors.primaryDeep, maxLines = 1)
+            }
+            Spacer(Modifier.width(10.dp))
+            MjText(row.second, type.caption, colors.ink2, modifier = Modifier.weight(1f))
+        }
     }
 }
 
 /** 主页的牌桌缩略预览：木边 + 绒面 + 三张牌，让主题在进入牌桌之前就可见。 */
 @Composable
-private fun TablePreview() {
+private fun TablePreview(modifier: Modifier = Modifier) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
-            .height(104.dp)
+            .heightIn(min = 96.dp)
             .clip(RoundedCornerShape(18.dp))
             .drawTableFelt(colors)
             .border(1.dp, colors.tableGold.copy(alpha = 0.30f), RoundedCornerShape(18.dp)),
@@ -352,7 +442,7 @@ private fun RuleSummary(label: String, value: String) {
 }
 
 @Composable
-private fun ArenaCard(
+private fun ArenaChip(
     index: Int,
     selected: Boolean,
     modifier: Modifier = Modifier,
@@ -361,56 +451,53 @@ private fun ArenaCard(
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     val arena = Arenas[index]
-    Column(
+    Row(
         modifier = modifier
-            .clip(RoundedCornerShape(MjRadius.card))
+            .height(44.dp)
+            .clip(RoundedCornerShape(MjRadius.control))
             .background(if (selected) colors.primarySoft else colors.surface)
             .border(
                 if (selected) 1.5.dp else 1.dp,
                 if (selected) colors.primary else colors.line,
-                RoundedCornerShape(MjRadius.card),
+                RoundedCornerShape(MjRadius.control),
             )
             .clickable { onClick() }
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MjText(arena.name, type.caption.copy(fontWeight = FontWeight.SemiBold), if (selected) colors.primaryDeep else colors.ink2, maxLines = 1)
-            Spacer(Modifier.weight(1f))
-            if (selected) {
-                Box(
-                    Modifier
-                        .size(6.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(colors.primary),
+        Column {
+            MjText(
+                arena.name,
+                type.caption.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                if (selected) colors.primaryDeep else colors.ink2,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(1.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                MjText(
+                    arena.baseScore.toString(),
+                    type.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                    if (selected) colors.primaryDeep else colors.ink,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(2.dp))
+                MjText(
+                    "分底",
+                    type.caption.copy(fontSize = 8.sp),
+                    colors.ink3,
+                    modifier = Modifier.padding(bottom = 1.dp),
+                    maxLines = 1,
                 )
             }
-        }
-        Spacer(Modifier.height(3.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            MjText(arena.baseScore.toString(), type.h2, if (selected) colors.primaryDeep else colors.ink)
-            Spacer(Modifier.width(3.dp))
-            MjText("分底", type.caption.copy(fontSize = 8.sp), colors.ink3, modifier = Modifier.padding(bottom = 3.dp))
         }
         Spacer(Modifier.weight(1f))
-        MjText(arena.entrance, type.caption.copy(fontSize = 8.sp), colors.ink3, maxLines = 1)
-        Spacer(Modifier.height(5.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            val filled = index + 1
-            for (i in 0 until 4) {
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(
-                            if (i < filled) {
-                                if (selected) colors.primary else colors.ink3.copy(alpha = 0.55f)
-                            } else {
-                                colors.line
-                            },
-                        ),
-                )
-            }
+        if (selected) {
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(colors.primary),
+            )
         }
     }
 }

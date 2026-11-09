@@ -104,6 +104,8 @@ data class RoomClosedView(val reason: String)
 data class ReconnectBody(
     val resumeToken: String,
     val lastSseq: Long = 0,
+    /** 令牌失效时的兜底座位号（-1 表示未知）；配合设备 ID 与离线时长做回座校验。 */
+    val seat: Int = -1,
 )
 
 @Serializable

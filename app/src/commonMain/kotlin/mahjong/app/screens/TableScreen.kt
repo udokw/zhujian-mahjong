@@ -407,12 +407,6 @@ private fun LandscapeHud(
                 maxLines = 1,
             )
             Spacer(Modifier.weight(1f))
-            MjText(
-                "余 ${table.wallRemaining}",
-                type.caption.copy(fontSize = 10.sp),
-                colors.onTable2,
-                maxLines = 1,
-            )
             if (onToggleTing != null) {
                 Spacer(Modifier.width(8.dp))
                 HudChip(
@@ -611,6 +605,10 @@ private fun TopSeat(
                     Spacer(Modifier.width(4.dp))
                     TingMark()
                 }
+                if (!seat.online) {
+                    Spacer(Modifier.width(4.dp))
+                    MjText("掉线", type.caption.copy(fontSize = 9.sp), colors.red, maxLines = 1)
+                }
             }
         }
         Spacer(Modifier.width(8.dp))
@@ -710,6 +708,10 @@ private fun SeatTag(seat: SeatUi, isCurrent: Boolean, cardW: Dp, compact: Boolea
         if (seat.tingLocked) {
             Spacer(Modifier.height(2.dp))
             TingMark()
+        }
+        if (!seat.online) {
+            Spacer(Modifier.height(1.dp))
+            MjText("掉线", type.caption.copy(fontSize = 8.sp), colors.red, maxLines = 1)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             WindDot(seat.seatWind, isCurrent, small = true)

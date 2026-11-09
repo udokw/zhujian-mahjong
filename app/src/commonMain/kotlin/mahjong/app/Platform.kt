@@ -18,3 +18,9 @@ expect fun platformVibrate(strength: Int)
 expect fun platformBeep(volume: Float)
 
 expect fun platformDefaultServerUrl(): String
+
+/** 是否保持屏幕常亮；false 时交给系统超时锁屏（由设置项统一控制）。 */
+expect fun platformSetKeepScreenOn(keepOn: Boolean)
+
+/** 把 epoch 毫秒格式化成展示用的本地时间（战绩列表）。 */
+expect fun platformFormatTime(epochMs: Long): String

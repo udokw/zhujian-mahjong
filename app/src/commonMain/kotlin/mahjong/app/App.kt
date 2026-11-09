@@ -29,6 +29,9 @@ import mahjong.app.audio.platformInitAudio
 import mahjong.app.game.LocalGameSession
 import mahjong.app.game.OnlineGameSession
 import mahjong.app.game.SettlementUi
+import mahjong.app.lan.nowWallMillis
+import mahjong.app.records.GameRecord
+import mahjong.app.records.GameRecordsRepository
 import mahjong.app.screens.LobbyScreen
 import mahjong.app.screens.OnlineScreen
 import mahjong.app.screens.RecordsScreen
@@ -84,6 +87,31 @@ fun App() {
         }
     }
 
+    /** 每局结束写一条本机战绩；人机与好友房共用同一份本地存储。 */
+    fun recordSettlement(ui: SettlementUi, online: Boolean) {
+        val me = ui.winners.firstOrNull { it.seat == ui.meSeat }
+        val result = when {
+            ui.draw -> "荒庄"
+            me == null -> "未胡"
+            me.selfDraw -> "自摸"
+            else -> "点炮胡"
+        }
+        val now = nowWallMillis()
+        GameRecordsRepository.add(
+            GameRecord(
+                at = now,
+                time = platformFormatTime(now),
+                mode = if (online) "好友房" else "人机",
+                rule = ui.modeLabel,
+                won = me != null && !ui.draw,
+                draw = ui.draw,
+                fan = me?.totalFan ?: 0,
+                delta = ui.deltas.getOrElse(ui.meSeat) { 0 },
+                result = result,
+            )
+        )
+    }
+
     fun startLocal(metaSnapshot: GameMeta) {
         val arena = Arenas[settings.arenaIndex.coerceIn(0, Arenas.lastIndex)]
         val base = settings.ruleConfig()
@@ -111,6 +139,7 @@ fun App() {
             scope = scope,
             settings = { settings },
             onFinished = { ui ->
+                recordSettlement(ui, online = false)
                 settlement = ui
                 screen = Screen.SETTLEMENT
             },
@@ -151,6 +180,7 @@ fun App() {
             scope = scope,
             settings = { settings },
             onSettlement = { ui ->
+                recordSettlement(ui, online = true)
                 settlementOnline = true
                 settlement = ui
                 screen = Screen.SETTLEMENT
@@ -190,7 +220,17 @@ fun App() {
         // 在启动页期间预加载敲桌音效与 34 种牌名语音，进入牌桌即可用。
         platformInitAudio()
         delay(1_350)
-        if (screen == Screen.SPLASH) screen = Screen.LOBBY
+        if (screen == Screen.SPLASH) {
+            // 冷启动（含 iOS 被系统回收后重进）：有上次座位就直接回好友房并尝试回座，
+            // 而不是先落到大厅；回座失败会由会话层提示并退回大厅。
+            val online = ensureOnlineSession()
+            if (online.hasSavedSeat) {
+                screen = Screen.ONLINE
+                online.resumeSaved()
+            } else {
+                screen = Screen.LOBBY
+            }
+        }
     }
 
     // 设置里的音效开关/音量/报牌音色直接同步给播放层，UI 按钮无需再逐处传参。
@@ -211,6 +251,11 @@ fun App() {
             seatPrefs = settings.seatVoiceIds,
             seatPrefsEnabled = seatVoiceEnabled,
         )
+    }
+
+    // 亮屏策略：默认全程保持亮屏；用户打开「允许超时锁屏」后交还系统。
+    LaunchedEffect(settings.allowScreenOff) {
+        platformSetKeepScreenOn(!settings.allowScreenOff)
     }
 
     LaunchedEffect(screen, onlineSession?.table) {

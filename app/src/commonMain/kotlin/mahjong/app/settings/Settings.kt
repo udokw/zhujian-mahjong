@@ -48,6 +48,8 @@ data class AppSettings(
     val baoPai: Boolean = true,
     val hintHu: Boolean = true,
     val showTing: Boolean = true,
+    /** true = 允许系统按超时锁屏；默认 false，全程保持亮屏。 */
+    val allowScreenOff: Boolean = false,
     val nickname: String = "林知远",
     val serverUrl: String = "",
     val arenaIndex: Int = 0,
