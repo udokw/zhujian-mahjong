@@ -413,17 +413,19 @@ private fun FriendRoomEntry(onClick: () -> Unit, modifier: Modifier = Modifier) 
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            MjText("好友房", type.h2, colors.primaryDeep, maxLines = 1)
-            Spacer(Modifier.width(6.dp))
-            MjIcon(MjIconKind.CHEVRON_RIGHT, size = 15.dp, tint = colors.primaryDeep.copy(alpha = 0.75f))
+            MjText("好友房", type.h1.copy(fontSize = 24.sp), colors.primaryDeep, maxLines = 1)
+            Spacer(Modifier.width(8.dp))
+            MjIcon(MjIconKind.CHEVRON_RIGHT, size = 18.dp, tint = colors.primaryDeep.copy(alpha = 0.75f))
         }
-        Spacer(Modifier.height(3.dp))
+        Spacer(Modifier.height(5.dp))
         MjText(
             "局域网四人同桌 · 房号邀请",
-            type.caption.copy(fontSize = 9.sp),
-            colors.primaryDeep.copy(alpha = 0.66f),
+            type.caption,
+            colors.primaryDeep.copy(alpha = 0.7f),
             maxLines = 1,
         )
+        // 标题块整体加高约一行牌组，向上贴近效果图的比例。
+        Spacer(Modifier.height(14.dp))
         Spacer(Modifier.weight(1f))
         // 三行示例牌型：十三幺 / 大三元 / 大四喜，按卡片实际宽度均分牌宽。
         BoxWithConstraints(Modifier.fillMaxWidth()) {

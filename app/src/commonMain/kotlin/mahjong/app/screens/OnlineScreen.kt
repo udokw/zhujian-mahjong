@@ -123,57 +123,6 @@ fun OnlineScreen(
 
     Box(Modifier.fillMaxSize().background(colors.bg)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onBack() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MjIcon(MjIconKind.BACK, size = 18.dp, tint = colors.ink2)
-                }
-                Spacer(Modifier.weight(1f))
-                // 联机状态做成轻量指示，放在设置图标左侧；点击才展开说明。
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable { showLanHint = !showLanHint }
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        Modifier
-                            .size(6.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(statusDotColor(session.status, colors)),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    MjText(
-                        statusLabel(session.status),
-                        type.caption.copy(fontSize = 10.sp),
-                        colors.ink2,
-                        maxLines = 1,
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onSettings() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MjIcon(MjIconKind.GEAR, size = 17.dp, tint = colors.ink2)
-                }
-            }
-
             AnimatedVisibility(visible = showLanHint) {
                 Row(
                     Modifier
@@ -205,13 +154,14 @@ fun OnlineScreen(
                 }
             }
 
-            // 标题区固定在顶部中心，不参与下方容器的滚动。
-            Column(
+            // 顶部固定区：牌 + 标题 + 副标题整组居中，返回/状态/设置同排贴边；
+            // 整块贴住上沿只留极小边距，副标题后立刻接下方容器（对齐 iOS 效果图）。
+            Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = MjSpace.page),
+                    .padding(horizontal = 10.dp)
+                    .padding(top = 2.dp),
             ) {
-                Spacer(Modifier.height(6.dp))
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -224,7 +174,7 @@ fun OnlineScreen(
                     ) {
                         listOf(18, 5, 17).forEach { MjTile(it, width = 16.dp) }
                     }
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(14.dp))
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         MjText(
                             if (room != null) "房间 ${room.room}" else "好友房",
@@ -232,7 +182,7 @@ fun OnlineScreen(
                             colors.ink,
                             maxLines = 1,
                         )
-                        Spacer(Modifier.height(3.dp))
+                        Spacer(Modifier.height(1.dp))
                         MjText(
                             if (room != null) "邀请好友，空位由 AI 补齐" else "创建或加入房间，四人一桌",
                             type.caption,
@@ -240,7 +190,7 @@ fun OnlineScreen(
                             maxLines = 1,
                         )
                     }
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(14.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(3.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -248,9 +198,56 @@ fun OnlineScreen(
                         listOf(31, 32, 33).forEach { MjTile(it, width = 16.dp) }
                     }
                 }
-
-                Spacer(Modifier.height(12.dp))
+                Box(
+                    Modifier
+                        .size(34.dp)
+                        .align(Alignment.CenterStart)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onBack() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MjIcon(MjIconKind.BACK, size = 18.dp, tint = colors.ink2)
+                }
+                Row(
+                    Modifier.align(Alignment.CenterEnd),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // 联机状态做成轻量指示，点击才展开说明。
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable { showLanHint = !showLanHint }
+                            .padding(horizontal = 6.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(6.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(statusDotColor(session.status, colors)),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        MjText(
+                            statusLabel(session.status),
+                            type.caption.copy(fontSize = 10.sp),
+                            colors.ink2,
+                            maxLines = 1,
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onSettings() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        MjIcon(MjIconKind.GEAR, size = 17.dp, tint = colors.ink2)
+                    }
+                }
             }
+
+            Spacer(Modifier.height(4.dp))
 
             // 下方两个容器独立滚动。
             Column(
