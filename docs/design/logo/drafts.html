@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>竹间麻将 · Logo 三方向初稿</title>
+<style>
+  :root{
+    --paper:#F3EEE3; --card:#FCFAF3; --line:#DCD2BD;
+    --ink:#2B2519; --ink-2:#564D3B; --ink-3:#7A7159;
+    --jade:#1F6B52; --jade-deep:#144C3A; --table3:#174337;
+    --gold:#8A6420; --gold-2:#C9A227; --gold-hi:#E8C97A;
+    --seal:#B23A32;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    width:1720px; padding:44px 48px 36px;
+    background:var(--paper); color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .eyebrow{font-size:13px;letter-spacing:.22em;color:var(--ink-3);font-weight:600}
+  h1{font-size:40px;line-height:1.15;font-weight:700;letter-spacing:.02em;margin-top:10px}
+  h1 .thin{font-weight:400;color:var(--ink-2);font-size:30px}
+  .lede{margin-top:12px;font-size:15px;line-height:1.85;color:var(--ink-2);max-width:1100px}
+  .meta{margin-top:18px;display:flex;gap:22px;align-items:center;font-size:12px;color:var(--ink-3);letter-spacing:.04em}
+  .swatches{display:flex;gap:8px;margin-left:auto}
+  .sw{width:44px;height:26px;border-radius:5px;border:1px solid rgba(0,0,0,.10)}
+  .rule{height:1px;background:var(--line);margin:28px 0 24px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px 24px 20px;display:flex;flex-direction:column}
+  .card-head{display:flex;align-items:baseline;gap:12px}
+  .idx{font-size:12px;font-weight:700;letter-spacing:.06em;color:#fff;background:var(--jade);border-radius:7px;padding:4px 9px 5px}
+  .card-head .kind{font-size:12px;letter-spacing:.14em;color:var(--ink-3);font-weight:600}
+  .name{font-size:25px;line-height:1.3;font-weight:700;margin-top:10px}
+  .sub{font-size:12.5px;color:var(--ink-3);margin-top:3px;letter-spacing:.04em}
+  .stage{margin-top:16px;display:flex;gap:20px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:16px 18px}
+  .stage .mark{flex:0 0 auto;line-height:0}
+  .stage .note{font-size:12.5px;line-height:1.9;color:var(--ink-2)}
+  .stage .note b{display:block;color:var(--ink);font-size:13px;margin-bottom:5px}
+  .idea{margin-top:14px;font-size:13px;line-height:1.9;color:var(--ink-2)}
+  .idea strong{color:var(--ink);font-weight:650}
+  .idea .k{color:var(--jade);font-weight:650}
+  .sizes{margin-top:auto;padding-top:16px}
+  .sizes .cap{font-size:11px;letter-spacing:.16em;color:var(--ink-3);margin-bottom:10px;font-weight:600}
+  .ladder{display:flex;align-items:flex-end;gap:16px}
+  .ladder figure{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .ladder figcaption{font-size:10px;color:var(--ink-3)}
+  .darkbar{margin-top:14px;background:var(--table3);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:14px}
+  .darkbar .tl{font-size:10.5px;color:#B9CEC4;letter-spacing:.12em;margin-right:auto}
+  .darkbar figure{display:flex;align-items:center;gap:6px}
+  .darkbar figcaption{font-size:10px;color:#8FA99C}
+  .verdict{margin-top:14px;font-size:12px;line-height:1.75;color:var(--ink-2);border-top:1px solid var(--line);padding-top:11px}
+  .verdict span{color:var(--ink);font-weight:650}
+  footer{margin-top:26px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:16px}
+  footer b{color:var(--ink-2);font-weight:650}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- A · 竹字牌 -->
+  <symbol id="markA" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#174337"/>
+    <g transform="translate(256,256) scale(1.06) translate(-256,-270)">
+      <g stroke="#F3EEE3" stroke-linecap="round" fill="none">
+        <path d="M210 164 L146 240" stroke-width="32"/>
+        <path d="M146 256 L244 256" stroke-width="32"/>
+        <path d="M218 256 L218 372 Q 218 392 240 392" stroke-width="38"/>
+        <path d="M334 136 L270 214" stroke-width="32"/>
+        <path d="M270 230 L370 230" stroke-width="32"/>
+        <path d="M344 230 L344 384 Q 344 404 366 404" stroke-width="42"/>
+      </g>
+      <circle cx="283" cy="352" r="15" fill="#E8C97A"/>
+    </g>
+  </symbol>
+  <!-- A 反白版（宣纸底 / 玉色字） -->
+  <symbol id="markA-light" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#F3EEE3"/>
+    <g transform="translate(256,256) scale(1.06) translate(-256,-270)">
+      <g stroke="#174337" stroke-linecap="round" fill="none">
+        <path d="M210 164 L146 240" stroke-width="32"/>
+        <path d="M146 256 L244 256" stroke-width="32"/>
+        <path d="M218 256 L218 372 Q 218 392 240 392" stroke-width="38"/>
+        <path d="M334 136 L270 214" stroke-width="32"/>
+        <path d="M270 230 L370 230" stroke-width="32"/>
+        <path d="M344 230 L344 384 Q 344 404 366 404" stroke-width="42"/>
+      </g>
+      <circle cx="283" cy="352" r="15" fill="#C9A227"/>
+    </g>
+  </symbol>
+  <symbol id="markA-jade" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#F3EEE3"/>
+    <g transform="translate(256,256) scale(1.06) translate(-256,-270)">
+      <g stroke="#1F6B52" stroke-linecap="round" fill="none">
+        <path d="M210 164 L146 240" stroke-width="32"/>
+        <path d="M146 256 L244 256" stroke-width="32"/>
+        <path d="M218 256 L218 372 Q 218 392 240 392" stroke-width="38"/>
+        <path d="M334 136 L270 214" stroke-width="32"/>
+        <path d="M270 230 L370 230" stroke-width="32"/>
+        <path d="M344 230 L344 384 Q 344 404 366 404" stroke-width="42"/>
+      </g>
+      <circle cx="283" cy="352" r="15" fill="#C9A227"/>
+    </g>
+  </symbol>
+
+  <!-- B · 节节有牌 -->
+  <symbol id="markB" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#174337"/>
+    <rect x="150" y="70" width="212" height="372" rx="28" fill="#F6F1E7"/>
+    <rect x="150" y="70" width="212" height="372" rx="28" fill="none" stroke="#D8CDB8" stroke-width="2"/>
+    <rect x="172" y="92" width="168" height="328" rx="14" fill="none" stroke="#D8CDB8" stroke-width="1.6" opacity=".7"/>
+    <path d="M262 172 C 296 150 332 150 350 162 C 320 182 288 186 262 172 Z" fill="#1F6B52"/>
+    <path d="M248 190 C 214 170 180 174 162 188 C 192 204 224 204 248 190 Z" fill="#1F6B52"/>
+    <rect x="238" y="150" width="36" height="240" rx="18" fill="#1F6B52"/>
+    <rect x="231" y="204" width="50" height="9" rx="4.5" fill="#E8C97A"/>
+    <rect x="231" y="266" width="50" height="9" rx="4.5" fill="#E8C97A"/>
+    <rect x="231" y="328" width="50" height="9" rx="4.5" fill="#E8C97A"/>
+  </symbol>
+  <symbol id="markB-dark" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#F3EEE3"/>
+    <rect x="150" y="70" width="212" height="372" rx="28" fill="#174337"/>
+    <path d="M262 172 C 296 150 332 150 350 162 C 320 182 288 186 262 172 Z" fill="#F3EEE3"/>
+    <path d="M248 190 C 214 170 180 174 162 188 C 192 204 224 204 248 190 Z" fill="#F3EEE3"/>
+    <rect x="238" y="150" width="36" height="240" rx="18" fill="#F3EEE3"/>
+    <rect x="231" y="204" width="50" height="9" rx="4.5" fill="#C9A227"/>
+    <rect x="231" y="266" width="50" height="9" rx="4.5" fill="#C9A227"/>
+    <rect x="231" y="328" width="50" height="9" rx="4.5" fill="#C9A227"/>
+  </symbol>
+  <symbol id="markB-jade" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#F3EEE3"/>
+    <rect x="150" y="70" width="212" height="372" rx="28" fill="#1F6B52"/>
+    <path d="M262 172 C 296 150 332 150 350 162 C 320 182 288 186 262 172 Z" fill="#F3EEE3"/>
+    <path d="M248 190 C 214 170 180 174 162 188 C 192 204 224 204 248 190 Z" fill="#F3EEE3"/>
+    <rect x="238" y="150" width="36" height="240" rx="18" fill="#F3EEE3"/>
+    <rect x="231" y="204" width="50" height="9" rx="4.5" fill="#C9A227"/>
+    <rect x="231" y="266" width="50" height="9" rx="4.5" fill="#C9A227"/>
+    <rect x="231" y="328" width="50" height="9" rx="4.5" fill="#C9A227"/>
+  </symbol>
+
+  <!-- C · 竹间印 -->
+  <symbol id="markC" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#B23A32"/>
+    <rect x="58" y="58" width="396" height="396" rx="26" fill="none" stroke="#E8C97A" stroke-width="6" opacity=".9"/>
+    <rect x="84" y="84" width="344" height="344" rx="14" fill="none" stroke="#E8C97A" stroke-width="2" opacity=".5"/>
+    <g transform="translate(256,256) scale(.94) translate(-256,-264)" stroke="#F6F1E7" stroke-linecap="square" fill="none">
+      <path d="M206 168 L148 238" stroke-width="40"/>
+      <path d="M148 254 L240 254" stroke-width="40"/>
+      <path d="M214 254 L214 384" stroke-width="46"/>
+      <path d="M330 142 L272 212" stroke-width="40"/>
+      <path d="M272 228 L364 228" stroke-width="40"/>
+      <path d="M338 228 L338 396" stroke-width="48"/>
+    </g>
+  </symbol>
+  <symbol id="markC-red" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#F3EEE3"/>
+    <rect x="58" y="58" width="396" height="396" rx="26" fill="none" stroke="#B23A32" stroke-width="12"/>
+    <g transform="translate(256,256) scale(.94) translate(-256,-264)" stroke="#B23A32" stroke-linecap="square" fill="none">
+      <path d="M206 168 L148 238" stroke-width="40"/>
+      <path d="M148 254 L240 254" stroke-width="40"/>
+      <path d="M214 254 L214 384" stroke-width="46"/>
+      <path d="M330 142 L272 212" stroke-width="40"/>
+      <path d="M272 228 L364 228" stroke-width="40"/>
+      <path d="M338 228 L338 396" stroke-width="48"/>
+    </g>
+  </symbol>
+  <symbol id="markC-jade" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="#F3EEE3"/>
+    <rect x="58" y="58" width="396" height="396" rx="26" fill="none" stroke="#174337" stroke-width="12"/>
+    <g transform="translate(256,256) scale(.94) translate(-256,-264)" stroke="#174337" stroke-linecap="square" fill="none">
+      <path d="M206 168 L148 238" stroke-width="40"/>
+      <path d="M148 254 L240 254" stroke-width="40"/>
+      <path d="M210 254 L210 384" stroke-width="46"/>
+      <path d="M334 142 L276 212" stroke-width="40"/>
+      <path d="M276 228 L368 228" stroke-width="40"/>
+      <path d="M338 228 L338 396" stroke-width="48"/>
+    </g>
+  </symbol>
+</svg>
+
+<div class="eyebrow">竹间麻将 · 视觉识别 / 第一轮</div>
+<h1>Logo 三方向初稿 <span class="thin">— 请先选一个方向，再资产化</span></h1>
+<p class="lede">
+  三个方向共用同一套品牌色（宣纸底 · 玉绿 · 竹节金），差异只落在「形」上：字形、牌面、印章。
+  每个方向都按 24 / 40 / 60 / 120px 的真实像素做了小尺寸验证 —— 缩小后还认得出的才算成立。
+</p>
+<div class="meta">
+  <span>2026-11-09</span><span>v0.1 初稿</span><span>图标 1024 / 512 / 180 / 120 / 60 / 24</span>
+  <span class="swatches">
+    <span class="sw" style="background:#F3EEE3" title="宣纸 #F3EEE3"></span>
+    <span class="sw" style="background:#174337" title="桌绿 #174337"></span>
+    <span class="sw" style="background:#1F6B52" title="玉色 #1F6B52"></span>
+    <span class="sw" style="background:#E8C97A" title="竹节金 #E8C97A"></span>
+    <span class="sw" style="background:#B23A32" title="朱砂 #B23A32"></span>
+  </span>
+</div>
+
+<div class="rule"></div>
+
+<div class="grid">
+
+  <!-- ============ A ============ -->
+  <section class="card">
+    <div class="card-head"><span class="idx">A</span><span class="kind">极简字形向</span></div>
+    <div class="name">「竹」字牌</div>
+    <div class="sub">一个字，就是一桌牌</div>
+
+    <div class="stage">
+      <div class="mark"><svg viewBox="0 0 512 512" width="190" height="190"><use href="#markA"/></svg></div>
+      <div class="note">
+        <b>字形即标识</b>
+        不做图形，把「竹」重写成六笔：两撇起势、两横穿过、两竖带钩落地。笔画端头切圆，起收干净。
+      </div>
+    </div>
+
+    <p class="idea">
+      把「竹」当字形来设计，而不是排字。<strong>左低右高</strong>保留手写气，圆头笔画把锋利感收掉，落在玉绿底上就是一个安静的落款。
+      两竿之间的那粒<span class="k">竹节金</span>是「间」—— 竹之间，也是牌面上的那一点。
+      24px 时六笔并成两道竖节奏，仍是一个字。
+    </p>
+
+    <div class="sizes">
+      <div class="cap">真实尺寸验证</div>
+      <div class="ladder">
+        <figure><svg viewBox="0 0 512 512" width="120" height="120"><use href="#markA"/></svg><figcaption>120</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="60" height="60"><use href="#markA"/></svg><figcaption>60</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="40" height="40"><use href="#markA"/></svg><figcaption>40</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="24" height="24"><use href="#markA"/></svg><figcaption>24</figcaption></figure>
+      </div>
+      <div class="darkbar">
+        <span class="tl">浅底 / 玉色</span>
+        <figure><svg viewBox="0 0 512 512" width="44" height="44"><use href="#markA-light"/></svg><figcaption>宣纸底</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="44" height="44"><use href="#markA-jade"/></svg><figcaption>玉色版</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="verdict"><span>小尺寸判定：</span>24px 仍是一个可读的单字，三版里最稳；文化暗示最弱，靠配色补「中式」。</div>
+  </section>
+
+  <!-- ============ B ============ -->
+  <section class="card">
+    <div class="card-head"><span class="idx" style="background:var(--jade-deep)">B</span><span class="kind">竹节牌面向</span></div>
+    <div class="name">节节有牌</div>
+    <div class="sub">一张牌，立成一竿竹</div>
+
+    <div class="stage">
+      <div class="mark"><svg viewBox="0 0 512 512" width="190" height="190"><use href="#markB"/></svg></div>
+      <div class="note">
+        <b>牌形即轮廓</b>
+        直接画一张立着的牌：象牙牌面、双线牌框，牌面上长出一竿三节的竹，顶上一双竹叶。
+      </div>
+    </div>
+
+    <p class="idea">
+      「竹」与「牌」在这里是<strong>同一个东西</strong>：牌框给麻将，竿与节给竹子，三节对应「竹间」的节奏。
+      竖长方外轮廓是三个方向里<strong>剪影最容易被记住</strong>的，也是唯一自带「这是一张麻将牌」的一版。
+      金只用在竹节上，像节上结的霜。
+    </p>
+
+    <div class="sizes">
+      <div class="cap">真实尺寸验证</div>
+      <div class="ladder">
+        <figure><svg viewBox="0 0 512 512" width="120" height="120"><use href="#markB"/></svg><figcaption>120</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="60" height="60"><use href="#markB"/></svg><figcaption>60</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="40" height="40"><use href="#markB"/></svg><figcaption>40</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="24" height="24"><use href="#markB"/></svg><figcaption>24</figcaption></figure>
+      </div>
+      <div class="darkbar">
+        <span class="tl">浅底 / 玉色</span>
+        <figure><svg viewBox="0 0 512 512" width="44" height="44"><use href="#markB-dark"/></svg><figcaption>宣纸底</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="44" height="44"><use href="#markB-jade"/></svg><figcaption>玉色版</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="verdict"><span>小尺寸判定：</span>竖长方剪影最抢眼，24px 仍能看出「一张牌」；双框与竹叶会自然丢失，属可接受的老化。</div>
+  </section>
+
+  <!-- ============ C ============ -->
+  <section class="card">
+    <div class="card-head"><span class="idx" style="background:var(--seal)">C</span><span class="kind">印章纹样向</span></div>
+    <div class="name">竹间印</div>
+    <div class="sub">一方朱印，压在桌上</div>
+
+    <div class="stage">
+      <div class="mark"><svg viewBox="0 0 512 512" width="190" height="190"><use href="#markC"/></svg></div>
+      <div class="note">
+        <b>印即东方</b>
+        朱砂方印 + 双道金边，阴文「竹」，方折收笔。印自带「落款、署名、私房牌局」的意味。
+      </div>
+    </div>
+
+    <p class="idea">
+      中式识别里最省力的一招：<strong>红方印本身就是记忆点</strong>，不依赖任何细节。
+      双线金框把「一块红」拉成「一方印」，阴文方折收笔才是刻出来的味道。
+      它是三版里<strong>最不像工具 App、最像一款有来处的产品</strong>的。
+    </p>
+
+    <div class="sizes">
+      <div class="cap">真实尺寸验证</div>
+      <div class="ladder">
+        <figure><svg viewBox="0 0 512 512" width="120" height="120"><use href="#markC"/></svg><figcaption>120</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="60" height="60"><use href="#markC"/></svg><figcaption>60</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="40" height="40"><use href="#markC"/></svg><figcaption>40</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="24" height="24"><use href="#markC"/></svg><figcaption>24</figcaption></figure>
+      </div>
+      <div class="darkbar">
+        <span class="tl">浅底 / 单色</span>
+        <figure><svg viewBox="0 0 512 512" width="44" height="44"><use href="#markC-red"/></svg><figcaption>朱砂线</figcaption></figure>
+        <figure><svg viewBox="0 0 512 512" width="44" height="44"><use href="#markC-jade"/></svg><figcaption>玉绿线</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="verdict"><span>小尺寸判定：</span>红方块 24px 依旧扎眼，字最先糊；靠「红 + 金边」撑识别，不靠笔画。</div>
+  </section>
+
+</div>
+
+<footer>
+  <span>三版共用品牌色，差异只在形。选定后交付：<b>SVG 矢量源 + 1024/512/180/120/60/24 PNG + 用法说明</b></span>
+  <span>竹间麻将 · Logo v0.1</span>
+</footer>
+
+</body>
+</html>

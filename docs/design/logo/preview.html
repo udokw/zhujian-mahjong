@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>竹间麻将 · App 图标最终资产</title>
+<style>
+  :root{--paper:#F3EEE3;--card:#FCFAF3;--line:#DCD2BD;--ink:#2B2519;--ink2:#564D3B;--ink3:#7A7159;--jade:#1F6B52;--table3:#174337;--gold:#8A6420}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:1220px;background:var(--paper);color:var(--ink);font-family:"PingFang SC","Microsoft YaHei",sans-serif;padding:40px 44px 32px}
+  .eyebrow{font-size:12px;letter-spacing:.22em;color:var(--ink3);font-weight:600}
+  h1{font-size:32px;font-weight:700;margin-top:8px;letter-spacing:.02em}
+  h1 span{font-weight:400;color:var(--ink2);font-size:22px}
+  .row{display:flex;gap:20px;margin-top:26px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .panel.light{background:#FCFAF3}
+  .panel.dark{background:#0F141B;border-color:#253040}
+  .panel .cap{font-size:11px;letter-spacing:.14em;color:var(--ink3)}
+  .panel.dark .cap{color:#8B98AA}
+  .specs{flex:1;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:24px 26px}
+  .specs h2{font-size:13px;letter-spacing:.14em;color:var(--ink3);font-weight:600;margin-bottom:12px}
+  .spec{display:flex;justify-content:space-between;font-size:12.5px;line-height:2.05;color:var(--ink2);border-bottom:1px dashed var(--line);padding:2px 0}
+  .spec b{color:var(--ink);font-weight:650}
+  .sw{display:flex;gap:7px;margin-top:14px}
+  .sw i{width:38px;height:26px;border-radius:5px;border:1px solid rgba(0,0,0,.10)}
+  .ladder{display:flex;align-items:flex-end;gap:26px;margin-top:22px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:22px 26px}
+  .ladder figure{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .ladder .cap{font-size:10px;color:var(--ink3)}
+  .ladder .hint{margin-left:auto;font-size:11.5px;color:var(--ink3);max-width:280px;line-height:1.8;text-align:right}
+  footer{margin-top:22px;font-size:11.5px;color:var(--ink3);display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:14px}
+</style></head>
+<body>
+  <div class="eyebrow">竹间麻将 · 视觉识别 / 定稿</div>
+  <h1>App 图标 · 节节有牌 <span>— 方向 B 资产化</span></h1>
+
+  <div class="row">
+    <div class="panel light">
+      <img src="icon-512.png" width="300" height="300" alt="">
+      <span class="cap">浅底（宣纸 #F3EEE3）</span>
+    </div>
+    <div class="panel dark">
+      <img src="icon-512.png" width="300" height="300" alt="">
+      <span class="cap">深底（#0F141B）</span>
+    </div>
+    <div class="specs">
+      <h2>标识构成</h2>
+      <div class="spec"><span>牌形</span><b>竖长方 + 双线牌框</b></div>
+      <div class="spec"><span>竹</span><b>一竿三节 + 双叶</b></div>
+      <div class="spec"><span>安全边距</span><b>9%（≤48/512）</b></div>
+      <div class="spec"><span>最小尺寸</span><b>24px</b></div>
+      <div class="spec"><span>圆角</span><b>系统遮罩，源图不切角</b></div>
+      <div class="spec"><span>交付</span><b>SVG + 1024/512/180/120/60/24</b></div>
+      <div class="sw">
+        <i style="background:#174337"></i><i style="background:#F6F1E7"></i><i style="background:#D8CDB8"></i><i style="background:#1F6B52"></i><i style="background:#E8C97A"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="ladder">
+    <figure><img src="icon-180.png" width="180" height="180" alt=""><span class="cap">180</span></figure>
+    <figure><img src="icon-120.png" width="120" height="120" alt=""><span class="cap">120</span></figure>
+    <figure><img src="icon-60.png" width="60" height="60" alt=""><span class="cap">60</span></figure>
+    <figure><img src="icon-24.png" width="24" height="24" alt=""><span class="cap">24</span></figure>
+    <span class="hint">60px 起牌框内线自然隐去，24px 仍可辨「一张牌 + 一竿竹」。小于 24px 请勿使用位图，改用 SVG。</span>
+  </div>
+
+  <footer><span>满幅方图，圆角由系统遮罩裁切 · 主色 桌绿 #174337</span><span>竹间麻将 · icon v1.0</span></footer>
+</body></html>

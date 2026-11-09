@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="竹间麻将">
+  <title>竹间麻将 · 节节有牌</title>
+  <desc>象牙牌面上的三节竹，竹节金点缀。满幅方图，圆角由系统图标遮罩裁切。</desc>
+
+  <!-- 底：桌绿，满幅出血 -->
+  <rect width="512" height="512" fill="#174337"/>
+
+  <!-- 牌身 -->
+  <rect x="150" y="70" width="212" height="372" rx="28" fill="#F6F1E7"/>
+  <rect x="150" y="70" width="212" height="372" rx="28" fill="none" stroke="#D8CDB8" stroke-width="2"/>
+  <rect x="172" y="92" width="168" height="328" rx="14" fill="none" stroke="#D8CDB8" stroke-width="1.6" opacity=".7"/>
+
+  <!-- 竹叶 -->
+  <path d="M262 172 C 296 150 332 150 350 162 C 320 182 288 186 262 172 Z" fill="#1F6B52"/>
+  <path d="M248 190 C 214 170 180 174 162 188 C 192 204 224 204 248 190 Z" fill="#1F6B52"/>
+
+  <!-- 竹竿与竹节 -->
+  <rect x="238" y="150" width="36" height="240" rx="18" fill="#1F6B52"/>
+  <rect x="231" y="204" width="50" height="9" rx="4.5" fill="#E8C97A"/>
+  <rect x="231" y="266" width="50" height="9" rx="4.5" fill="#E8C97A"/>
+  <rect x="231" y="328" width="50" height="9" rx="4.5" fill="#E8C97A"/>
+</svg>
