@@ -530,6 +530,8 @@ class OnlineGameSession(
                 if (connId == connectionId) {
                     socketRef = null
                     if (!closing && hasSavedSeat) {
+                        // 第一次断线就提示用户：牌桌还停在屏幕上，不提示会让人以为仍在线。
+                        if (reconnectAttempts == 0) onMessage("与房主的连接中断，正在重连…")
                         reconnectAttempts++
                         if (reconnectAttempts <= MAX_RECONNECT_ATTEMPTS) {
                             status = OnlineStatus.CONNECTING
@@ -812,7 +814,8 @@ class OnlineGameSession(
             "seat_granted" -> {
                 val dto = decode(SeatGrantedDto.serializer(), envelope.p) ?: return
                 mySeat = dto.seat
-                awaitingResumeAck = false
+                // 这里不能清 awaitingResumeAck：重连时 seat_granted 先于 sync 到达，
+                // 提前清掉会让 sync 认不出这是重连，"手牌已恢复"提示就永远不出现。
                 reconnectAttempts = 0
                 if (envelope.room.isNotBlank()) roomCode = envelope.room
                 if (roomCode.isNotBlank()) {
@@ -848,6 +851,8 @@ class OnlineGameSession(
 
             "sync" -> {
                 val dto = decode(SyncDto.serializer(), envelope.p) ?: return
+                // 这一帧是重连后的快照还是首次入房：只有重连才提示"已恢复"。
+                val resumed = awaitingResumeAck
                 roomCode = dto.room.room
                 room = dto.room
                 autoPlaying = dto.autoPlaying
@@ -858,6 +863,7 @@ class OnlineGameSession(
                 awaitingResumeAck = false
                 reconnectAttempts = 0
                 status = OnlineStatus.CONNECTED
+                if (resumed) onMessage("已重新连上房主，座位与手牌已恢复")
             }
 
             "game_over" -> {
