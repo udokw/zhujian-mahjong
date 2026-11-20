@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.DownloadListener
@@ -66,23 +67,74 @@ actual suspend fun platformReadShareFolder(): FeedResult = withContext(Dispatche
     openPlatformFolder(ensureWebView(activity))
 }
 
+private const val TAG = "UpdateFeed"
+
 /** 打开分享页并进入平台文件夹，返回目录里的文本行。 */
 private suspend fun openPlatformFolder(view: WebView): FeedResult {
-    view.loadUrl(SHARE_URL)
-    val root = awaitText(view, 25_000) { it.contains("文件名") || it.contains("没有分享文件") }
-        ?: return FeedResult.Failed("打开分享页超时，请检查网络后重试。")
-
     val folder = platformUpdateFolder()
-    if (evalScriptSuspending(view, clickByTextJs(folder)) != "ok") {
+
+    // loadUrl 是异步的：上一次检查可能把 WebView 留在某个目录页，这时读到的文本和
+    // 点击都会落在旧文档上（点击返回 ok 但页面没换）。先切空白页把旧文档卸掉。
+    view.loadUrl("about:blank")
+    awaitText(view, 3_000) { it.isBlank() }
+    view.loadUrl(SHARE_URL)
+    Log.d(TAG, "loadUrl $SHARE_URL")
+
+    // 根目录的「文件名/夹」表头先于文件行渲染，必须等文件夹行真正出现再点，否则点击落空。
+    val root = awaitText(view, 25_000) { t -> t.contains("文件名") && t.contains(folder) }
+        ?: return FeedResult.Failed("打开分享页超时，请检查网络后重试。")
+    Log.d(TAG, "root ready: ${oneLine(root)}")
+
+    val clicked = evalScriptSuspending(view, clickByTextJs(folder))
+    Log.d(TAG, "click($folder) => $clicked")
+    if (clicked != "ok") {
         return FeedResult.Failed("分享页里没找到「$folder」文件夹，请确认分享结构。")
     }
-    // 进目录后页面会重新渲染：等文本变成「没有分享文件」或出现安装包行。
-    val text = awaitText(view, 20_000) { t ->
-        t != root && (t.contains("没有分享文件") || t.contains(".apk", true) || t.contains(".ipa", true))
-    } ?: return FeedResult.Failed("进入「$folder」文件夹超时，请稍后重试。")
+    val text = awaitFolderListing(view, root)
+        ?: return FeedResult.Failed("进入「$folder」文件夹超时，请稍后重试。")
+    Log.d(TAG, "folder ready: ${oneLine(text)}")
 
     return FeedResult.Ok(text.split('\n'))
 }
+
+/**
+ * 等目录页出结果。
+ *
+ * 进目录后页面还要再请求一次文件列表，存在「骨架屏」中间态；目录也可能是空的。
+ * 因此：出现安装包行立刻返回；没有安装包行时，等文本稳定约 1.8s 就按空目录返回，
+ * 交给上层提示「分享目录里还没有安装包」，而不是一直干等到超时。
+ */
+private suspend fun awaitFolderListing(
+    view: WebView,
+    root: String,
+    timeoutMs: Long = 20_000,
+): String? {
+    val started = System.currentTimeMillis()
+    val deadline = started + timeoutMs
+    var last = ""
+    var stable = 0
+    while (System.currentTimeMillis() < deadline) {
+        val text = evalText(view)
+        if (text.contains(".apk", ignoreCase = true) || text.contains(".ipa", ignoreCase = true)) {
+            return text
+        }
+        if (text.isNotBlank() && text != root && text == last) {
+            stable++
+            if (stable >= 3) {
+                Log.d(TAG, "folder listing settled empty: ${oneLine(text)}")
+                return text
+            }
+        } else {
+            stable = 0
+        }
+        last = text
+        delay(600)
+    }
+    Log.d(TAG, "folder listing timeout, last text: ${oneLine(evalText(view))}")
+    return null
+}
+
+private fun oneLine(text: String): String = text.replace('\n', '|').take(220)
 
 actual suspend fun platformStartUpdateInstall(pkg: RemotePackage): String = withContext(Dispatchers.Main) {
     val activity = PlatformContext.activity
@@ -173,10 +225,13 @@ private suspend fun awaitText(
     timeoutMs: Long,
     predicate: (String) -> Boolean,
 ): String? {
-    val deadline = System.currentTimeMillis() + timeoutMs
+    val started = System.currentTimeMillis()
+    val deadline = started + timeoutMs
     while (System.currentTimeMillis() < deadline) {
         val text = evalText(view)
-        if (predicate(text)) return text
+        val hit = predicate(text)
+        Log.d(TAG, "poll +${System.currentTimeMillis() - started}ms len=${text.length} hit=$hit: ${oneLine(text)}")
+        if (hit) return text
         delay(600)
     }
     return null

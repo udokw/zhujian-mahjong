@@ -69,22 +69,58 @@ actual suspend fun platformReadShareFolder(): FeedResult = withContext(Dispatche
 
 /** 打开分享页并进入平台文件夹，返回目录里的文本行。 */
 private suspend fun openPlatformFolder(view: WKWebView): FeedResult {
+    val folder = platformUpdateFolder()
+
+    // loadRequest 是异步的：上一次检查可能把 WebView 留在目录页，这时读文本和点击
+    // 都落在旧文档上。先切 about:blank 把旧文档卸掉。
+    NSURL.URLWithString("about:blank")?.let {
+        view.loadRequest(NSURLRequest.requestWithURL(it))
+    }
+    awaitText(view, 3) { it.isBlank() }
+
     val url = NSURL.URLWithString(SHARE_URL)
         ?: return FeedResult.Failed("分享地址无效。")
     view.loadRequest(NSURLRequest.requestWithURL(url))
 
-    val root = awaitText(view, 42) { it.contains("文件名") || it.contains("没有分享文件") }
+    // 表头先于文件行渲染，等文件夹行真正出现再点，否则点击落空。
+    val root = awaitText(view, 42) { t -> t.contains("文件名") && t.contains(folder) }
         ?: return FeedResult.Failed("打开分享页超时，请检查网络后重试。")
 
-    val folder = platformUpdateFolder()
     if (evalScript(view, clickByTextJs(folder)) != "ok") {
         return FeedResult.Failed("分享页里没找到「$folder」文件夹，请确认分享结构。")
     }
-    val text = awaitText(view, 34) { t ->
-        t != root && (t.contains("没有分享文件") || t.contains(".apk", true) || t.contains(".ipa", true))
-    } ?: return FeedResult.Failed("进入「$folder」文件夹超时，请稍后重试。")
+    val text = awaitFolderListing(view, root)
+        ?: return FeedResult.Failed("进入「$folder」文件夹超时，请稍后重试。")
 
     return FeedResult.Ok(text.split('\n'))
+}
+
+/**
+ * 等目录页出结果：出现安装包行立刻返回；没有安装包行时，等文本稳定约 1.8s
+ * 按空目录返回，交给上层提示「分享目录里还没有安装包」。
+ */
+private suspend fun awaitFolderListing(
+    view: WKWebView,
+    root: String,
+    attempts: Int = 34,
+): String? {
+    var last = ""
+    var stable = 0
+    repeat(attempts) {
+        val text = evalText(view)
+        if (text.contains(".apk", ignoreCase = true) || text.contains(".ipa", ignoreCase = true)) {
+            return text
+        }
+        if (text.isNotBlank() && text != root && text == last) {
+            stable++
+            if (stable >= 3) return text
+        } else {
+            stable = 0
+        }
+        last = text
+        delay(600)
+    }
+    return null
 }
 
 actual suspend fun platformStartUpdateInstall(pkg: RemotePackage): String = withContext(Dispatchers.Main) {
