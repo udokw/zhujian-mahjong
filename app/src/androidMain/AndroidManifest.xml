@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 应用内更新：下载完 APK 后调起系统安装器 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="true"
@@ -28,6 +30,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 只用于把下载好的 APK 以 content:// 交给系统安装器 -->
+        <provider
+            android:name="mahjong.app.update.ApkProvider"
+            android:authorities="mahjong.app.update"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 
 </manifest>

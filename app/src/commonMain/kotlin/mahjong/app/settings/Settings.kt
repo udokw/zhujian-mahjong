@@ -55,6 +55,8 @@ data class AppSettings(
     val arenaIndex: Int = 0,
     /** 连续对局：每局延续圈风/局数/庄家；关闭则每局回到东风圈第一局。 */
     val continuousRounds: Boolean = true,
+    /** 启动时自动检查网盘分享目录里的新版本；关闭后仍可在设置里手动检查。 */
+    val autoUpdate: Boolean = true,
 ) {
     val aiLevel: AiLevel get() = AiLevel.fromId(aiLevelId) ?: AiLevel.NORMAL
     val preset: RulePreset get() = RulePreset.fromId(rulePresetId) ?: RulePreset.GD_JIPINGHU

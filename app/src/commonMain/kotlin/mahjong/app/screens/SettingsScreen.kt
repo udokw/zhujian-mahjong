@@ -69,6 +69,8 @@ import mahjong.app.ui.MjText
 import mahjong.app.ui.Segmented
 import mahjong.app.ui.SettingRow
 import mahjong.app.ui.SettingsGroup
+import mahjong.app.ui.SmallButton
+import mahjong.app.update.UpdateCenter
 import mahjong.app.util.drawPageBackdrop
 import mahjong.app.util.drawTableFelt
 import mahjong.core.ai.AiLevel
@@ -403,7 +405,33 @@ fun SettingsScreen(
                 MjText("关于", type.label.copy(fontWeight = FontWeight.SemiBold), colors.ink2)
                 Spacer(Modifier.height(8.dp))
                 MjCard {
-                    ChevronRow("版本", "v${platformAppVersion()}") { onToast("当前已是最新版本") }
+                    ChevronRow("版本", "v${platformAppVersion()}") { UpdateCenter.check() }
+                    DividerLine()
+                    SettingRow(
+                        title = "检查更新",
+                        subtitle = UpdateCenter.status.ifBlank { "从网盘分享目录读取最新安装包" },
+                        showDivider = false,
+                        trailing = {
+                            SmallButton(
+                                label = if (UpdateCenter.busy) "检查中" else "检查更新",
+                                enabled = !UpdateCenter.busy,
+                                primary = true,
+                                onClick = { UpdateCenter.check() },
+                            )
+                        },
+                    )
+                    DividerLine()
+                    SettingRow(
+                        title = "自动检查更新",
+                        subtitle = "启动时检查一次，发现新版本弹窗提示",
+                        showDivider = false,
+                        trailing = {
+                            MjSwitch(
+                                settings.autoUpdate,
+                                onChange = { onChange(settings.copy(autoUpdate = it)) },
+                            )
+                        },
+                    )
                     DividerLine()
                     ChevronRow("规则说明", null) { onToast("国标 1998 · 广东推倒胡 · 广东鸡平胡") }
                     DividerLine()

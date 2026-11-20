@@ -50,6 +50,8 @@ import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.MahjongTheme
 import mahjong.app.theme.MjRadius
 import mahjong.app.ui.MjText
+import mahjong.app.update.UpdateCenter
+import mahjong.app.update.UpdatePromptHost
 import mahjong.core.engine.RoundRotation
 import mahjong.core.rules.GameMode
 import mahjong.core.rules.RuleConfig
@@ -329,6 +331,12 @@ fun App() {
         }
     }
 
+    // 更新检查：先绑好 toast 通道，再按开关做一次启动静默检查（只在新版本时弹窗）。
+    LaunchedEffect(Unit) {
+        UpdateCenter.attach(scope) { showToast(it) }
+        UpdateCenter.checkOnStart(settings.autoUpdate)
+    }
+
     MahjongTheme(
         mode = settings.theme,
         skin = settings.skin,
@@ -494,6 +502,9 @@ fun App() {
                     MjText(toast ?: "", type.label, colors.surface2)
                 }
             }
+
+            // 「发现新版本」小对话框：任何界面（含启动后的自动检查）都能弹出来。
+            UpdatePromptHost()
         }
     }
 }
