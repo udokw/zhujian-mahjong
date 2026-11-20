@@ -27,6 +27,8 @@ import platform.Foundation.NSURLSessionTask
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
 import platform.darwin.NSObject
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 import platform.UIKit.UIApplication
 import platform.UIKit.UIWindow
 import platform.WebKit.WKNavigationAction
@@ -54,10 +56,26 @@ private const val API_HOST = "api.feijipan.com"
 
 private const val LOG_PREFIX = "[ZJMJ-Update]"
 
-/** 统一打点：Windows 侧没有 idevicesyslog，真机主要靠 App 内提示与这条日志取证。 */
+/** 最近几条解析日志的内存轨迹：真机没有 syslog 时，拼进失败提示里取证。 */
+private val logCrumbs = ArrayDeque<String>()
+
+/** 统一打点：写系统日志（NSLog），并保留最近几条供失败提示回显。自身绝不抛异常。 */
 private fun iLog(message: String) {
-    NSLog("%@ %@", LOG_PREFIX, message)
+    runCatching {
+        synchronized(logCrumbs) {
+            logCrumbs.addLast(message.take(160))
+            while (logCrumbs.size > 6) logCrumbs.removeFirst()
+        }
+    }
+    NSLog("%@", "$LOG_PREFIX $message")
 }
+
+/** 取证轨迹（最近 4 条，截断），拼进失败提示。自身绝不抛异常。 */
+private fun crumbTrail(): String = runCatching {
+    synchronized(logCrumbs) {
+        logCrumbs.takeLast(4).joinToString(" ｜ ")
+    }
+}.getOrDefault("")
 
 /** 解析结果：成功带 CDN 直链，失败带可读原因（含 HTTP 状态与响应片段）。 */
 private sealed interface ResolveResult {
@@ -174,7 +192,7 @@ actual suspend fun platformStartUpdateInstall(pkg: RemotePackage): String = with
     if (apiUrl.isNullOrBlank()) {
         iLog("capture failed: webview gave no url for ${pkg.fileName}")
         platformOpenSharePage()
-        return@withContext "没能拿到下载链接（页面没有触发下载），已用浏览器打开分享页。"
+        return@withContext "没能拿到下载链接（页面没有触发下载）\n轨迹：${crumbTrail()}\n已用浏览器打开分享页。"
     }
     iLog("captured api url: $apiUrl")
 
@@ -186,7 +204,7 @@ actual suspend fun platformStartUpdateInstall(pkg: RemotePackage): String = with
                 // 兜底：无论如何都不把接口地址交出去。
                 iLog("resolved still api url, abort: ${resolved.url}")
                 platformOpenSharePage()
-                return@withContext "接口没有返回跳转地址，已用浏览器打开分享页。\n接口地址：${clip(apiUrl)}"
+                return@withContext "接口没有返回跳转地址，已用浏览器打开分享页。\n轨迹：${crumbTrail()}\n接口地址：${clip(apiUrl)}"
             }
             iLog("open browser: ${resolved.url}")
             openInBrowser(resolved.url)
@@ -196,7 +214,7 @@ actual suspend fun platformStartUpdateInstall(pkg: RemotePackage): String = with
         is ResolveResult.Failed -> {
             iLog("resolve failed: ${resolved.reason} | api=$apiUrl")
             platformOpenSharePage()
-            "取下载直链失败：${resolved.reason}\n接口地址：${clip(apiUrl)}\n已用浏览器打开分享页。"
+            "取下载直链失败：${resolved.reason}\n轨迹：${crumbTrail()}\n接口地址：${clip(apiUrl)}\n已用浏览器打开分享页。"
         }
     }
 }
@@ -255,16 +273,25 @@ private suspend fun requestOnce(apiUrl: String): ResolveResult {
 
     val request = NSURLRequest.requestWithURL(nsUrl)
 
-    return suspendCancellableCoroutine { cont ->
-        val probe = RedirectProbe(cont)
-        val session = NSURLSession.sessionWithConfiguration(config, probe, NSOperationQueue())
-        probe.session = session
-        val task = session.dataTaskWithRequest(request)
-        cont.invokeOnCancellation {
-            task.cancel()
-            session.invalidateAndCancel()
+    var session: NSURLSession? = null
+    try {
+        return suspendCancellableCoroutine { cont ->
+            val probe = RedirectProbe(cont)
+            val created = NSURLSession.sessionWithConfiguration(config, probe, NSOperationQueue())
+            probe.session = created
+            session = created
+            val task = created.dataTaskWithRequest(request)
+            // 取消时只取消任务；绝不在取消回调里销毁会话（见 finally）。
+            cont.invokeOnCancellation { task.cancel() }
+            task.resume()
         }
-        task.resume()
+    } finally {
+        // 会话必须在网络回调全部出栈之后销毁：挪到主队列异步执行。
+        // 之前把 invalidateAndCancel 放在回调栈里，session 会同步释放 delegate，
+        // probe 对象在自身方法还在执行时就被析构，真机上确定性闪退。
+        session?.let { s ->
+            dispatch_async(dispatch_get_main_queue()) { s.invalidateAndCancel() }
+        }
     }
 }
 
@@ -273,9 +300,11 @@ private suspend fun webCookies(): String {
     val store = web?.configuration?.websiteDataStore?.httpCookieStore ?: return ""
     return suspendCancellableCoroutine { cont ->
         store.getAllCookies { cookies ->
-            val header = cookies.orEmpty()
-                .filterIsInstance<NSHTTPCookie>()
-                .joinToString("; ") { "${it.name}=${it.value}" }
+            val header = runCatching {
+                cookies.orEmpty()
+                    .filterIsInstance<NSHTTPCookie>()
+                    .joinToString("; ") { "${it.name}=${it.value}" }
+            }.getOrDefault("")
             if (cont.isActive) cont.resume(header)
         }
     }
@@ -303,11 +332,17 @@ private class RedirectProbe(
         newRequest: NSURLRequest,
         completionHandler: (NSURLRequest?) -> Unit,
     ) {
-        val target = newRequest.URL?.absoluteString
-        iLog("redirect ${willPerformHTTPRedirection.statusCode} -> $target")
-        if (location == null) location = target
-        // 传 null：不跟随跳转，避免把整个安装包读进内存。
-        completionHandler(null)
+        try {
+            val target = newRequest.URL?.absoluteString
+            iLog("redirect ${willPerformHTTPRedirection.statusCode} -> $target")
+            if (location == null) location = target
+            // 传 null：不跟随跳转，避免把整个安装包读进内存。
+            completionHandler(null)
+        } catch (t: Throwable) {
+            // 异常落进 ObjC 回调会直接杀进程：拦住并兜底调一次 completionHandler。
+            iLog("redirect cb error: ${t.message}")
+            runCatching { completionHandler(null) }
+        }
     }
 
     override fun URLSession(
@@ -315,40 +350,44 @@ private class RedirectProbe(
         dataTask: NSURLSessionDataTask,
         didReceiveData: NSData,
     ) {
-        val http = dataTask.response as? NSHTTPURLResponse
-        if (http != null && statusCode == 0) {
-            statusCode = http.statusCode.toInt()
-            mime = http.MIMEType.orEmpty()
-            iLog("response $statusCode mime=$mime url=${http.URL?.absoluteString}")
-            val header = headerValue(http, "Location")
-            if (!header.isNullOrBlank()) {
-                iLog("location header: $header")
-                location = header
+        try {
+            val http = dataTask.response as? NSHTTPURLResponse
+            if (http != null && statusCode == 0) {
+                statusCode = http.statusCode.toInt()
+                mime = http.MIMEType.orEmpty()
+                iLog("response $statusCode mime=$mime url=${http.URL?.absoluteString}")
+                val header = headerValue(http, "Location")
+                if (!header.isNullOrBlank()) {
+                    iLog("location header: $header")
+                    location = header
+                    dataTask.cancel()
+                    finish(ResolveResult.Ok(absolutize(header, http.URL)))
+                    return
+                }
+            }
+
+            val textLike = mime.isEmpty() ||
+                mime.contains("json", ignoreCase = true) ||
+                mime.contains("text", ignoreCase = true) ||
+                mime.contains("html", ignoreCase = true)
+            if (!textLike) {
+                // 已经是文件响应：只留地址，立即取消，不把安装包读进内存。
+                iLog("file response, cancel: $statusCode $mime")
+                val url = http?.URL?.absoluteString
                 dataTask.cancel()
-                finish(ResolveResult.Ok(absolutize(header, http.URL)))
+                finish(
+                    if (url.isNullOrBlank()) {
+                        ResolveResult.Failed("服务器返回了文件但地址为空")
+                    } else {
+                        ResolveResult.Ok(url)
+                    },
+                )
                 return
             }
+            if (bodyText.length < 64 * 1024) bodyText += didReceiveData.utf8().orEmpty()
+        } catch (t: Throwable) {
+            iLog("data cb error: ${t.message}")
         }
-
-        val textLike = mime.isEmpty() ||
-            mime.contains("json", ignoreCase = true) ||
-            mime.contains("text", ignoreCase = true) ||
-            mime.contains("html", ignoreCase = true)
-        if (!textLike) {
-            // 已经是文件响应：只留地址，立即取消，不把安装包读进内存。
-            iLog("file response, cancel: $statusCode $mime")
-            val url = http?.URL?.absoluteString
-            dataTask.cancel()
-            finish(
-                if (url.isNullOrBlank()) {
-                    ResolveResult.Failed("服务器返回了文件但地址为空")
-                } else {
-                    ResolveResult.Ok(url)
-                },
-            )
-            return
-        }
-        if (bodyText.length < 64 * 1024) bodyText += didReceiveData.utf8().orEmpty()
     }
 
     override fun URLSession(
@@ -357,40 +396,52 @@ private class RedirectProbe(
         didCompleteWithError: NSError?,
     ) {
         if (done) return
-        if (bodyText.isNotBlank()) {
-            iLog("body ${bodyText.length}: ${bodyText.take(240).replace('\n', ' ')}")
-        }
-        if (didCompleteWithError != null && location == null && statusCode == 0) {
-            finish(
-                ResolveResult.Failed(
-                    "请求失败：${didCompleteWithError.localizedDescription}（${didCompleteWithError.code}）"
+        try {
+            if (bodyText.isNotBlank()) {
+                iLog("body ${bodyText.length}: ${bodyText.take(240).replace('\n', ' ')}")
+            }
+            if (didCompleteWithError != null && location == null && statusCode == 0) {
+                finish(
+                    ResolveResult.Failed(
+                        "请求失败：${didCompleteWithError.localizedDescription}（${didCompleteWithError.code}）"
+                    )
                 )
-            )
-            return
-        }
+                return
+            }
 
-        val fromBody = extractUrl(bodyText)
-        if (fromBody != null) iLog("body url: $fromBody")
-        val candidate = fromBody ?: location
-        if (candidate.isNullOrBlank()) {
-            val snippet = bodyText.take(160).replace('\n', ' ')
-            finish(
-                ResolveResult.Failed("接口没有给出跳转地址（HTTP $statusCode，$mime）$snippet")
-            )
-            return
+            val fromBody = extractUrl(bodyText)
+            if (fromBody != null) iLog("body url: $fromBody")
+            val candidate = fromBody ?: location
+            if (candidate.isNullOrBlank()) {
+                val snippet = bodyText.take(160).replace('\n', ' ')
+                finish(
+                    ResolveResult.Failed("接口没有给出跳转地址（HTTP $statusCode，$mime）$snippet")
+                )
+                return
+            }
+            finish(ResolveResult.Ok(absolutize(candidate, task.response?.URL)))
+        } catch (t: Throwable) {
+            iLog("complete cb error: ${t.message}")
+            finish(ResolveResult.Failed("解析下载地址时出错：${t.message}"))
         }
-        finish(ResolveResult.Ok(absolutize(candidate, task.response?.URL)))
     }
 
+    /**
+     * 只恢复协程一次；会话销毁交给 requestOnce 的 finally（回调栈之外）。
+     * 之前在这里 invalidateAndCancel，session 会同步释放 delegate，
+     * probe 在自身方法还在执行时就被析构，真机上确定性闪退。
+     */
     private fun finish(result: ResolveResult) {
         if (done) return
         done = true
         val c = cont
         cont = null
-        val s = session
-        session = null
-        s?.invalidateAndCancel()
-        if (c != null && c.isActive) c.resume(result)
+        if (c == null || !c.isActive) return
+        try {
+            c.resume(result)
+        } catch (t: Throwable) {
+            iLog("resume error: ${t.message}")
+        }
     }
 }
 
@@ -429,8 +480,15 @@ actual fun platformOpenSharePage() {
 }
 
 private fun openInBrowser(url: String) {
-    val nsUrl = NSURL.URLWithString(url) ?: return
-    UIApplication.sharedApplication.openURL(nsUrl, emptyMap<Any?, Any>(), null)
+    val nsUrl = NSURL.URLWithString(url)
+    if (nsUrl == null) {
+        iLog("invalid browser url: $url")
+        return
+    }
+    // openURL 必须在主线程调：显式派发到主队列，不赌协程恢复线程。
+    dispatch_async(dispatch_get_main_queue()) {
+        UIApplication.sharedApplication.openURL(nsUrl, emptyMap<Any?, Any>(), null)
+    }
 }
 
 private fun ensureWebView(): WKWebView {
