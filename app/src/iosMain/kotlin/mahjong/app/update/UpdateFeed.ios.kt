@@ -15,7 +15,6 @@ import platform.Foundation.NSError
 import platform.Foundation.NSHTTPCookie
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSLog
-import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
@@ -236,23 +235,25 @@ private suspend fun resolveFinalUrl(apiUrl: String): ResolveResult {
 private suspend fun requestOnce(apiUrl: String): ResolveResult {
     val nsUrl = NSURL.URLWithString(apiUrl)
         ?: return ResolveResult.Failed("接口地址无效")
-    // ObjC 的类方法在拦截层被推断成 NSURLRequest，运行时实际是可变实例，向下转型即可。
-    val request = NSMutableURLRequest.requestWithURL(nsUrl) as NSMutableURLRequest
-    request.HTTPMethod = "GET"
-    request.timeoutInterval = 15.0
-    request.setValue(DESKTOP_UA, forHTTPHeaderField = "User-Agent")
-    request.setValue("https://share.feijipan.com/", forHTTPHeaderField = "Referer")
-    request.setValue("https://share.feijipan.com", forHTTPHeaderField = "Origin")
-    request.setValue("application/json, text/plain, */*", forHTTPHeaderField = "Accept")
-    val cookie = webCookies()
-    if (cookie.isNotBlank()) {
-        iLog("attach cookies: ${cookie.take(160)}")
-        request.setValue(cookie, forHTTPHeaderField = "Cookie")
-    }
 
+    // 请求头统一挂在会话配置上：NSMutableURLRequest 的可变属性在 Kotlin/Native 里取不到。
     val config = NSURLSessionConfiguration.ephemeralSessionConfiguration()
     config.timeoutIntervalForRequest = 15.0
     config.timeoutIntervalForResource = 20.0
+    val headers = mutableMapOf<Any?, Any?>(
+        "User-Agent" to DESKTOP_UA,
+        "Referer" to "https://share.feijipan.com/",
+        "Origin" to "https://share.feijipan.com",
+        "Accept" to "application/json, text/plain, */*",
+    )
+    val cookie = webCookies()
+    if (cookie.isNotBlank()) {
+        iLog("attach cookies: ${cookie.take(160)}")
+        headers["Cookie"] = cookie
+    }
+    config.HTTPAdditionalHeaders = headers
+
+    val request = NSURLRequest.requestWithURL(nsUrl)
 
     return suspendCancellableCoroutine { cont ->
         val probe = RedirectProbe(cont)
