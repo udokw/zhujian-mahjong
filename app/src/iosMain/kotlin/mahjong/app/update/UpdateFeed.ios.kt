@@ -57,24 +57,26 @@ private const val API_HOST = "api.feijipan.com"
 private const val LOG_PREFIX = "[ZJMJ-Update]"
 
 /** 最近几条解析日志的内存轨迹：真机没有 syslog 时，拼进失败提示里取证。 */
-private val logCrumbs = ArrayDeque<String>()
+private const val CRUMB_SLOTS = 6
+private val crumbSlots = arrayOfNulls<String>(CRUMB_SLOTS)
+private var crumbNext = 0
 
 /** 统一打点：写系统日志（NSLog），并保留最近几条供失败提示回显。自身绝不抛异常。 */
 private fun iLog(message: String) {
     runCatching {
-        synchronized(logCrumbs) {
-            logCrumbs.addLast(message.take(160))
-            while (logCrumbs.size > 6) logCrumbs.removeFirst()
-        }
+        val slot = crumbNext
+        crumbNext = (slot + 1) % CRUMB_SLOTS
+        crumbSlots[slot] = message.take(160)
     }
     NSLog("%@", "$LOG_PREFIX $message")
 }
 
-/** 取证轨迹（最近 4 条，截断），拼进失败提示。自身绝不抛异常。 */
+/** 取证轨迹（最近几条，截断），拼进失败提示。自身绝不抛异常。 */
 private fun crumbTrail(): String = runCatching {
-    synchronized(logCrumbs) {
-        logCrumbs.takeLast(4).joinToString(" ｜ ")
-    }
+    val idx = crumbNext
+    (1..CRUMB_SLOTS).mapNotNull { k ->
+        crumbSlots[(idx - k + CRUMB_SLOTS) % CRUMB_SLOTS]
+    }.joinToString(" ｜ ")
 }.getOrDefault("")
 
 /** 解析结果：成功带 CDN 直链，失败带可读原因（含 HTTP 状态与响应片段）。 */
