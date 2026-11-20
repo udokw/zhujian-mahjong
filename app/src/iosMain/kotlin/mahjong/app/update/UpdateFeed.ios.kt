@@ -15,18 +15,15 @@ import platform.Foundation.NSError
 import platform.Foundation.NSHTTPCookie
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSLog
-import platform.Foundation.NSMutableData
 import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
-import platform.Foundation.NSURLResponse
 import platform.Foundation.NSURLSession
 import platform.Foundation.NSURLSessionConfiguration
 import platform.Foundation.NSURLSessionDataDelegateProtocol
 import platform.Foundation.NSURLSessionDataTask
-import platform.Foundation.NSURLSessionResponseDisposition
 import platform.Foundation.NSURLSessionTask
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
@@ -239,7 +236,8 @@ private suspend fun resolveFinalUrl(apiUrl: String): ResolveResult {
 private suspend fun requestOnce(apiUrl: String): ResolveResult {
     val nsUrl = NSURL.URLWithString(apiUrl)
         ?: return ResolveResult.Failed("接口地址无效")
-    val request = NSMutableURLRequest.requestWithURL(nsUrl)
+    // ObjC 的类方法在拦截层被推断成 NSURLRequest，运行时实际是可变实例，向下转型即可。
+    val request = NSMutableURLRequest.requestWithURL(nsUrl) as NSMutableURLRequest
     request.HTTPMethod = "GET"
     request.timeoutInterval = 15.0
     request.setValue(DESKTOP_UA, forHTTPHeaderField = "User-Agent")
@@ -295,7 +293,6 @@ private class RedirectProbe(
     private var statusCode = 0
     private var mime = ""
     private var bodyText = ""
-    private val body = NSMutableData()
     private var done = false
 
     override fun URLSession(
@@ -315,49 +312,42 @@ private class RedirectProbe(
     override fun URLSession(
         session: NSURLSession,
         dataTask: NSURLSessionDataTask,
-        didReceiveResponse: NSURLResponse,
-        completionHandler: (NSURLSessionResponseDisposition) -> Unit,
+        didReceiveData: NSData,
     ) {
-        val http = didReceiveResponse as? NSHTTPURLResponse
-        statusCode = http?.statusCode?.toInt() ?: 0
-        mime = didReceiveResponse.MIMEType.orEmpty()
-        val responseUrl = didReceiveResponse.URL?.absoluteString
-        iLog("response $statusCode mime=$mime url=$responseUrl")
-
-        val header = http?.let { headerValue(it, "Location") }
-        if (!header.isNullOrBlank()) {
-            iLog("location header: $header")
-            location = header
-            completionHandler(NSURLSessionResponseDisposition.NSURLSessionResponseCancel)
-            finish(ResolveResult.Ok(absolutize(header, http?.URL)))
-            return
+        val http = dataTask.response as? NSHTTPURLResponse
+        if (http != null && statusCode == 0) {
+            statusCode = http.statusCode.toInt()
+            mime = http.MIMEType.orEmpty()
+            iLog("response $statusCode mime=$mime url=${http.URL?.absoluteString}")
+            val header = headerValue(http, "Location")
+            if (!header.isNullOrBlank()) {
+                iLog("location header: $header")
+                location = header
+                dataTask.cancel()
+                finish(ResolveResult.Ok(absolutize(header, http.URL)))
+                return
+            }
         }
 
         val textLike = mime.isEmpty() ||
             mime.contains("json", ignoreCase = true) ||
             mime.contains("text", ignoreCase = true) ||
             mime.contains("html", ignoreCase = true)
-        if (!textLike && statusCode in 200..299) {
-            // 已经是文件响应：不读内容，当前地址就是直链。
-            completionHandler(NSURLSessionResponseDisposition.NSURLSessionResponseCancel)
+        if (!textLike) {
+            // 已经是文件响应：只留地址，立即取消，不把安装包读进内存。
+            iLog("file response, cancel: $statusCode $mime")
+            val url = http?.URL?.absoluteString
+            dataTask.cancel()
             finish(
-                if (responseUrl.isNullOrBlank()) {
+                if (url.isNullOrBlank()) {
                     ResolveResult.Failed("服务器返回了文件但地址为空")
                 } else {
-                    ResolveResult.Ok(responseUrl)
+                    ResolveResult.Ok(url)
                 },
             )
             return
         }
-        completionHandler(NSURLSessionResponseDisposition.NSURLSessionResponseAllow)
-    }
-
-    override fun URLSession(
-        session: NSURLSession,
-        dataTask: NSURLSessionDataTask,
-        didReceiveData: NSData,
-    ) {
-        if (body.length.toLong() < 64 * 1024) body.appendData(didReceiveData)
+        if (bodyText.length < 64 * 1024) bodyText += didReceiveData.utf8().orEmpty()
     }
 
     override fun URLSession(
@@ -366,7 +356,6 @@ private class RedirectProbe(
         didCompleteWithError: NSError?,
     ) {
         if (done) return
-        bodyText = body.utf8().orEmpty()
         if (bodyText.isNotBlank()) {
             iLog("body ${bodyText.length}: ${bodyText.take(240).replace('\n', ' ')}")
         }
