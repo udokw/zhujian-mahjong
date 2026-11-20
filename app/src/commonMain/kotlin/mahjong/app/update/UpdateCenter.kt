@@ -108,6 +108,7 @@ object UpdateCenter {
                 .getOrElse { it.message ?: "下载更新失败，请稍后重试" }
             busy = false
             prompt = null
+            status = message
             notify?.invoke(message)
         }
     }

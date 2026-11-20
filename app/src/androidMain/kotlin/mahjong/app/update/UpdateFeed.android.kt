@@ -18,6 +18,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -33,6 +34,8 @@ import mahjong.app.PlatformContext
 import org.json.JSONTokener
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlin.coroutines.resume
 
 /**
@@ -156,12 +159,120 @@ actual suspend fun platformStartUpdateInstall(pkg: RemotePackage): String = with
             return@withContext "${listing.message}已用浏览器打开分享页。"
         }
     }
-    val link = resolveDownloadLink(view, pkg.fileName)
-    if (link.isNullOrBlank()) {
+    val apiUrl = resolveDownloadLink(view, pkg.fileName)
+    if (apiUrl.isNullOrBlank()) {
+        Log.w(TAG, "capture failed: webview gave no url for ${pkg.fileName}")
         platformOpenSharePage()
-        return@withContext "没能拿到下载直链，已用浏览器打开分享页。"
+        return@withContext "没能拿到下载链接（页面没有触发下载），已用浏览器打开分享页。"
     }
-    return@withContext enqueueDownload(activity, link, pkg.fileName)
+    Log.d(TAG, "captured api url: $apiUrl")
+
+    // 接口地址只留在 App 内跟 302：直接把接口地址交给 DownloadManager，
+    // 它会缺 Referer / 桌面 UA / Cookie，拿到的是「参数有误」的 JSON。
+    when (val resolved = resolveFinalUrl(apiUrl)) {
+        is ResolveResult.Ok -> {
+            if (resolved.url.contains(API_HOST)) {
+                Log.w(TAG, "resolved still api url, abort: ${resolved.url}")
+                platformOpenSharePage()
+                return@withContext "接口没有返回跳转地址，已用浏览器打开分享页。\n接口地址：${clip(apiUrl)}"
+            }
+            Log.d(TAG, "download url: ${resolved.url}")
+            enqueueDownload(activity, resolved.url, pkg.fileName)
+        }
+
+        is ResolveResult.Failed -> {
+            Log.w(TAG, "resolve failed: ${resolved.reason} | api=$apiUrl")
+            platformOpenSharePage()
+            "取下载直链失败：${resolved.reason}\n接口地址：${clip(apiUrl)}\n已用浏览器打开分享页。"
+        }
+    }
+}
+
+/** 取链接口域名：只是 302 中转，不能当下载地址。 */
+private const val API_HOST = "api.feijipan.com"
+
+private sealed interface ResolveResult {
+    data class Ok(val url: String) : ResolveResult
+    data class Failed(val reason: String) : ResolveResult
+}
+
+private fun clip(url: String, max: Int = 220): String =
+    if (url.length <= max) url else url.take(max) + "…"
+
+/**
+ * 在 App 内把接口地址跟完 302，取出 CDN 直链。
+ *
+ * 网盘接口可能连跳两三层，这里最多跟 3 跳；一旦落到非接口域名就收手，
+ * 剩下的跳转 DownloadManager 自己会跟。非 3xx 时看响应类型——JSON/HTML
+ * 说明被风控挡了，直接把状态码与响应片段报出来，绝不把这种地址交给下载器。
+ */
+private suspend fun resolveFinalUrl(apiUrl: String): ResolveResult {
+    var current = apiUrl
+    var last: ResolveResult = ResolveResult.Failed("未知错误")
+    repeat(3) {
+        val result = withContext(Dispatchers.IO) { requestOnce(current) }
+        last = result
+        if (result !is ResolveResult.Ok) return result
+        if (!result.url.contains(API_HOST)) return result
+        if (result.url == current) return ResolveResult.Failed("接口反复跳回自己：${clip(current)}")
+        current = result.url
+    }
+    return last
+}
+
+private fun requestOnce(apiUrl: String): ResolveResult {
+    var opened: HttpURLConnection? = null
+    return try {
+        val http = URL(apiUrl).openConnection() as HttpURLConnection
+        opened = http
+        http.instanceFollowRedirects = false
+        http.requestMethod = "GET"
+        http.connectTimeout = 15_000
+        http.readTimeout = 15_000
+        http.setRequestProperty("User-Agent", DESKTOP_UA)
+        http.setRequestProperty("Referer", SHARE_URL)
+        http.setRequestProperty("Origin", "https://share.feijipan.com")
+        http.setRequestProperty("Accept", "application/json, text/plain, */*")
+        CookieManager.getInstance().getCookie(apiUrl)?.let { cookie ->
+            Log.d(TAG, "attach cookie: ${oneLine(cookie).take(160)}")
+            http.setRequestProperty("Cookie", cookie)
+        }
+
+        val code = http.responseCode
+        val contentType = http.contentType.orEmpty()
+        Log.d(TAG, "resolve http=$code type=$contentType")
+        if (code in 301..308) {
+            val location = http.getHeaderField("Location")
+            if (location.isNullOrBlank()) {
+                return ResolveResult.Failed("HTTP $code 但没有 Location 头")
+            }
+            val absolute = runCatching { URL(URL(apiUrl), location).toString() }.getOrDefault(location)
+            Log.d(TAG, "location: $absolute")
+            return ResolveResult.Ok(absolute)
+        }
+
+        val textLike = contentType.contains("json", true) ||
+            contentType.contains("text", true) ||
+            contentType.contains("html", true)
+        if (code in 200..299 && !textLike) {
+            // 接口直接把文件流吐回来：当前地址本身就是直链。
+            return ResolveResult.Ok(apiUrl)
+        }
+
+        val stream = if (code >= 400) http.errorStream else http.inputStream
+        val snippet = runCatching {
+            stream?.bufferedReader()?.use { reader ->
+                val buffer = CharArray(240)
+                val n = reader.read(buffer)
+                if (n > 0) String(buffer, 0, n) else ""
+            }.orEmpty()
+        }.getOrDefault("")
+        ResolveResult.Failed("接口返回 $code $contentType：${snippet.replace('\n', ' ')}")
+    } catch (t: Throwable) {
+        ResolveResult.Failed("请求失败：${t.message ?: t::class.simpleName}")
+    } finally {
+        opened?.disconnect()
+    }
 }
 
 actual fun platformOpenSharePage() {
@@ -360,8 +471,10 @@ private fun installDownloaded(context: Context) {
             val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
             if (status != DownloadManager.STATUS_SUCCESSFUL) return@use
             val file = stageDownloadedApk(context, manager, pendingFileName) ?: return@use
-            if (!isValidApk(context, file)) {
-                Toast.makeText(context, "安装包校验失败，请重新下载", Toast.LENGTH_LONG).show()
+            val problem = apkProblem(context, file)
+            if (problem != null) {
+                Log.w(TAG, "invalid apk: $problem (${file.length()}B)")
+                Toast.makeText(context, "安装包校验失败：$problem，请重新下载", Toast.LENGTH_LONG).show()
                 return@use
             }
             installApk(context, file)
@@ -390,11 +503,13 @@ private fun stageDownloadedApk(context: Context, manager: DownloadManager, fileN
     return if (fallback.isFile && fallback.length() > 0L) fallback else null
 }
 
-/** 安装前校验：至少是能被系统解析的同包名 APK，挡掉下载到错误页或残缺文件的情况。 */
-private fun isValidApk(context: Context, file: File): Boolean {
-    if (file.length() < 1_000_000L) return false
-    val info = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0) ?: return false
-    return info.packageName == context.packageName
+/** 安装前校验：挡掉错误页、残缺文件与包名不符的包；返回 null 表示可以安装。 */
+private fun apkProblem(context: Context, file: File): String? {
+    if (file.length() < 1_000_000L) return "文件只有 ${file.length() / 1024}KB"
+    val info = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+        ?: return "无法解析安装包"
+    if (info.packageName != context.packageName) return "包名不符（${info.packageName}）"
+    return null
 }
 
 private fun installApk(context: Context, file: java.io.File) {
