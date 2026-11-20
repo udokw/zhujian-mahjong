@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package mahjong.app.update
 
 import kotlinx.coroutines.CompletableDeferred
@@ -7,7 +9,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import platform.CoreGraphics.CGRectMake
-import platform.Foundation.NSObject
+import platform.darwin.NSObject
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
 import platform.UIKit.UIApplication
