@@ -20,7 +20,7 @@ import mahjong.app.ui.PrimaryButton
 /**
  * 更新检查的界面状态中枢。
  *
- * 检测本身在平台层（隐藏 WebView 渲染分享页），这里只负责：
+ * 检测本身在平台层（直连飞盘接口读目录），这里只负责：
  * 手动/启动检测的节流、结果提示、以及「发现新版本」小对话框的开关。
  */
 object UpdateCenter {
