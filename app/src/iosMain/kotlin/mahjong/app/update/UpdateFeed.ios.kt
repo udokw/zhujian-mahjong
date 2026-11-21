@@ -14,7 +14,6 @@ import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSHTTPCookie
 import platform.Foundation.NSHTTPURLResponse
-import platform.Foundation.NSLog
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
@@ -54,21 +53,24 @@ private const val SHARE_ORIGIN = "https://share.feijipan.com"
 /** 取链接口的域名：它只是 302 中转，绝不能把这个地址交给 Safari。 */
 private const val API_HOST = "api.feijipan.com"
 
-private const val LOG_PREFIX = "[ZJMJ-Update]"
-
 /** 最近几条解析日志的内存轨迹：真机没有 syslog 时，拼进失败提示里取证。 */
 private const val CRUMB_SLOTS = 6
 private val crumbSlots = arrayOfNulls<String>(CRUMB_SLOTS)
 private var crumbNext = 0
 
-/** 统一打点：写系统日志（NSLog），并保留最近几条供失败提示回显。自身绝不抛异常。 */
+/**
+ * 打点：只写内存环形轨迹，供失败提示回显取证。
+ *
+ * 千万不要在这里调 NSLog：真机崩溃日志证实，LiveContainer 环境下 os_log 的动态
+ * 隐私探测会对 Kotlin 桥接字符串对象调 objc_opt_respondsToSelector，触发指针
+ * 认证陷阱（EXC_BREAKPOINT / PAC DA）——点「下载更新」后导航拦截一打点就闪退。
+ */
 private fun iLog(message: String) {
     runCatching {
         val slot = crumbNext
         crumbNext = (slot + 1) % CRUMB_SLOTS
         crumbSlots[slot] = message.take(160)
     }
-    NSLog("%@", "$LOG_PREFIX $message")
 }
 
 /** 取证轨迹（最近几条，截断），拼进失败提示。自身绝不抛异常。 */
