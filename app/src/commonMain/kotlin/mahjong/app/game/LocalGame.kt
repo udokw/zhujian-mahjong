@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import mahjong.app.DebugScenario
 import mahjong.app.audio.GameAudio
 import mahjong.app.audio.SoundEffect
 import mahjong.app.audio.VoiceLine
@@ -168,6 +169,8 @@ class LocalGameSession(
      * mode: claim（胡 · N番 / 过）、multi（一炮多响）、rob（抢杠胡）。
      */
     fun debugInject(mode: String) {
+        // 正式包禁用：即使被直接调用，也不冻结主循环、不伪造任何局面。
+        if (!DebugScenario.enabled) return
         loopJob?.cancel()
         loopJob = null
         bannerJob?.cancel()

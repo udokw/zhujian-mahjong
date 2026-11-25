@@ -60,6 +60,9 @@ actual fun platformDeviceId(): String {
     return id
 }
 
+actual fun platformDebugInjectionEnabled(): Boolean =
+    BuildConfig.DEBUG && BuildConfig.DEBUG_SCENARIO
+
 actual fun platformAppVersion(): String = runCatching {
     PlatformContext.app.packageManager
         .getPackageInfo(PlatformContext.app.packageName, 0).versionName

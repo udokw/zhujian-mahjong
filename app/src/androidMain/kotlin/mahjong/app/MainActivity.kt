@@ -10,7 +10,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         PlatformContext.init(this)
         // 截图/联调用的局面注入：--es mj_debug claim|multi|rob
-        DebugScenario.mode = intent?.getStringExtra("mj_debug")
+        // DebugScenario 内部按 BuildConfig.DEBUG && DEBUG_SCENARIO 过滤，正式包不会生效。
+        DebugScenario.offer(intent?.getStringExtra("mj_debug"))
         // 亮屏由设置项统一控制（App() 里的 platformSetKeepScreenOn），这里不再无条件加 FLAG。
         enableEdgeToEdge()
         setContent { App() }

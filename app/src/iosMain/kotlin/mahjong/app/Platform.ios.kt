@@ -26,6 +26,9 @@ actual fun platformDeviceId(): String {
     return id
 }
 
+/** iOS 没有 adb 局面注入入口，恒为 false。 */
+actual fun platformDebugInjectionEnabled(): Boolean = false
+
 actual fun platformAppVersion(): String =
     (platform.Foundation.NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String)
         ?: "1.0.0"

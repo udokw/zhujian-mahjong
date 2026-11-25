@@ -12,6 +12,13 @@ expect fun platformDeviceId(): String
 
 expect fun platformAppVersion(): String
 
+/**
+ * 是否允许 adb/截图用的局面注入。正式包必须为 false。
+ * Android 需要 `BuildConfig.DEBUG` 且构建时显式开启 `-PmjDebugScenario=true`；
+ * iOS 没有注入入口，恒为 false。
+ */
+expect fun platformDebugInjectionEnabled(): Boolean
+
 /** 0 = 轻（选牌）、1 = 中（碰杠）、2 = 重（胡）。 */
 expect fun platformVibrate(strength: Int)
 

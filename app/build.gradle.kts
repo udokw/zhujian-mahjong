@@ -59,10 +59,26 @@ android {
         targetSdk = 35
         versionCode = 25
         versionName = "1.0.24"
+        // 调试注入（adb --es mj_debug）默认关闭：只有本地显式加 -PmjDebugScenario=true
+        // 构建的包才带这个能力，随包发布的 debug APK 不再暴露任何注入入口。
+        val debugScenario = providers.gradleProperty("mjDebugScenario").orNull?.toBoolean() == true
+        buildConfigField("boolean", "DEBUG_SCENARIO", debugScenario.toString())
+    }
+
+    buildTypes {
+        release {
+            // 正式构建无论传什么参数都关闭调试注入。
+            buildConfigField("boolean", "DEBUG_SCENARIO", "false")
+        }
     }
 
     sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
     sourceSets["main"].res.srcDirs("src/androidMain/res")
+
+    // 显式开启 BuildConfig，供 androidMain 读取 DEBUG 关闭调试注入入口。
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
