@@ -280,6 +280,39 @@ class LocalGameSession(
             // 截图/量尺寸用：中心提示圈（碰/杠/吃/胡）与余牌圈同心验证。
             "banner" -> base.copy(banner = Banner("碰", kind = BannerKind.MELD))
 
+            // 门槛验证：听牌且门槛内恰好 8 番（= 起和线），提示应为「刚好达到起和线」。
+            "ting_exact" -> base.copy(
+                tingInfo = TingInfo(
+                    waits = listOf(WaitTile(tile = 13, remaining = 2, fan = 8, thresholdFan = 8, meetsMin = true)),
+                    bestFan = 8,
+                    thresholdFan = 8,
+                    meetsMin = true,
+                    shanten = 0,
+                ),
+            )
+
+            // 门槛验证：总番 8（含 1 张花）但门槛内只有 7，必须显示「门槛内 7 番 · 不足 8 番」。
+            "ting_below_min" -> base.copy(
+                tingInfo = TingInfo(
+                    waits = listOf(WaitTile(tile = 13, remaining = 2, fan = 8, thresholdFan = 7, meetsMin = false)),
+                    bestFan = 8,
+                    thresholdFan = 7,
+                    meetsMin = false,
+                    shanten = 0,
+                ),
+            )
+
+            // 门槛验证：14 张可胡且门槛内恰好 8 番，胡按钮应出现并显示「胡 · 8番」。
+            "hu_exact" -> base.copy(
+                hand = listOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 13),
+                drawnTile = 13,
+                turnOptions = TurnOptions(canHu = true),
+                canDiscard = false,
+                huFan = 8,
+                huThresholdFan = 8,
+                huMeetsMin = true,
+            )
+
             else -> base
         }
     }
@@ -721,6 +754,7 @@ class LocalGameSession(
             val plans = hints.discards
                 .filter { it.tenpai && it.waits.isNotEmpty() }
                 .map { hint ->
+                    val best = displayPreview(hint.waits, config.minFan)
                     DiscardPlan(
                         discard = hint.tile,
                         waits = hint.waits.map { wait ->
@@ -728,10 +762,12 @@ class LocalGameSession(
                                 tile = wait.tile,
                                 remaining = wait.remaining,
                                 fan = wait.bestPreview?.fan ?: 0,
+                                thresholdFan = wait.bestPreview?.thresholdFan ?: 0,
                                 meetsMin = wait.meetsMinimum,
                             )
                         },
-                        bestFan = hint.bestPreview?.fan ?: 0,
+                        bestFan = best?.fan ?: 0,
+                        thresholdFan = best?.thresholdFan ?: 0,
                         meetsMin = hint.meetsMinimum,
                         totalRemaining = hint.totalRemaining,
                     )
@@ -747,13 +783,16 @@ class LocalGameSession(
                     tile = wait.tile,
                     remaining = wait.remaining,
                     fan = wait.bestPreview?.fan ?: 0,
+                    thresholdFan = wait.bestPreview?.thresholdFan ?: 0,
                     meetsMin = wait.meetsMinimum,
                 )
             }
             val ting = if (hand.size == 13 - melds.size * 3) {
+                val best = displayPreview(hints.tenpai.waits, config.minFan)
                 TingInfo(
                     waits = waits.sortedWith(compareByDescending<WaitTile> { it.meetsMin }.thenByDescending { it.remaining }),
-                    bestFan = hints.tenpai.bestPreview?.fan ?: 0,
+                    bestFan = best?.fan ?: 0,
+                    thresholdFan = best?.thresholdFan ?: 0,
                     meetsMin = hints.tenpai.meetsMinimum,
                     shanten = hints.tenpai.shanten,
                 )
@@ -771,9 +810,22 @@ class LocalGameSession(
                 plans = plans,
                 tingInfo = ting,
                 huFan = win?.preview?.fan,
+                huThresholdFan = win?.preview?.thresholdFan,
                 huMeetsMin = win?.preview?.meetsMinimum ?: true,
             )
         }
+    }
+
+    /**
+     * 展示用番数预览：优先取「达到起和门槛」的听口，保证总番与门槛内番数来自同一次计分，
+     * 避免出现「显示 8 番却提示不足 8 番」两个口径混用。
+     */
+    private fun displayPreview(waits: List<mahjong.core.api.WaitHint>, minFan: Int): mahjong.core.api.FanPreview? {
+        val previews = waits.mapNotNull { it.bestPreview }
+        if (previews.isEmpty()) return null
+        if (minFan <= 0) return previews.maxByOrNull { it.fan }
+        return previews.filter { it.thresholdFan >= minFan }.maxByOrNull { it.fan }
+            ?: previews.maxByOrNull { it.fan }
     }
 
     private fun mahjong.core.model.GameState.discardsSignature(): String {

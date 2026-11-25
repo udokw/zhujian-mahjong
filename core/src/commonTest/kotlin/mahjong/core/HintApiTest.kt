@@ -124,6 +124,51 @@ class HintApiTest {
         assertTrue(Hints.winHints(view).isEmpty())
     }
 
+    @Test
+    fun mcrExactlyAtThresholdCountsAsAWin() {
+        // 无番和恰好 8 番，与 8 分起和线相等：必须按 >= 判定为达标，不能提示「不足 8 番」。
+        val tile4m = Tiles.parse("4万")!!
+        val hand = parse("1万 2万 3万 2万 3万 3筒 4筒 5筒 6条 7条 8条 东 东")
+        val view = view(
+            hand,
+            config = RuleConfig.mcr(),
+            phase = Phase.AWAIT_CLAIM,
+            lastDiscard = DiscardInfo(player = 1, tile = tile4m, turn = 3, lastTileOfWall = false),
+        )
+
+        val wait = Hints.tenpaiHint(view).waits.first { it.tile == tile4m }
+        val discard = assertNotNull(wait.discard)
+        assertEquals(8, discard.fan)
+        assertEquals(8, discard.thresholdFan)
+        assertTrue(discard.meetsMinimum)
+        assertTrue(wait.meetsMinimum)
+
+        // 与胡按钮同一判据：门槛内 8 番 → winHints 必须给出一条可胡记录（按钮才亮）。
+        val win = Hints.winHints(view).firstOrNull { it.type == WinType.DISCARD }
+        assertNotNull(win)
+        assertEquals(8, win.preview.fan)
+        assertEquals(8, win.preview.thresholdFan)
+        assertTrue(win.preview.meetsMinimum)
+    }
+
+    @Test
+    fun mcrFlowerRaisesTotalFanButNotThreshold() {
+        // 箭刻 2 + 单钓 1 + 不求人 4 = 7 番，加 1 张花后总番 8，但门槛内仍是 7，不能起和。
+        val hand = parse("1万 2万 3万 5万 6万 7万 7筒 8筒 9筒 中 中 中 5条")
+        val view = view(
+            hand,
+            config = RuleConfig.mcr(),
+            flowers = listOf(34),
+            phase = Phase.AWAIT_CLAIM,
+        )
+
+        val wait = Hints.tenpaiHint(view).waits.first { it.tile == Tiles.parse("5条") }
+        val selfDraw = assertNotNull(wait.selfDraw)
+        assertEquals(8, selfDraw.fan)
+        assertEquals(7, selfDraw.thresholdFan)
+        assertFalse(selfDraw.meetsMinimum)
+    }
+
     // ------------------------------------------------------------ 广东封顶
 
     @Test

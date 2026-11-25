@@ -51,29 +51,35 @@ data class Banner(val text: String, val sub: String = "", val seat: Int? = null,
 
 enum class BannerKind { MELD, KONG, WIN, HU }
 
-/** 某张听口牌：剩余枚数与和牌番数（meetsMin=false 表示牌型成立但番数不够门槛）。 */
+/**
+ * 某张听口牌：剩余枚数与和牌番数（meetsMin=false 表示牌型成立但番数不够门槛）。
+ * [fan] 为国标含花牌的总番，[thresholdFan] 为不计花牌的起和番；两者不同源于花牌不计门槛。
+ */
 data class WaitTile(
     val tile: Int,
     val remaining: Int,
     val fan: Int,
+    val thresholdFan: Int = fan,
     val meetsMin: Boolean,
 )
 
-/** 当前 13 张的听牌信息。 */
+/** 当前 13 张的听牌信息。[thresholdFan] 与 [bestFan] 取自同一个听口预览，保证番数与门槛口径一致。 */
 data class TingInfo(
     val waits: List<WaitTile>,
     val bestFan: Int,
     val meetsMin: Boolean,
     val shanten: Int,
+    val thresholdFan: Int = bestFan,
 )
 
-/** 出牌建议：打某张后能听哪些牌。 */
+/** 出牌建议：打某张后能听哪些牌。[thresholdFan] 与 [bestFan] 同源。 */
 data class DiscardPlan(
     val discard: Int,
     val waits: List<WaitTile>,
     val bestFan: Int,
     val meetsMin: Boolean,
     val totalRemaining: Int,
+    val thresholdFan: Int = bestFan,
 )
 
 /** 胡牌演出阶段：亮牌定格 → 金框描边 → 桌面压暗 → 番型浮层。 */
@@ -113,6 +119,8 @@ data class TableUi(
     val tingInfo: TingInfo? = null,
     val plans: List<DiscardPlan> = emptyList(),
     val huFan: Int? = null,
+    /** 胡牌预览里不计花牌的起和番；与 [huMeetsMin] 来自同一次计分。 */
+    val huThresholdFan: Int? = null,
     val huMeetsMin: Boolean = true,
     /** 起和门槛（国标 8）；来自规则配置，界面不写死。 */
     val minFan: Int = 0,

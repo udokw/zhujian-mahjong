@@ -537,20 +537,35 @@ private fun tingLine(
     minFan: Int,
 ): String {
     if (plan != null) {
-        val waits = waitSummary(plan.waits)
-        val fan = if (plan.bestFan > 0) " · 预计 ${plan.bestFan} 番" else ""
-        val warn = if (!plan.meetsMin && minFan > 0) " · 不足 $minFan 番" else ""
-        return "建议打 ${Tiles.name(plan.discard)} · 听 $waits$fan$warn"
+        val meets = minFan <= 0 || plan.thresholdFan >= minFan
+        return "建议打 ${Tiles.name(plan.discard)} · 听 ${waitSummary(plan.waits)}" +
+            fanNote(plan.bestFan, plan.thresholdFan, meets, minFan)
     }
     if (ting != null && ting.waits.isNotEmpty()) {
-        val fan = if (ting.bestFan > 0) " · 预计 ${ting.bestFan} 番" else ""
-        val warn = if (!ting.meetsMin && minFan > 0) " · 听牌但不足 $minFan 番" else ""
-        return "听 ${waitSummary(ting.waits)}$fan$warn"
+        val meets = minFan <= 0 || ting.thresholdFan >= minFan
+        return "听 ${waitSummary(ting.waits)}" +
+            fanNote(ting.bestFan, ting.thresholdFan, meets, minFan)
     }
     if (table.canDiscard) {
         return "尚未听牌 · 继续摸打"
     }
     return "等待其他玩家…"
+}
+
+/**
+ * 番数说明：国标起和按「不计花牌」的门槛番判定，因此总番与门槛番必须同时给出，
+ * 避免再出现「预计 8 番 · 不足 8 番」这种自相矛盾的提示。
+ */
+private fun fanNote(fan: Int, thresholdFan: Int, meetsMin: Boolean, minFan: Int): String {
+    if (fan <= 0) return ""
+    val total = " · 预计 $fan 番"
+    if (minFan <= 0) return total
+    // 不达标时只报门槛内番数：含花牌的总番达到门槛，会让「8 番 · 不足 8 番」看起来自相矛盾。
+    if (!meetsMin) {
+        val inner = if (thresholdFan > 0) "门槛内 $thresholdFan 番 · " else ""
+        return " · $inner" + "不足 $minFan 番"
+    }
+    return if (thresholdFan == minFan) "$total · 刚好达到起和线" else "$total · 已达起和线"
 }
 
 private fun waitSummary(waits: List<WaitTile>): String {
@@ -1210,18 +1225,23 @@ private fun ActionRow(
                     table = table,
                     expanded = adviceExpanded,
                     onExpand = onExpandAdvice,
-                    modifier = Modifier.widthIn(max = 168.dp),
+                    modifier = Modifier.widthIn(max = 280.dp),
                 )
                 Spacer(Modifier.width(8.dp))
             }
+            // 可胡提示与下面的胡按钮共用同一个 huMeetsMin 判定，文案只解释门槛内番数。
+            val huNote = when {
+                !table.turnOptions.canHu -> null
+                !table.huMeetsMin -> "听牌但门槛内仅 ${table.huThresholdFan ?: 0} 番 · 不足 ${table.minFan} 番，不能胡"
+                table.minFan > 0 && table.huThresholdFan == table.minFan ->
+                    "刚好达到 ${table.minFan} 番起和线 · 可以胡牌"
+
+                else -> null
+            }
             MjText(
-                if (table.turnOptions.canHu && !table.huMeetsMin) {
-                    "听牌但仅 ${table.huFan ?: 0} 番 · 不足 ${table.minFan} 番，不能胡"
-                } else {
-                    table.hint
-                },
+                huNote ?: table.hint,
                 type.caption.copy(fontSize = 10.sp),
-                if (table.turnOptions.canHu && !table.huMeetsMin) colors.tableGold else colors.onTable2,
+                if (huNote != null) colors.tableGold else colors.onTable2,
                 maxLines = 1,
                 textAlign = TextAlign.End,
                 modifier = Modifier.weight(1f),
@@ -1806,7 +1826,11 @@ private fun AdvicePanel(
                             modifier = Modifier.weight(1f),
                         )
                         MjText(
-                            if (plan.bestFan > 0) "${plan.bestFan}番" else "",
+                            if (table.minFan > 0) {
+                                if (plan.thresholdFan > 0) "${plan.thresholdFan}番" else ""
+                            } else {
+                                if (plan.bestFan > 0) "${plan.bestFan}番" else ""
+                            },
                             type.caption.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold),
                             colors.ink3,
                             maxLines = 1,
@@ -1832,7 +1856,14 @@ private fun AdvicePanel(
                             modifier = Modifier.weight(1f),
                         )
                         MjText(
-                            if (wait.fan > 0) "预计 ${wait.fan} 番" else "",
+                            run {
+                                val shown = if (table.minFan > 0) wait.thresholdFan else wait.fan
+                                when {
+                                    shown <= 0 -> ""
+                                    table.minFan > 0 && wait.fan != shown -> "总 ${wait.fan} · 门槛内 $shown"
+                                    else -> "预计 $shown 番"
+                                }
+                            },
                             type.caption.copy(fontSize = 9.sp),
                             if (wait.meetsMin) colors.ink3 else colors.gold,
                             maxLines = 1,
@@ -1851,7 +1882,7 @@ private fun AdvicePanel(
             ) {
                 Spacer(Modifier.height(4.dp))
                 MjText(
-                    "国标 8 番起和：当前听口最多 ${plans.firstOrNull()?.bestFan ?: ting?.bestFan ?: 0} 番，和牌仍需补番。",
+                    "国标 ${table.minFan} 番起和（花牌不计）：门槛内最多 ${plans.firstOrNull()?.thresholdFan ?: ting?.thresholdFan ?: 0} 番，和牌仍需补番。",
                     type.caption.copy(fontSize = 9.sp),
                     colors.gold,
                 )
