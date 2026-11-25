@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -63,6 +64,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -174,7 +176,20 @@ fun TableScreen(
     val advice = table.plans.firstOrNull()
     val recommend = if (table.canDiscard) advice?.discard else null
 
-    BoxWithConstraints(Modifier.fillMaxSize().drawTableFelt(colors, centerYPx)) {
+    // 桌沿：桌面从安全区内缩 6dp 开始，木框厚度按主题表；内容再让出桌沿，
+    // 保证四边木框都露在牌与手牌之外，不被系统栏或手牌压掉。
+    val rootDensity = LocalDensity.current
+    val safeInsets = WindowInsets.safeDrawing
+    val edgeInsets = Rect(
+        safeInsets.getLeft(rootDensity, LayoutDirection.Ltr).toFloat(),
+        safeInsets.getTop(rootDensity).toFloat(),
+        safeInsets.getRight(rootDensity, LayoutDirection.Ltr).toFloat(),
+        safeInsets.getBottom(rootDensity).toFloat(),
+    )
+    val rimDp = if (colors.material.rimSolid) colors.material.rim else 0.dp
+    val tableMargin = 6.dp
+
+    BoxWithConstraints(Modifier.fillMaxSize().drawTableFelt(colors, centerYPx, edgeInsets)) {
         val tight = maxHeight < 390.dp
         // 根容器尺寸：牌河换算桌布圆心时要用，先取出来避免在嵌套作用域里被遮住。
         val rootWidth = maxWidth
@@ -187,7 +202,12 @@ fun TableScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing),
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(horizontal = tableMargin)
+                .padding(
+                    top = tableMargin + rimDp + 4.dp,
+                    bottom = tableMargin + rimDp + 10.dp,
+                ),
         ) {
             LandscapeHud(
                 table = table,

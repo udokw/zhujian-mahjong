@@ -29,21 +29,21 @@ enum class AiSpeed(val label: String, val thinkMs: Long, val claimMs: Long) {
 }
 
 /**
- * 牌桌皮肤的反序列化兜底：主题已收敛为八款（暖木/青瓷/藏蓝/朱砂/雾灰/松石/奶咖/霓虹），
- * 旧版本存过的竹间、翡翠、竹青、墨玉等 id 全部回落到暖木；其余设置照常读出，
+ * 牌桌皮肤的反序列化兜底：主题为「经典 + 八款材质」（经典/暖木/青瓷/藏蓝/朱砂/雾灰/松石/奶咖/霓虹），
+ * 旧版本存过的竹间、翡翠、竹青、墨玉、檀木等 id 一律回落到经典；其余设置照常读出，
  * 避免整个设置对象被重置或启动白屏。
  */
 object TableSkinSerializer : KSerializer<TableSkin> {
     override val descriptor: SerialDescriptor =
         PrimitiveSerialDescriptor("mahjong.app.theme.TableSkin", PrimitiveKind.STRING)
 
-    /** 旧 id（classic / feicui / bamboo / ink / zhuqi / dianlan / zitan 等）一律回落暖木。 */
+    /** 旧 id（classic / bamboo / zhujian / feicui / ink / zhuqing / moyu / tanmu 等）一律回落经典。 */
     override fun serialize(encoder: Encoder, value: TableSkin) = encoder.encodeString(value.name)
 
     override fun deserialize(decoder: Decoder): TableSkin {
         val raw = decoder.decodeString()
         return TableSkin.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
-            ?: TableSkin.WOOD
+            ?: TableSkin.CLASSIC
     }
 }
 
@@ -51,7 +51,7 @@ object TableSkinSerializer : KSerializer<TableSkin> {
 data class AppSettings(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     @Serializable(with = TableSkinSerializer::class)
-    val skin: TableSkin = TableSkin.WOOD,
+    val skin: TableSkin = TableSkin.CLASSIC,
     val tileScale: TileScale = TileScale.STANDARD,
     val aiLevelId: String = AiLevel.NORMAL.id,
     val aiSpeed: AiSpeed = AiSpeed.NORMAL,

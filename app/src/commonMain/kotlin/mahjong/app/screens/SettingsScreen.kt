@@ -183,7 +183,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(14.dp))
                     MjText("牌桌皮肤", type.bodyStrong, colors.ink)
                     Spacer(Modifier.height(8.dp))
-                    // 八款皮肤按规格表顺序排列，每行四款、共两行；新增主题只需往 themeSpecs 加一行。
+                    // 九款皮肤（经典 + 八款材质）按规格表顺序排列，每行四款；新增主题只需往 themeSpecs 加一行。
                     val skinRows = TableSkin.entries.chunked(4)
                     skinRows.forEachIndexed { rowIndex, rowSkins ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

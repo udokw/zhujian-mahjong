@@ -8,11 +8,12 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
- * 台面织纹类型。八款主题各用一种，画法在 [mahjong.app.util.drawTableFelt] 里按此枚举分支：
- * DIAG 45° 双向斜纹、CRACKLE 冰裂三向、LINEN 细亚麻、LACQUER 大漆双高光、
- * SAND 喷砂点阵、GRID 瓷砖格、RATTAN 粗藤编、SCAN 扫描线。
+ * 台面织纹类型。八款材质各用一种，经典沿用老的 10dp 细格，画法在
+ * [mahjong.app.util.drawTableFelt] 里按此枚举分支：WEAVE 10dp 细格、DIAG 45° 双向斜纹、
+ * CRACKLE 冰裂三向、LINEN 细亚麻、LACQUER 大漆双高光、SAND 喷砂点阵、
+ * GRID 瓷砖格、RATTAN 粗藤编、SCAN 扫描线。
  */
-enum class FeltPattern { DIAG, CRACKLE, LINEN, LACQUER, SAND, GRID, RATTAN, SCAN }
+enum class FeltPattern { WEAVE, DIAG, CRACKLE, LINEN, LACQUER, SAND, GRID, RATTAN, SCAN }
 
 /**
  * 台面材质参数：密度、透明度、木框、内嵌高光、牌边与圆角全部显式声明，
@@ -41,6 +42,8 @@ data class TableMaterial(
     val inner: Long,
     /** 浅色桌面用的内嵌线（深墨）。 */
     val innerLight: Long = inner,
+    /** 木框内侧第二道饰线（ARGB），经典用金线；null 表示不画。 */
+    val accent: Long? = null,
     /** 中央盘圆角；0 表示正圆。 */
     val discRadius: Dp,
     /** 八角盘（松石）。 */
@@ -146,7 +149,18 @@ private val TILE_NIGHT = TileTokens(
     red = 0xFFB94A3EL, blue = 0xFF38679AL, green = 0xFF2F7A5CL, ink = 0xFF1A211DL,
 )
 
-// ------------------------------------------------------------ 八套材质
+// ------------------------------------------------------------ 九套材质
+
+/**
+ * 经典（原「竹间」基线）：深松绿毡 + 10dp 双向细格 + 12dp 胡桃木沿，
+ * 木框内 1.4dp 金线 + 内缩 3dp 的 1dp 白线，保留最早那套桌面。
+ */
+private val WEAVE_MATERIAL = TableMaterial(
+    pattern = FeltPattern.WEAVE, pitch = 10.dp, alpha1 = 0.05f, alpha2 = 0.05f,
+    lineWidth = 1.dp, rim = 12.dp, rimSolid = true,
+    inner = 0x24FFFFFFL, accent = 0x4DE8C97AL,
+    discRadius = 0.dp, seatRadius = 10.dp, tileEdge = 1.4.dp, tileCorner = 8.3.dp,
+)
 
 /** 暖木：45° 双向 1dp 斜纹、4dp 间距、9dp 胡桃木框、1dp 白 16% 内嵌高光。 */
 private val DIAG_MATERIAL = TableMaterial(
@@ -208,13 +222,29 @@ private val SCAN_MATERIAL = TableMaterial(
     discRadius = 16.dp, seatRadius = 10.dp, tileEdge = 1.6.dp, tileCorner = 8.3.dp,
 )
 
-// ------------------------------------------------------------ 八款主题
+// ------------------------------------------------------------ 九款主题
 
 /**
- * 八款主题（顺序沿用规格表，设置页按此每行四款排两行）。
+ * 九款主题：经典（默认）+ 八款材质皮肤，顺序沿用规格表，设置页按此每行四款。
  * 改动这里就等于同时改了 Android 与 iOS：`mjColors()` 是两端唯一的取色入口。
  */
 val themeSpecs: List<ThemeSpec> = listOf(
+    ThemeSpec(
+        id = TableSkin.CLASSIC,
+        name = "经典",
+        tagline = "深松绿毡、12dp 胡桃木沿、木框内金白双线。最早的默认桌面，安静耐看。",
+        material = WEAVE_MATERIAL,
+        day = SkinPalette(
+            t1 = 0xFF1B4A3DL, t2 = 0xFF143D33L, t3 = 0xFF0D2C25L, core = 0xFF0D2C25L,
+            rim = 0xFF7A5232L, hud = 0x4D000000L, hudInk = 0xFFF2F7F4L, hudInk2 = 0xFFB9CEC4L,
+            onTable = 0xFFF2F7F4L, onTable2 = 0xFFB9CEC4L,
+        ),
+        night = SkinPalette(
+            t1 = 0xFF16443AL, t2 = 0xFF0E332BL, t3 = 0xFF082019L, core = 0xFF082019L,
+            rim = 0xFF3E2C1EL, hud = 0x4D000000L, hudInk = 0xFFEEF5F1L, hudInk2 = 0xFFA9C2B7L,
+            onTable = 0xFFEEF5F1L, onTable2 = 0xFFA9C2B7L,
+        ),
+    ),
     ThemeSpec(
         id = TableSkin.WOOD,
         name = "暖木",

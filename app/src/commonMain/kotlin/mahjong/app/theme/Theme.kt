@@ -19,10 +19,12 @@ enum class ThemeMode(val label: String) {
 }
 
 /**
- * 牌桌主题：八款全部保留，名称与 [themeSpecs] 一一对应。
- * 旧 id（竹间 / 翡翠 / 竹青 / 墨玉等）由 [mahjong.app.settings.TableSkinSerializer] 回落暖木。
+ * 牌桌主题：经典 + 八款材质皮肤全部保留，名称与 [themeSpecs] 一一对应。
+ * 经典是最早的默认桌面；旧 id（竹间 / 翡翠 / 竹青 / 墨玉 / 檀木等）由
+ * [mahjong.app.settings.TableSkinSerializer] 回落经典。
  */
 enum class TableSkin(val label: String) {
+    CLASSIC("经典"),
     WOOD("暖木"),
     QINGCI("青瓷"),
     NAVY("藏蓝"),
@@ -36,7 +38,7 @@ enum class TableSkin(val label: String) {
 @Immutable
 data class MjColors(
     val isDark: Boolean,
-    val skin: TableSkin = TableSkin.WOOD,
+    val skin: TableSkin = TableSkin.CLASSIC,
     val bg: Color,
     val surface: Color,
     val surface2: Color,
@@ -150,7 +152,7 @@ object MjMotion {
     const val large = 320
 }
 
-val LocalMjColors = staticCompositionLocalOf { mjColors(false, TableSkin.WOOD) }
+val LocalMjColors = staticCompositionLocalOf { mjColors(false, TableSkin.CLASSIC) }
 val LocalMjType = staticCompositionLocalOf { MjTypography }
 val LocalReduceMotion = staticCompositionLocalOf { false }
 
