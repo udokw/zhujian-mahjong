@@ -97,8 +97,40 @@ object McrScorer {
 
             SpecialHand.LESSER_HONORS_AND_KNITTED -> add(Fan.LESSER_HONORS_AND_KNITTED)
             SpecialHand.GREATER_HONORS_AND_KNITTED -> add(Fan.GREATER_HONORS_AND_KNITTED)
+            SpecialHand.KNITTED_STRAIGHT -> {
+                add(Fan.KNITTED_STRAIGHT)
+                addKnittedStraightFans(tiles, ctx, items)
+            }
         }
         return items
+    }
+
+    /** 组合龙的叠加番：五门齐、无字，以及余下那副刻子的箭刻/风刻/幺九刻。 */
+    private fun addKnittedStraightFans(
+        tiles: List<Int>,
+        ctx: WinContext,
+        items: MutableList<FanItem>,
+    ) {
+        fun add(fan: Fan, count: Int = 1) {
+            if (count > 0) items.add(FanItem(fan.id, fan.displayName, fan.value, count))
+        }
+        val suits = tiles.filter { !Tiles.isHonor(it) }.map { Tiles.suit(it) }.distinct()
+        val hasWind = tiles.any { Tiles.isWind(it) }
+        val hasDragon = tiles.any { Tiles.isDragon(it) }
+        if (suits.size == 3 && hasWind && hasDragon) add(Fan.ALL_TYPES)
+        if (tiles.none { Tiles.isHonor(it) }) add(Fan.NO_HONORS)
+
+        val core = HandAnalyzer.knittedStraightTiles(tiles) ?: return
+        val rest = HandAnalyzer.counts(tiles)
+        for (t in core) rest[t]--
+        val pungTile = (0..33).firstOrNull { rest[it] >= 3 } ?: return
+        if (Tiles.isDragon(pungTile)) add(Fan.DRAGON_PUNG)
+        if (pungTile == 27 + ctx.roundWind) add(Fan.ROUND_WIND_PUNG)
+        if (pungTile == 27 + ctx.seatWind) add(Fan.SEAT_WIND_PUNG)
+        val valueHonors = setOf(27 + ctx.roundWind, 27 + ctx.seatWind, 31, 32, 33)
+        if (Tiles.isTerminal(pungTile) || (Tiles.isHonor(pungTile) && pungTile !in valueHonors)) {
+            add(Fan.TERMINAL_HONOR_PUNG)
+        }
     }
 
     /** 七对等无面子牌型也能成立的花色/数字番。 */
@@ -309,9 +341,6 @@ object McrScorer {
             }
         }
 
-        // 组合龙
-        if (kongs.isEmpty() && isKnittedStraightHand(all)) add(Fan.KNITTED_STRAIGHT)
-
         // 三同刻 / 双同刻
         val suitedPungs = pungLike.filter { !Tiles.isHonor(it.tile) }
         val ranksWithSuits = suitedPungs.groupBy { Tiles.rank(it.tile) }.filterValues { list ->
@@ -466,56 +495,10 @@ object McrScorer {
         return false
     }
 
-    private val knittedSets = listOf(setOf(1, 4, 7), setOf(2, 5, 8), setOf(3, 6, 9))
-
     private val knittedPerms = listOf(
         intArrayOf(0, 1, 2), intArrayOf(0, 2, 1), intArrayOf(1, 0, 2),
         intArrayOf(1, 2, 0), intArrayOf(2, 0, 1), intArrayOf(2, 1, 0),
     )
-
-    private fun isKnittedStraightHand(all: List<Int>): Boolean {
-        if (all.size != 14) return false
-        val counts = HandAnalyzer.counts(all)
-        for (perm in knittedPerms) {
-            val c = counts.copyOf()
-            var ok = true
-            for (s in 0..2) {
-                for (r in knittedSets[perm[s]]) {
-                    val t = Tiles.tileOf(s, r)
-                    if (c[t] <= 0) {
-                        ok = false
-                        break
-                    }
-                    c[t]--
-                }
-                if (!ok) break
-            }
-            if (ok && isSetPlusPair(c)) return true
-        }
-        return false
-    }
-
-    private fun isSetPlusPair(c: IntArray): Boolean {
-        if (c.sum() != 5) return false
-        for (t in 0..33) {
-            if (c[t] < 2) continue
-            c[t] -= 2
-            val rests = c.indices.filter { c[it] > 0 }
-            if (rests.size == 1 && c[rests[0]] == 3) {
-                c[t] += 2
-                return true
-            }
-            if (rests.size >= 2) {
-                val a = rests[0]
-                if (a < 27 && a % 9 <= 6 && c[a + 1] > 0 && c[a + 2] > 0) {
-                    c[t] += 2
-                    return true
-                }
-            }
-            c[t] += 2
-        }
-        return false
-    }
 
     private fun isGreen(tile: Int): Boolean = when (tile) {
         19, 20, 21, 23, 25, 32 -> true // 2/3/4/6/8 条 + 发

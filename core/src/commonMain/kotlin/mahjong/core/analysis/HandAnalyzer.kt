@@ -14,6 +14,7 @@ enum class SpecialHand {
     NINE_GATES,
     LESSER_HONORS_AND_KNITTED,
     GREATER_HONORS_AND_KNITTED,
+    KNITTED_STRAIGHT,
 }
 
 /**
@@ -101,9 +102,7 @@ object HandAnalyzer {
 
     /** 手牌是否已经能和（不含番数门槛）。 */
     fun isWinningTiles(tiles: List<Int>): Boolean {
-        if (tiles.size == 14 && sevenPairsType(tiles) != null) return true
-        if (tiles.size == 14 && isThirteenOrphans(tiles)) return true
-        if (tiles.size == 14 && isNineGates(tiles)) return true
+        if (specialHand(tiles, 0) != null) return true
         return winShapes(tiles, emptyList()).isNotEmpty()
     }
 
@@ -113,6 +112,7 @@ object HandAnalyzer {
         if (isThirteenOrphans(tiles)) return SpecialHand.THIRTEEN_ORPHANS
         if (isNineGates(tiles)) return SpecialHand.NINE_GATES
         knittedHandType(tiles)?.let { return it }
+        if (isKnittedStraight(tiles)) return SpecialHand.KNITTED_STRAIGHT
         return null
     }
 
@@ -192,6 +192,37 @@ object HandAnalyzer {
             0 -> null
             else -> SpecialHand.LESSER_HONORS_AND_KNITTED
         }
+    }
+
+    /** 组合龙：14 张 = 三色 147/258/369 各一组（9 张）+ 1 副刻子或顺子 + 将。 */
+    fun isKnittedStraight(tiles: List<Int>): Boolean {
+        if (tiles.size != 14 || tiles.any { it > 33 }) return false
+        val core = knittedStraightTiles(tiles) ?: return false
+        val rest = counts(tiles)
+        for (t in core) rest[t]--
+        return isSetPlusPair(rest)
+    }
+
+    private fun isSetPlusPair(c: IntArray): Boolean {
+        if (c.sum() != 5) return false
+        for (t in 0..33) {
+            if (c[t] < 2) continue
+            c[t] -= 2
+            val rests = c.indices.filter { c[it] > 0 }
+            if (rests.size == 1 && c[rests[0]] == 3) {
+                c[t] += 2
+                return true
+            }
+            if (rests.size >= 2) {
+                val a = rests[0]
+                if (a < 27 && a % 9 <= 6 && c[a + 1] > 0 && c[a + 2] > 0) {
+                    c[t] += 2
+                    return true
+                }
+            }
+            c[t] += 2
+        }
+        return false
     }
 
     /** 判断多个花色是否能凑成组合龙（9 张：1-4-7 / 2-5-8 / 3-6-9 各一色）。 */

@@ -357,6 +357,59 @@ class EngineTest {
         assertEquals(0, result.deltaScores.sum())
     }
 
+    // ---------------------------------------------------------------- 国标起和门槛 / 托管胡牌
+
+    @Test
+    fun discardWinOfferedWhenFanMeetsMinimum() {
+        val config = RuleConfig.mcr()
+        // P0 首打东风；P1 清龙听东风，番数足够起和。
+        val p0 = m(2, 3, 4, 5, 6, 7) + p(4, 5, 6) + s(1, 2, 3) + listOf(Tiles.EAST, Tiles.NORTH)
+        val p1 = m(1, 2, 3, 4, 5, 6, 7, 8, 9) + p(1, 2, 3) + listOf(Tiles.EAST)
+        val p2 = p(1, 3, 5, 7, 9) + s(2, 4, 6, 8) + listOf(Tiles.SOUTH, Tiles.SOUTH, Tiles.WEST, Tiles.NORTH)
+        val p3 = p(2, 4, 6, 8) + s(1, 3, 5, 7, 9) + listOf(Tiles.RED, Tiles.RED, Tiles.GREEN, Tiles.GREEN)
+        val game = MahjongGame(config, seed = 7L, dealer = 0, wallTiles = buildWall(p0, p1, p2, p3))
+
+        assertEquals(0, game.actor)
+        game.apply(Action.Discard(0, Tiles.EAST))
+        assertEquals(Phase.AWAIT_CLAIM, game.state.phase)
+        assertTrue(game.legalActions(1).any { it == Action.Hu(1) })
+    }
+
+    @Test
+    fun discardWinNotOfferedBelowMinimum() {
+        val config = RuleConfig.mcr()
+        // P1 听 5 条只有 7 番（平和+单钓+无字+连六+门前清），国标 8 分起和，不应出现胡。
+        val p0 = s(5) + m(2, 3, 4, 5, 6, 7, 8, 9) + p(1, 2, 3) + listOf(Tiles.NORTH, Tiles.WEST)
+        val p1 = m(1, 2, 3) + p(4, 5, 6) + p(7, 8, 9) + s(2, 3, 4) + s(5)
+        val p2 = p(1, 3, 5, 7, 9) + s(2, 4, 6, 8) + listOf(Tiles.SOUTH, Tiles.SOUTH, Tiles.WEST, Tiles.NORTH)
+        val p3 = p(2, 4, 6, 8) + s(1, 3, 5, 6, 7) + listOf(Tiles.RED, Tiles.RED, Tiles.GREEN, Tiles.GREEN)
+        val game = MahjongGame(config, seed = 8L, dealer = 0, wallTiles = buildWall(p0, p1, p2, p3))
+
+        assertEquals(0, game.actor)
+        game.apply(Action.Discard(0, Tiles.tileOf(2, 5)))
+        assertEquals(Phase.AWAIT_CLAIM, game.state.phase)
+        val legal = game.legalActions(1)
+        assertTrue(legal.none { it is Action.Hu }, "legal=$legal")
+        assertTrue(legal.any { it is Action.Pass })
+    }
+
+    @Test
+    fun knittedTenpaiCanHuOnDiscard() {
+        val config = RuleConfig.mcr()
+        // P1 十三不靠听 9 条，补上后成 14 张不靠。
+        val p0 = s(9) + m(2, 3, 4, 5, 6, 7, 8) + p(1, 2, 3) + listOf(Tiles.NORTH, Tiles.WEST, Tiles.SOUTH)
+        val p1 = m(1, 4, 7) + p(2, 5, 8) + s(3, 6) +
+            listOf(Tiles.EAST, Tiles.SOUTH, Tiles.WEST, Tiles.NORTH, Tiles.RED)
+        val p2 = p(1, 3, 5, 7, 9) + s(2, 4, 6, 8) + listOf(Tiles.SOUTH, Tiles.SOUTH, Tiles.WEST, Tiles.NORTH)
+        val p3 = p(2, 4, 6, 8) + s(1, 3, 5, 6, 7) + listOf(Tiles.RED, Tiles.RED, Tiles.GREEN, Tiles.GREEN)
+        val game = MahjongGame(config, seed = 9L, dealer = 0, wallTiles = buildWall(p0, p1, p2, p3))
+
+        assertEquals(0, game.actor)
+        game.apply(Action.Discard(0, Tiles.tileOf(2, 9)))
+        assertEquals(Phase.AWAIT_CLAIM, game.state.phase)
+        assertTrue(game.legalActions(1).any { it == Action.Hu(1) })
+    }
+
     // ---------------------------------------------------------------- 工具
 
     private fun respondClaims(game: MahjongGame, target: Int, action: Action) {
