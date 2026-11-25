@@ -54,6 +54,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -86,7 +87,6 @@ import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.LocalReduceMotion
 import mahjong.app.theme.MjMotion
 import mahjong.app.theme.MjRadius
-import mahjong.app.theme.TableSkin
 import mahjong.app.ui.ActionKind
 import mahjong.app.ui.Avatar
 import mahjong.app.ui.DialogMessage
@@ -399,13 +399,13 @@ private fun LandscapeHud(
                     .clickable { onBack() },
                 contentAlignment = Alignment.Center,
             ) {
-                MjIcon(MjIconKind.BACK, size = 16.dp, tint = colors.onTable)
+                MjIcon(MjIconKind.BACK, size = 16.dp, tint = colors.hudInk)
             }
             Spacer(Modifier.width(6.dp))
             MjText(
                 "${table.modeLabel} · ${WindNames.getOrElse(table.roundWind) { "东" }}风 · 第 ${table.handNumber} 局 · 庄家 ${table.dealer + 1} 号位",
                 type.caption.copy(fontWeight = FontWeight.SemiBold, fontSize = 11.sp),
-                colors.onTable,
+                colors.hudInk,
                 maxLines = 1,
             )
             Spacer(Modifier.weight(1f))
@@ -468,7 +468,7 @@ private fun HudChip(label: String, active: Boolean, onClick: () -> Unit, width: 
         MjText(
             label,
             type.caption.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold),
-            if (active) colors.tableGoldInk else colors.onTable2,
+            if (active) colors.tableGoldInk else colors.hudInk2,
             maxLines = 1,
         )
     }
@@ -603,12 +603,12 @@ private fun TopSeat(
     ) {
     Row(
         Modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(colors.material.seatRadius))
             .background(if (isCurrent) colors.seatFillActive else colors.seatFill)
             .border(
                 1.dp,
                 if (isCurrent) colors.tableGold.copy(alpha = 0.80f) else colors.tableLine,
-                RoundedCornerShape(14.dp),
+                RoundedCornerShape(colors.material.seatRadius),
             )
             .padding(horizontal = 10.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -709,12 +709,12 @@ private fun SeatTag(seat: SeatUi, isCurrent: Boolean, cardW: Dp, compact: Boolea
     Column(
         Modifier
             .width(cardW)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(colors.material.seatRadius))
             .background(if (isCurrent) colors.seatFillActive else colors.seatFill)
             .border(
                 1.dp,
                 if (isCurrent) colors.tableGold.copy(alpha = 0.80f) else colors.tableLine,
-                RoundedCornerShape(14.dp),
+                RoundedCornerShape(colors.material.seatRadius),
             )
             .padding(horizontal = if (compact) 2.dp else 6.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1025,69 +1025,43 @@ private fun RiverGrid(
     }
 }
 
+/**
+ * 中央盘：四款主题统一 44×44、圆角取主题表（12dp）、1dp 描边；
+ * 风位 / 牌数 / 「余张」三行字号 8.5 / 16 / 8.5，尺寸固定，圆心不随文案跳动。
+ */
 @Composable
 private fun CenterInfo(table: TableUi) {
     val colors = LocalMjColors.current
-    if (colors.skin == TableSkin.WOOD) {
-        WoodCenterDisc(table)
-        return
-    }
     val type = LocalMjType.current
-    Column(
-        modifier = Modifier
-            // 固定尺寸：余牌数/局数文案长短都不能改变外框，保证圆心绝对不动。
-            .size(width = 86.dp, height = 60.dp)
-            .drawBehind {
-                val r = 28.dp.toPx()
-                drawCircle(colors.onTable.copy(alpha = 0.05f), radius = r)
-                drawCircle(colors.tableLine, radius = r, style = Stroke(1.dp.toPx()))
-            }
-            .padding(horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        MjText("余牌", type.caption.copy(fontSize = 8.sp), colors.onTable2, maxLines = 1)
-        MjText("${table.wallRemaining}", type.h2, colors.onTable, maxLines = 1)
-        Row(
-            Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(colors.onTable.copy(alpha = 0.10f))
-                .padding(horizontal = 5.dp, vertical = 1.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            MjText(
-                "${WindNames[table.roundWind]}风",
-                type.caption.copy(fontSize = 8.sp, fontWeight = FontWeight.SemiBold),
-                colors.tableGold,
-                maxLines = 1,
-            )
-            Spacer(Modifier.width(3.dp))
-            MjText(
-                "第${table.handNumber}局",
-                type.caption.copy(fontSize = 8.sp),
-                colors.onTable2,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-/** 暖木中央盘：44×44、圆角 12、1dp 描边；风位/牌数/「余张」三行字号 8.5 / 16 / 8.5。 */
-@Composable
-private fun WoodCenterDisc(table: TableUi) {
-    val colors = LocalMjColors.current
-    val type = LocalMjType.current
+    val material = colors.material
     Column(
         modifier = Modifier
             .size(44.dp)
             .drawBehind {
-                val radius = CornerRadius(12.dp.toPx())
-                drawRoundRect(colors.tableCore, cornerRadius = radius)
-                drawRoundRect(
-                    color = colors.tableLine,
-                    cornerRadius = radius,
-                    style = Stroke(1.dp.toPx()),
-                )
+                val stroke = 1.dp.toPx()
+                when {
+                    material.discOctagon -> {
+                        val path = octagonPath(size.width, size.height)
+                        drawPath(path, colors.tableCore)
+                        drawPath(path, colors.tableLine, style = Stroke(stroke))
+                    }
+
+                    material.discRadius <= 0.dp -> {
+                        val r = size.minDimension / 2f
+                        drawCircle(colors.tableCore, radius = r)
+                        drawCircle(colors.tableLine, radius = r - stroke / 2f, style = Stroke(stroke))
+                    }
+
+                    else -> {
+                        val corner = CornerRadius(material.discRadius.toPx())
+                        drawRoundRect(colors.tableCore, cornerRadius = corner)
+                        drawRoundRect(
+                            color = colors.tableLine,
+                            cornerRadius = corner,
+                            style = Stroke(stroke),
+                        )
+                    }
+                }
             },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -1095,22 +1069,35 @@ private fun WoodCenterDisc(table: TableUi) {
         MjText(
             WindNames.getOrElse(table.roundWind) { "东" },
             type.caption.copy(fontSize = 8.5.sp, lineHeight = 10.sp),
-            colors.onTable2,
+            colors.coreInk2,
             maxLines = 1,
         )
         MjText(
             "${table.wallRemaining}",
             type.h2.copy(fontSize = 16.sp, lineHeight = 17.sp),
-            colors.onTable,
+            colors.coreInk,
             maxLines = 1,
         )
         MjText(
             "余张",
             type.caption.copy(fontSize = 8.5.sp, lineHeight = 10.sp),
-            colors.onTable2,
+            colors.coreInk2,
             maxLines = 1,
         )
     }
+}
+
+/** 八角盘：松石专用，切角比例与规格表 polygon(30% 0, 70% 0, 100% 30%…) 一致。 */
+private fun octagonPath(w: Float, h: Float): Path = Path().apply {
+    moveTo(w * 0.30f, 0f)
+    lineTo(w * 0.70f, 0f)
+    lineTo(w, h * 0.30f)
+    lineTo(w, h * 0.70f)
+    lineTo(w * 0.70f, h)
+    lineTo(w * 0.30f, h)
+    lineTo(0f, h * 0.70f)
+    lineTo(0f, h * 0.30f)
+    close()
 }
 
 // ------------------------------------------------------------ 底部：操作 / 副露 / 手牌

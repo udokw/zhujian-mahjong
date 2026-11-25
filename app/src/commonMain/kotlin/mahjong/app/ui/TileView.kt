@@ -96,6 +96,8 @@ fun MjBackStrip(width: Dp, height: Dp, modifier: Modifier = Modifier) {
 
 private fun DrawScope.drawTileFace(colors: MjColors, visual: TileVisual, dimmed: Boolean, s: Float) {
     val face = colors.tileFace
+    // 牌角与牌边描边由主题表给出：青瓷 3px、藏蓝/雾灰/奶咖 4px、暖木/朱砂/霓虹 5px。
+    val r = colors.material.tileCorner.value * s
     // 象牙质感：顶部提亮、底部略收暖灰，形成实体牌的厚度。
     drawRoundRect(
         brush = Brush.verticalGradient(
@@ -109,7 +111,7 @@ private fun DrawScope.drawTileFace(colors: MjColors, visual: TileVisual, dimmed:
         ),
         topLeft = Offset(1f * s, 1f * s),
         size = Size(58f * s, 78f * s),
-        cornerRadius = CornerRadius(8f * s),
+        cornerRadius = CornerRadius(r),
     )
     // 顶部釉光
     drawRoundRect(
@@ -119,20 +121,20 @@ private fun DrawScope.drawTileFace(colors: MjColors, visual: TileVisual, dimmed:
         ),
         topLeft = Offset(3f * s, 2.5f * s),
         size = Size(54f * s, 17f * s),
-        cornerRadius = CornerRadius(5f * s),
+        cornerRadius = CornerRadius(r * 0.62f),
     )
     drawRoundRect(
         color = colors.tileEdge,
         topLeft = Offset(1f * s, 1f * s),
         size = Size(58f * s, 78f * s),
-        cornerRadius = CornerRadius(8f * s),
-        style = Stroke(width = 1.4f * s),
+        cornerRadius = CornerRadius(r),
+        style = Stroke(width = colors.material.tileEdge.value * s),
     )
     drawRoundRect(
-        color = colors.tileInner.copy(alpha = 0.6f),
+        color = colors.tileInner.copy(alpha = 0.7f),
         topLeft = Offset(5.5f * s, 5.5f * s),
         size = Size(49f * s, 69f * s),
-        cornerRadius = CornerRadius(4.5f * s),
+        cornerRadius = CornerRadius(r * 0.56f),
         style = Stroke(width = 1f * s),
     )
 
@@ -141,7 +143,7 @@ private fun DrawScope.drawTileFace(colors: MjColors, visual: TileVisual, dimmed:
             color = colors.primary,
             topLeft = Offset(1.6f * s, 1.6f * s),
             size = Size(56.8f * s, 76.8f * s),
-            cornerRadius = CornerRadius(7.6f * s),
+            cornerRadius = CornerRadius(r * 0.95f),
             style = Stroke(width = 1.5f * s),
         )
 
@@ -149,7 +151,7 @@ private fun DrawScope.drawTileFace(colors: MjColors, visual: TileVisual, dimmed:
             color = colors.tableGold,
             topLeft = Offset(3f * s, 3f * s),
             size = Size(54f * s, 74f * s),
-            cornerRadius = CornerRadius(6.5f * s),
+            cornerRadius = CornerRadius(r * 0.81f),
             style = Stroke(width = 1.2f * s),
         )
 
@@ -191,24 +193,25 @@ private fun DrawScope.drawTileFace(colors: MjColors, visual: TileVisual, dimmed:
 
 private fun DrawScope.drawTileBack(colors: MjColors, s: Float, muted: Boolean = false) {
     val alpha = if (muted) 0.72f else 1f
+    val r = colors.material.tileCorner.value * s
     drawRoundRect(
         color = colors.tileBack.copy(alpha = alpha),
         topLeft = Offset(1f * s, 1f * s),
         size = Size(58f * s, 78f * s),
-        cornerRadius = CornerRadius(8f * s),
+        cornerRadius = CornerRadius(r),
     )
     drawRoundRect(
         color = colors.tileBackLine.copy(alpha = alpha),
         topLeft = Offset(1f * s, 1f * s),
         size = Size(58f * s, 78f * s),
-        cornerRadius = CornerRadius(8f * s),
-        style = Stroke(width = 1.4f * s),
+        cornerRadius = CornerRadius(r),
+        style = Stroke(width = colors.material.tileEdge.value * s),
     )
     drawRoundRect(
         color = colors.tileBackLine.copy(alpha = 0.55f * alpha),
         topLeft = Offset(7f * s, 7f * s),
         size = Size(46f * s, 66f * s),
-        cornerRadius = CornerRadius(5f * s),
+        cornerRadius = CornerRadius(r * 0.56f),
         style = Stroke(width = 1f * s),
     )
 }

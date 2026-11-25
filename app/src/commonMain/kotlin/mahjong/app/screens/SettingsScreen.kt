@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -184,7 +183,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(14.dp))
                     MjText("牌桌皮肤", type.bodyStrong, colors.ink)
                     Spacer(Modifier.height(8.dp))
-                    // 八款主题按由浅到深两行排列，每行四款。
+                    // 八款皮肤按规格表顺序排列，每行四款、共两行；新增主题只需往 themeSpecs 加一行。
                     val skinRows = TableSkin.entries.chunked(4)
                     skinRows.forEachIndexed { rowIndex, rowSkins ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -518,12 +517,8 @@ private fun SkinSwatch(
                 .fillMaxWidth()
                 .height(34.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(
-                    Brush.radialGradient(
-                        listOf(preview.table1, preview.table2, preview.table3),
-                    )
-                )
-                .border(2.dp, preview.wood1, RoundedCornerShape(8.dp)),
+                // 缩略图直接复用真机的台面渲染，织纹/木沿与牌桌一一对应。
+                .drawTableFelt(preview),
             contentAlignment = Alignment.Center,
         ) {
             Box(
