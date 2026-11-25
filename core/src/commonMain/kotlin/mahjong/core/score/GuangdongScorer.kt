@@ -92,6 +92,8 @@ object GuangdongScorer {
             }
         }
 
+        SpecialHand.KNITTED_STRAIGHT -> Pattern("knitted_straight", "组合龙", 4)
+
         SpecialHand.GREATER_HONORS_AND_KNITTED,
         SpecialHand.LESSER_HONORS_AND_KNITTED,
         -> Pattern("knitted", "全不靠", 4)

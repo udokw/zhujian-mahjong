@@ -31,9 +31,11 @@ import mahjong.app.audio.platformInitAudio
 import mahjong.app.game.LocalGameSession
 import mahjong.app.game.OnlineGameSession
 import mahjong.app.game.SettlementUi
+import mahjong.app.game.TingLockDenied
 import mahjong.app.lan.nowWallMillis
 import mahjong.app.records.GameRecord
 import mahjong.app.records.GameRecordsRepository
+import mahjong.app.records.toRecordDetail
 import mahjong.app.screens.LobbyScreen
 import mahjong.app.screens.OnlineScreen
 import mahjong.app.screens.RecordsScreen
@@ -143,17 +145,21 @@ fun App() {
             else -> "点炮胡"
         }
         val now = nowWallMillis()
+        val time = platformFormatTime(now)
+        val mode = if (online) "好友房" else "人机"
         GameRecordsRepository.add(
             GameRecord(
                 at = now,
-                time = platformFormatTime(now),
-                mode = if (online) "好友房" else "人机",
+                time = time,
+                mode = mode,
                 rule = ui.modeLabel,
                 won = me != null && !ui.draw,
                 draw = ui.draw,
                 fan = me?.totalFan ?: 0,
                 delta = ui.deltas.getOrElse(ui.meSeat) { 0 },
                 result = result,
+                // 结算这一刻定稿，历史详情不随规则更新而变化。
+                detail = ui.toRecordDetail(mode = mode, rule = ui.modeLabel, time = time),
             )
         )
     }
@@ -407,8 +413,18 @@ fun App() {
                             onToggleTingLock = {
                                 if (onlineTable != null) {
                                     online?.toggleTingLock()
-                                } else if (session?.toggleTingLock() == false) {
-                                    showToast("尚未听牌，暂不能开启听牌锁定")
+                                } else {
+                                    when (session?.toggleTingLock()) {
+                                        TingLockDenied.NOT_READY ->
+                                            showToast("尚未听牌，暂不能开启听牌锁定")
+
+                                        TingLockDenied.BELOW_MIN -> {
+                                            val min = session?.table?.minFan ?: 8
+                                            showToast("当前听口均不足 $min 番，锁定后会连续过牌")
+                                        }
+
+                                        null -> Unit
+                                    }
                                 }
                             },
                         )

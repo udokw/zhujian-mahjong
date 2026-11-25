@@ -38,6 +38,9 @@ private const val CLAIM_WINDOW_MS = 8_000L
 /** 听牌锁定后摸打的停顿，避免每巡瞬间闪过、看不清刚摸的牌。 */
 private const val TING_LOCK_THINK_MS = 480L
 
+/** 听牌锁定被拒绝的原因。 */
+enum class TingLockDenied { NOT_READY, BELOW_MIN }
+
 /**
  * 本地人机局：包一层 core 的 MahjongGame + 三个 AiBot，把引擎状态投影成 UI 模型。
  */
@@ -104,20 +107,22 @@ class LocalGameSession(
     }
 
     /**
-     * 切换听牌锁定。只有已经听牌（引擎给出有效听口）才允许进入；
-     * 返回 false 表示条件不满足，由界面提示用户。
+     * 切换听牌锁定。只有已经听牌、且有听口达到起和门槛才允许进入；
+     * 返回 null 表示切换成功，否则返回被拒绝的原因，由界面提示用户。
      */
-    fun toggleTingLock(): Boolean {
+    fun toggleTingLock(): TingLockDenied? {
         if (!tingLocked) {
             val ting = table?.tingInfo
-            if (ting == null || ting.waits.isEmpty()) return false
+            if (ting == null || ting.waits.isEmpty()) return TingLockDenied.NOT_READY
+            // 听口全都不够起和番时锁定只会连续摸打，先挡住并提示。
+            if (!ting.meetsMin) return TingLockDenied.BELOW_MIN
             tingLocked = true
             autoPlay = false
         } else {
             tingLocked = false
         }
         publish(game.legalActions(meSeat))
-        return true
+        return null
     }
 
     val gameResult: GameResult? get() = game.gameResult
@@ -568,6 +573,7 @@ class LocalGameSession(
             flowerCountsTowardMin = config.flowerCountsTowardMin,
             horseCount = config.horseCountFor(game.dealerStreak),
             horses = result.horses.map { it.description },
+            dealer = game.dealer,
         )
         settlement = ui
         banner = null

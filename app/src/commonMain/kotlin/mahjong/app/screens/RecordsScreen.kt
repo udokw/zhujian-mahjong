@@ -18,7 +18,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +49,13 @@ fun RecordsScreen(
     val type = LocalMjType.current
     // 进入本页时读一次本地存储；打完一局会回到这里重新组合，拿到的是最新列表。
     val records = remember { GameRecordsRepository.load() }
+    // 点开的记录；非空时整页切到详情，不引入新的顶层导航分支。
+    var opened by remember { mutableStateOf<GameRecord?>(null) }
+    val current = opened
+    if (current != null) {
+        RecordDetailScreen(current, onBack = { opened = null })
+        return
+    }
     val total = records.size
     val wins = records.count { it.won }
     val bestFan = records.maxOfOrNull { it.fan } ?: 0
@@ -146,7 +156,7 @@ fun RecordsScreen(
                                 if (index > 0) {
                                     Spacer(Modifier.height(6.dp))
                                 }
-                                RecordRow(record)
+                                RecordRow(record) { opened = record }
                             }
                         }
                     }
@@ -157,7 +167,7 @@ fun RecordsScreen(
 }
 
 @Composable
-private fun RecordRow(record: GameRecord) {
+private fun RecordRow(record: GameRecord, onClick: () -> Unit) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     val resultColor = when {
@@ -165,7 +175,7 @@ private fun RecordRow(record: GameRecord) {
         record.won -> colors.green
         else -> colors.red
     }
-    MjCard(padding = 8.dp) {
+    MjCard(modifier = Modifier.clickable { onClick() }, padding = 8.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MjText(record.result, type.label, resultColor, maxLines = 1)
             // 未胡但正分只可能来自杠分或买马，标注出来避免看起来自相矛盾。
@@ -193,6 +203,8 @@ private fun RecordRow(record: GameRecord) {
                 if (record.delta > 0) colors.green else if (record.delta < 0) colors.red else colors.ink3,
                 maxLines = 1,
             )
+            Spacer(Modifier.width(4.dp))
+            MjText("›", type.label, colors.ink3, maxLines = 1)
         }
     }
 }

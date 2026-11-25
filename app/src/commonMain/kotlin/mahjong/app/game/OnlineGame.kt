@@ -1518,6 +1518,9 @@ class OnlineGameSession(
             minFan = ruleConfig.minFan,
             fanCap = ruleConfig.effectiveFanCap,
             flowerCountsTowardMin = ruleConfig.flowerCountsTowardMin,
+            handNumber = dto.handNumber,
+            roundWind = dto.roundWind,
+            dealer = dto.dealer,
         )
         table = current?.copy(banner = null, winShow = null)
         banner = null

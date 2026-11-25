@@ -163,6 +163,10 @@ data class SettlementUi(
     val horses: List<String> = emptyList(),
     /** 引擎给出的连庄结果：下一局是否由同一庄家继续。 */
     val dealerContinues: Boolean = false,
+    /** 本局局数、圈风与庄家，写战绩详情快照时直接取用。 */
+    val handNumber: Int = 1,
+    val roundWind: Int = 0,
+    val dealer: Int = 0,
 )
 
 val WindNames = listOf("东", "南", "西", "北")
@@ -208,6 +212,7 @@ fun GameResult.toSettlement(
     flowerCountsTowardMin: Boolean = false,
     horseCount: Int = 0,
     horses: List<String> = emptyList(),
+    dealer: Int = 0,
 ): SettlementUi {
     val winnersUi = winners.map { win ->
         WinnerUi(
@@ -244,6 +249,9 @@ fun GameResult.toSettlement(
         horseCount = horseCount,
         horses = horses,
         dealerContinues = dealerContinues,
+        handNumber = handNumber,
+        roundWind = roundWind,
+        dealer = dealer,
     )
 }
 
