@@ -381,6 +381,9 @@ fun App() {
                     val online = onlineSession
                     val onlineTable = online?.table
                     val table = onlineTable ?: session?.table
+                    // 冷启动会预建 onlineSession，但它的开关只代表联机牌桌；
+                    // 本地人机局必须读 LocalGameSession 自己的状态，否则 Elvis 会短路到 false。
+                    val onlineDriven = onlineTable != null
                     if (table != null) {
                         TableScreen(
                             table = table,
@@ -403,13 +406,13 @@ fun App() {
                             myName = settings.nickname,
                             showTing = settings.showTing,
                             onToggleTing = { update(settings.copy(showTing = !settings.showTing)) },
-                            autoPlaying = online?.autoPlaying ?: session?.autoPlay ?: false,
+                            autoPlaying = if (onlineDriven) online?.autoPlaying == true else session?.autoPlay == true,
                             onToggleAuto = if (onlineTable == null) {
                                 { session?.toggleAuto() }
                             } else {
                                 null
                             },
-                            tingLocked = online?.tingLocked ?: session?.tingLocked ?: false,
+                            tingLocked = if (onlineDriven) online?.tingLocked == true else session?.tingLocked == true,
                             onToggleTingLock = {
                                 if (onlineTable != null) {
                                     online?.toggleTingLock()

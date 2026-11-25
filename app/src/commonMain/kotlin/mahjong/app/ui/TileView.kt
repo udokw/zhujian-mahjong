@@ -129,7 +129,7 @@ private fun DrawScope.drawTileFace(colors: MjColors, visual: TileVisual, dimmed:
         style = Stroke(width = 1.4f * s),
     )
     drawRoundRect(
-        color = colors.tileInner.copy(alpha = 0.7f),
+        color = colors.tileInner.copy(alpha = 0.6f),
         topLeft = Offset(5.5f * s, 5.5f * s),
         size = Size(49f * s, 69f * s),
         cornerRadius = CornerRadius(4.5f * s),

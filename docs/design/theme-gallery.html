@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>竹间麻将 · 四款主题样本</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --paper:#ECE7DD;--paper2:#E2DBCE;--ink:#241F18;--ink2:#5C5445;--ink3:#8B8272;
+  --line:#D6CEBE;--seal:#A8412B;
+  --sans:"HarmonyOS Sans SC","MiSans","PingFang SC","Source Han Sans SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,monospace;
+}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;
+  padding:34px 40px 56px;
+  background-image:radial-gradient(120% 90% at 78% -10%,rgba(255,255,255,.6),transparent 60%);}
+.wrap{max-width:1380px;margin:0 auto}
+
+/* ── 页头 ─────────────────────────────────────── */
+.hdr{display:flex;align-items:flex-end;gap:28px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.hdr .lead{flex:1;min-width:0}
+.kicker{font-size:11px;letter-spacing:.16em;color:var(--ink3);font-weight:600}
+h1{font-size:31px;line-height:1.12;letter-spacing:-.015em;margin:9px 0 8px;font-weight:700}
+h1 em{font-style:normal;color:var(--seal)}
+.hdr p{font-size:14px;line-height:1.7;color:var(--ink2);max-width:660px}
+.toggle{display:flex;background:#F7F4EC;border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
+.toggle button{border:0;background:transparent;font-family:inherit;font-size:13.5px;font-weight:600;
+  color:var(--ink2);padding:8px 20px;border-radius:9px;cursor:pointer}
+.toggle button.on{background:var(--ink);color:#F8F5EC}
+.hint{margin-top:14px;font-size:13px;color:var(--ink3);display:flex;gap:24px;flex-wrap:wrap}
+.hint b{font-weight:600;color:var(--ink2)}
+
+/* ── 样本卡 ───────────────────────────────────── */
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px;margin-top:28px}
+.card{border-radius:18px;overflow:hidden;border:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 18px 34px -30px rgba(36,31,24,.55);
+  display:flex;flex-direction:column;background:#fff}
+.stage{padding:14px;background:#15130F}
+.wood{position:relative;border-radius:14px;padding:11px;overflow:hidden}
+.wood::before{content:"";position:absolute;inset:0;
+  background-image:repeating-linear-gradient(101deg,rgba(255,255,255,.09) 0 1px,transparent 1px 7px),
+                   repeating-linear-gradient(101deg,rgba(0,0,0,.16) 0 1px,transparent 1px 13px);
+  opacity:.5;pointer-events:none}
+.felt{position:relative;height:268px;border-radius:9px;overflow:hidden;isolation:isolate}
+.felt::after{content:"";position:absolute;inset:0;pointer-events:none}
+.pat-weave .felt::after{background-image:
+  repeating-linear-gradient(0deg,rgba(255,255,255,.055) 0 1px,transparent 1px 4px),
+  repeating-linear-gradient(90deg,rgba(0,0,0,.055) 0 1px,transparent 1px 4px)}
+.pat-linen .felt::after{background-image:
+  repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0 1px,transparent 1px 5px),
+  repeating-linear-gradient(-45deg,rgba(0,0,0,.05) 0 1px,transparent 1px 5px)}
+.pat-damask .felt::after{background-image:
+  repeating-radial-gradient(circle at 18px 18px,rgba(255,255,255,.042) 0 2px,transparent 2px 22px)}
+.pat-brushed .felt::after{background-image:
+  repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 1px,transparent 1px 3px)}
+.pat-rattan .felt::after{background-image:
+  repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 1px,transparent 1px 9px),
+  repeating-linear-gradient(90deg,rgba(0,0,0,.07) 0 1px,transparent 1px 9px)}
+.pat-lacquer .felt::after{background-image:
+  radial-gradient(120% 70% at 50% -12%,rgba(255,255,255,.20),transparent 58%),
+  radial-gradient(60% 40% at 82% 108%,rgba(255,255,255,.07),transparent 70%)}
+.vignette{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.13),transparent 34%,transparent 68%,rgba(0,0,0,.17))}
+.wall{position:absolute;left:50%;top:26px;transform:translateX(-50%);display:flex;flex-direction:column;
+  align-items:center;gap:3px}
+.wrow{display:flex;gap:3px}
+.wmid{display:flex;align-items:center;gap:4px}
+.wcol{display:flex;flex-direction:column;gap:3px}
+.river,.mine{display:flex;gap:3px}
+.mine{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);gap:5px}
+.mine .tile.sel{transform:translateY(-7px)}
+.discard{display:flex;gap:3px}
+.seat{position:absolute;left:16px;bottom:14px;font-size:12px;font-weight:600;color:var(--on-table)}
+.hu{position:absolute;right:16px;bottom:14px;font-size:12.5px;font-weight:700;padding:4px 12px;border-radius:7px}
+.diag{position:absolute;left:16px;top:14px;font-size:12px;color:var(--on-table2)}
+.tile{display:block}
+
+/* ── 主题信息（用主题自己的页面色渲染）─────── */
+.info{padding:17px 19px 19px;display:flex;flex-direction:column;gap:13px;flex:1}
+.tit{display:flex;align-items:baseline;gap:10px}
+.tit h2{font-size:21px;font-weight:700;letter-spacing:-.01em}
+.tag{font-size:14px;line-height:1.7;opacity:.8}
+.sw{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
+.sw div{border-radius:8px;overflow:hidden;border:1px solid rgba(0,0,0,.10)}
+.sw i{display:block;height:32px}
+.sw span{display:block;font-size:12px;line-height:1.3;padding:3px 4px 4px;font-family:var(--mono);opacity:.66;
+  background:rgba(127,127,127,.08);overflow:hidden}
+.btnrow{display:flex;gap:9px;align-items:center;margin-top:auto;flex-wrap:wrap}
+.btn{font-size:13px;font-weight:600;padding:8px 17px;border-radius:9px}
+.btn.ghost{border:1px solid currentColor}
+.kv{display:flex;gap:14px;font-size:12px;opacity:.62;flex-wrap:wrap}
+.kv b{font-weight:600;opacity:1}
+
+/* ── 页脚 ─────────────────────────────────────── */
+footer{margin-top:38px;padding-top:18px;border-top:1px solid var(--line);
+  display:flex;gap:26px;flex-wrap:wrap;font-size:12.5px;color:var(--ink3);line-height:1.75}
+footer b{color:var(--ink2);font-weight:600}
+@media(max-width:1080px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hdr">
+    <div class="lead">
+      <div class="kicker">竹间麻将　主题样本　四款</div>
+      <h1>四张牌桌，<em>四种坐下来的理由</em></h1>
+      <p>每款主题都换三样东西：桌面绒布、木沿材质、页面底色与纸张。牌面始终是象牙瓷白，红绿蓝三色照旧——变的只是光打上去的方式。下面每一张牌桌都是用游戏里同一套 60×80 矢量牌面和同一组色值渲染出来的，不是示意图。</p>
+    </div>
+    <div class="toggle" id="toggle">
+      <button data-mode="day" class="on">日间</button>
+      <button data-mode="night">夜间</button>
+    </div>
+  </header>
+  <div class="hint">
+    <span><b>切换日间 / 夜间</b>，四款同步换色</span>
+    <span><b>色板依次为</b>页面底、卡片、主色、金、桌布、木沿</span>
+    <span><b>牌面依次为</b>一萬、五條、九筒、東、中、發</span>
+  </div>
+
+  <main class="grid" id="grid"></main>
+
+  <footer>
+    <span><b>落地方式</b>　色值直接写进 commonMain 的同一张主题表，Android 与 iOS 共用，不做平台分支。</span>
+    <span><b>牌面</b>　沿用 60×80 viewBox 的矢量绘制，主题只提供纸色、牌背与三色墨。</span>
+    <span><b>牌桌</b>　木沿渐变 + 绒布径向渐变 + 各自织纹，全部由 Canvas 画出，不依赖位图。</span>
+  </footer>
+</div>
+
+<script>
+/* ────────────────────────────────────────────────────────────
+   主题种子：每款只给 7 个决定性颜色（页面纸色 / 墨 / 主色 / 金 /
+   桌布 / 木沿 / 牌背），其余 30 多个语义色由 derive() 推导。
+   同一份推导逻辑会 1:1 移植到 Kotlin，保证样张 = 真机。
+   ──────────────────────────────────────────────────────────── */
+const THEMES = [
+  { id:"zhujian", name:"竹间", en:"ZHUJIAN", pat:"weave",
+    tag:"宣纸底、青玉绒、胡桃木沿。默认的日常牌桌，安静、耐看。",
+    day:  { paper:0xF3EEE3, ink:0x2B2519, primary:0x1F6B52, gold:0x8A6420, felt:0x2E735C, wood:0x7A5232, back:0xE9EFF9 },
+    night:{ paper:0x12100C, ink:0xF0E9DA, primary:0x39A17C, gold:0xE5B863, felt:0x16443A, wood:0x3E2C1E, back:0x1D2A24 } },
+
+  { id:"qingci", name:"青瓷", en:"QINGCI", pat:"linen",
+    tag:"月白底、青瓷绒、灰木沿。像一件开片的宋瓷，凉而不冷。",
+    day:  { paper:0xEBF0EC, ink:0x1F2A26, primary:0x4C7A6B, gold:0x8C7B4A, felt:0x78998D, wood:0xA8A294, back:0xEDF2EC },
+    night:{ paper:0x0E1513, ink:0xE4EEE8, primary:0x8FC7B2, gold:0xC9B77E, felt:0x2C4740, wood:0x33302A, back:0x1E2C27 } },
+
+  { id:"tanmu", name:"檀木", en:"TANMU", pat:"rattan",
+    tag:"暖棕桌面、米黄牌背。像巷口那家开了三十年的老茶馆。",
+    day:  { paper:0xF1E7D6, ink:0x33261A, primary:0x7A5232, gold:0xA9791F, felt:0x5C4A32, wood:0x5A3A22, back:0xF4EBDC },
+    night:{ paper:0x140F0A, ink:0xF1E6D3, primary:0xC08A55, gold:0xD8B26A, felt:0x33271A, wood:0x2C1C11, back:0x261C12 } },
+
+  { id:"feicui", name:"翡翠", en:"FEICUI", pat:"weave",
+    tag:"深翠绒面、象牙牌、黄铜高光。富贵气，但不落俗。",
+    day:  { paper:0xF0F2E8, ink:0x15241B, primary:0x0F7048, gold:0xB3892A, felt:0x12603F, wood:0x4E3A26, back:0xDCE7D6 },
+    night:{ paper:0x08150F, ink:0xE7F2E7, primary:0x4CC79A, gold:0xD9B45C, felt:0x0A3A28, wood:0x221A11, back:0x16281E } }
+];
+
+/* ── 颜色数学（与 Kotlin 端同名函数一一对应）─────────────── */
+const rgb = h => ({ r:(h>>16)&255, g:(h>>8)&255, b:h&255 });
+const pk = c => (cl(Math.round(c.r))<<16) | (cl(Math.round(c.g))<<8) | cl(Math.round(c.b));
+const cl = v => v<0?0:v>255?255:v;
+const hex = h => "#" + h.toString(16).padStart(6,"0").toUpperCase();
+/** t=0 取 a，t=1 取 b */
+const mix = (a,b,t) => { const A=rgb(a),B=rgb(b); return pk({ r:A.r+(B.r-A.r)*t, g:A.g+(B.g-A.g)*t, b:A.b+(B.b-A.b)*t }); };
+const darken = (a,t) => { const A=rgb(a); return pk({ r:A.r*(1-t), g:A.g*(1-t), b:A.b*(1-t) }); };
+const lum = h => { const c=rgb(h); const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}; return .2126*f(c.r)+.7152*f(c.g)+.0722*f(c.b); };
+
+function derive(s, night){
+  if(!night){
+    const p=s.paper, ink=s.ink;
+    return {
+      isDark:false,
+      bg:p, surface:mix(p,0xFFFFFF,.62), surface2:mix(p,ink,.05), surface3:mix(p,ink,.11),
+      line:mix(p,ink,.13), lineStrong:mix(p,ink,.23),
+      ink, ink2:mix(ink,p,.30), ink3:mix(ink,p,.45), disabled:mix(ink,p,.58),
+      primary:s.primary, primaryDeep:darken(s.primary,.28), primarySoft:mix(s.primary,p,.90),
+      onPrimary:lum(s.primary)>.18?0x1A1712:0xFFFFFF,
+      green:0x0E6B4C, greenSoft:mix(0x0E6B4C,p,.90),
+      red:0xA93A32, redSoft:mix(0xA93A32,p,.90),
+      gold:s.gold, goldSoft:mix(s.gold,p,.88),
+      table1:s.felt, table2:darken(s.felt,.16), table3:darken(s.felt,.33),
+      onTable:mix(0xFFFFFF,s.felt,.06), onTable2:mix(mix(0xFFFFFF,s.felt,.06),s.felt,.32),
+      tableLine:0xFFFFFF, tableLineA:.14, tableGold:mix(s.gold,0xFFFFFF,.62), tableGoldInk:0x2A2110,
+      wood1:s.wood, wood2:darken(s.wood,.46), woodGrain:mix(s.wood,0xFFFFFF,.18),
+      tileFace:mix(0xFFFFFF,p,.05), tileEdge:mix(mix(0xFFFFFF,p,.05),ink,.14),
+      tileInner:mix(mix(0xFFFFFF,p,.05),ink,.06),
+      tileInk:darken(ink,.10), tileRed:0xC63C3C, tileBlue:0x2F6FE4, tileGreen:0x1B7F53,
+      tileBack:s.back, tileBackLine:lum(s.back)>.5?mix(s.back,ink,.18):mix(s.back,0xFFFFFF,.22)
+    };
+  }
+  const bg=s.paper, ink=s.ink;
+  return {
+    isDark:true,
+    bg, surface:mix(bg,0xFFFFFF,.052), surface2:mix(bg,0xFFFFFF,.095), surface3:mix(bg,0xFFFFFF,.145),
+    line:mix(bg,0xFFFFFF,.125), lineStrong:mix(bg,0xFFFFFF,.22),
+    ink, ink2:mix(ink,bg,.28), ink3:mix(ink,bg,.42), disabled:mix(ink,bg,.62),
+    primary:s.primary, primaryDeep:mix(s.primary,0xFFFFFF,.42), primarySoft:mix(s.primary,bg,.86),
+    onPrimary:lum(s.primary)>.18?0x1A1712:0xFFFFFF,
+    green:0x4CC79A, greenSoft:mix(0x4CC79A,bg,.86),
+    red:0xEE6A6A, redSoft:mix(0xEE6A6A,bg,.86),
+    gold:s.gold, goldSoft:mix(s.gold,bg,.86),
+    table1:s.felt, table2:darken(s.felt,.14), table3:darken(s.felt,.30),
+    onTable:mix(0xFFFFFF,s.felt,.06), onTable2:mix(mix(0xFFFFFF,s.felt,.06),s.felt,.32),
+    tableLine:0xFFFFFF, tableLineA:.12, tableGold:s.gold, tableGoldInk:0x2A2110,
+    wood1:s.wood, wood2:darken(s.wood,.42), woodGrain:mix(s.wood,0xFFFFFF,.14),
+    tileFace:mix(0xF6F3EA,bg,.03), tileEdge:mix(mix(0xF6F3EA,bg,.03),0x000000,.20),
+    tileInner:mix(mix(0xF6F3EA,bg,.03),0x000000,.07),
+    tileInk:0x1A201C, tileRed:0xB4402F, tileBlue:0x2E5F92, tileGreen:0x23664C,
+    tileBack:s.back, tileBackLine:mix(s.back,0xFFFFFF,.18)
+  };
+}
+
+/* ── 牌面（60×80 viewBox，与 TileView.kt 同一套坐标）───────── */
+const DOTS = {1:[[30,40]],2:[[30,26],[30,54]],3:[[18,22],[30,42],[42,62]],
+  4:[[20,24],[40,24],[20,56],[40,56]],5:[[19,22],[41,22],[30,42],[19,62],[41,62]],
+  6:[[21,18],[39,18],[21,40],[39,40],[21,62],[39,62]],
+  7:[[41,16],[30,28],[19,40],[21,55],[39,55],[21,69],[39,69]],
+  8:[[21,16],[39,16],[21,32],[39,32],[21,48],[39,48],[21,64],[39,64]],
+  9:[[15,18],[30,18],[45,18],[15,40],[30,40],[45,40],[15,62],[30,62],[45,62]]};
+const STICKS = {2:[[30,24],[30,56]],3:[[18,22],[30,42],[42,62]],4:[[20,26],[40,26],[20,56],[40,56]],
+  5:[[19,22],[41,22],[30,42],[19,62],[41,62]],6:[[20,20],[40,20],[20,41],[40,41],[20,62],[40,62]],
+  7:[[30,18],[18,40],[30,40],[42,40],[18,60],[30,60],[42,60]],
+  8:[[21,15],[39,15],[21,32],[39,32],[21,49],[39,49],[21,66],[39,66]],
+  9:[[18,18],[30,18],[42,18],[18,40],[30,40],[42,40],[18,62],[30,62],[42,62]]};
+const CN = ["","一","二","三","四","五","六","七","八","九"];
+const HONOR = {27:"東",28:"南",29:"西",30:"北"};
+
+function glyph(kind, rank, p){
+  const R = hex(p.tileRed), G = hex(p.tileGreen), K = hex(p.tileInk), B = hex(p.tileBlue);
+  if(kind==="wan")
+    return `<text x="30" y="48" font-size="31" font-weight="600" text-anchor="middle" fill="${R}">${CN[rank]}</text>
+            <text x="30" y="71" font-size="17" font-weight="600" text-anchor="middle" fill="${K}">萬</text>`;
+  if(kind==="dot"){
+    if(rank===1)
+      return `<circle cx="30" cy="40" r="15" fill="none" stroke="${G}" stroke-width="3"/>
+              <circle cx="30" cy="40" r="11.2" fill="${G}"/>
+              <circle cx="30" cy="40" r="7.4" fill="${hex(p.tileFace)}"/>
+              <circle cx="30" cy="40" r="4.6" fill="${R}"/>
+              <circle cx="30" cy="40" r="1.3" fill="${hex(p.tileFace)}"/>`;
+    const r = rank<=4?8.2:rank<=6?7.0:5.8;
+    return DOTS[rank].map(([x,y],i)=>{
+      const red = rank===3?i===1 : rank===5?i===2 : rank===6?i>=2 : rank===7?i>=3 : rank===9?i>=3&&i<=5 : false;
+      const c = red?R:G;
+      return `<circle cx="${x}" cy="${y}" r="${r}" fill="${c}"/>
+              <circle cx="${x}" cy="${y}" r="${r*.56}" fill="${hex(p.tileFace)}"/>
+              <circle cx="${x}" cy="${y}" r="${r*.30}" fill="${c}"/>`;
+    }).join("");
+  }
+  if(kind==="stick"){
+    if(rank===1)
+      return `<path d="M29,45 L19.5,66 L24,66.5 L30,52 L34.5,66 L38,64.5 L32,45 Z" fill="${G}"/>
+              <path d="M32,18 C38,21 40,28 39.5,35 C39,42 35.5,46.5 30.5,50 C25,46 21.5,41 21,34 C20.5,27 26,18.5 32,18 Z" fill="${G}"/>
+              <path d="M28,27 C33.5,28.5 35,34.5 30.5,40 C25.5,37 24.5,31 28,27 Z" fill="${hex(darken(p.tileGreen,.24))}"/>
+              <circle cx="32" cy="19" r="5.2" fill="${G}"/>
+              <path d="M36.6,17 L43.4,19.5 L36.6,21.6 Z" fill="${R}"/>
+              <circle cx="33.6" cy="18.2" r="1.5" fill="${R}"/>`;
+    return STICKS[rank].map(([x,y],i)=>{
+      const red = rank===5?i===2 : rank===7?i===0 : rank===9?i%3===1 : false;
+      const c = red?R:G;
+      return `<rect x="${x-2.5}" y="${y-6}" width="5" height="12" rx="2.5" fill="${c}"/>
+              <line x1="${x-1.9}" y1="${y-1.7}" x2="${x+1.9}" y2="${y-1.7}" stroke="${hex(p.tileFace)}" stroke-width=".8" opacity=".72"/>
+              <line x1="${x-1.9}" y1="${y+1.7}" x2="${x+1.9}" y2="${y+1.7}" stroke="${hex(p.tileFace)}" stroke-width=".8" opacity=".72"/>`;
+    }).join("");
+  }
+  if(kind==="honor")
+    return `<text x="30" y="54" font-size="30" font-weight="600" text-anchor="middle" fill="${K}">${HONOR[rank]}</text>`;
+  if(kind==="dragon"){
+    if(rank===31) return `<text x="30" y="54" font-size="30" font-weight="600" text-anchor="middle" fill="${R}">中</text>`;
+    if(rank===32) return `<text x="30" y="54" font-size="30" font-weight="600" text-anchor="middle" fill="${G}">發</text>`;
+    return `<rect x="15" y="21" width="30" height="38" rx="3" fill="none" stroke="${B}" stroke-width="3"/>
+            <rect x="21" y="27" width="18" height="26" rx="2" fill="none" stroke="${B}" stroke-width="1.1" opacity=".6"/>`;
+  }
+  return "";
+}
+
+function tileSvg(kind, rank, p, w, h, extra){
+  const face = hex(p.tileFace), edge = hex(p.tileEdge), inner = hex(p.tileInner);
+  const glow = p.isDark?.07:.40;
+  const body = kind==="back"
+    ? `<rect x="1" y="1" width="58" height="78" rx="8" fill="${hex(p.tileBack)}" stroke="${hex(p.tileBackLine)}" stroke-width="1.4"/>
+       <rect x="7" y="7" width="46" height="66" rx="5" fill="none" stroke="${hex(p.tileBackLine)}" stroke-width="1" opacity=".55"/>`
+    : `<rect x="1" y="1" width="58" height="78" rx="8" fill="${face}" stroke="${edge}" stroke-width="1.4"/>
+       <rect x="3" y="2.5" width="54" height="17" rx="5" fill="#FFFFFF" opacity="${glow}"/>
+       <rect x="5.5" y="5.5" width="49" height="69" rx="4.5" fill="none" stroke="${inner}" stroke-width="1" opacity=".7"/>
+       ${glyph(kind, rank, p)}`;
+  return `<svg class="tile ${extra||""}" width="${w}" height="${h}" viewBox="0 0 60 80" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+}
+
+/* ── 卡片 ────────────────────────────────────────────────── */
+function card(t, night){
+  const s = t[night?"night":"day"];
+  const p = derive(s, night);
+  const feltBg = `radial-gradient(130% 120% at 50% 32%, ${hex(p.table1)} 0%, ${hex(p.table2)} 52%, ${hex(p.table3)} 100%)`;
+  const woodBg = `linear-gradient(135deg, ${hex(p.wood1)}, ${hex(p.wood2)})`;
+  const infoBg = `linear-gradient(180deg, ${hex(p.surface2)}, ${hex(p.bg)} 46%, ${hex(p.bg)})`;
+  const back = () => tileSvg("back",0,p,16,21);
+  const wRow = Array.from({length:9}, back).join("");
+  const wCol = Array.from({length:4}, back).join("");
+  const discard = [["wan",2],["wan",3],["honor",27],["dragon",33]]
+    .map(([k,r])=>tileSvg(k,r,p,26,34)).join("");
+  const hand = [["wan",1],["stick",5],["dot",9],["dragon",31],["dragon",32]]
+    .map(([k,r],i)=>tileSvg(k,r,p,40,53,i===2?"sel":"")).join("");
+  return `<article class="card">
+    <div class="stage">
+      <div class="wood pat-${t.pat}" style="background:${woodBg}">
+        <div class="felt" style="background:${feltBg};--on-table:${hex(p.onTable)};--on-table2:${hex(p.onTable2)}">
+          <div class="vignette"></div>
+          <div class="diag">東场　第 2 局</div>
+          <div class="wall">
+            <div class="wrow">${wRow}</div>
+            <div class="wmid">
+              <div class="wcol">${wCol}</div>
+              <div class="discard">${discard}</div>
+              <div class="wcol">${wCol}</div>
+            </div>
+            <div class="wrow">${wRow}</div>
+          </div>
+          <div class="mine">${hand}</div>
+          <div class="seat">我位　${t.name}</div>
+          <div class="hu" style="background:${hex(p.tableGold)};color:${hex(p.tableGoldInk)}">胡</div>
+        </div>
+      </div>
+    </div>
+    <div class="info" style="background:${infoBg};color:${hex(p.ink)}">
+      <div class="tit"><h2>${t.name}</h2></div>
+      <p class="tag" style="color:${hex(p.ink2)}">${t.tag}</p>
+      <div class="sw">
+        ${[["页面",p.bg],["卡片",p.surface],["主色",p.primary],["金",p.gold],["桌布",p.table1],["木沿",p.wood1]]
+          .map(([n,v])=>`<div><i style="background:${hex(v)}"></i><span>${hex(v).slice(1)}</span></div>`).join("")}
+      </div>
+      <div class="btnrow">
+        <span class="btn" style="background:${hex(p.primary)};color:${hex(p.onPrimary)}">开始牌局</span>
+        <span class="btn ghost" style="color:${hex(p.ink2)}">规则</span>
+        <span class="kv" style="margin-left:auto">
+          <span>绒布 <b>${hex(p.table1).slice(1)}</b></span>
+          <span>牌背 <b>${hex(p.tileBack).slice(1)}</b></span>
+        </span>
+      </div>
+    </div>
+  </article>`;
+}
+
+let mode = new URLSearchParams(location.search).get("mode") === "night" ? "night" : "day";
+function render(){
+  document.getElementById("grid").innerHTML = THEMES.map(t=>card(t,mode==="night")).join("");
+  [...document.getElementById("toggle").children]
+    .forEach(b=>b.classList.toggle("on", b.dataset.mode===mode));
+}
+document.getElementById("toggle").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  mode = b.dataset.mode;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle("on", x===b));
+  render();
+});
+render();
+</script>
+</body>
+</html>

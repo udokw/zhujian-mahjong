@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -85,6 +86,7 @@ import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.LocalReduceMotion
 import mahjong.app.theme.MjMotion
 import mahjong.app.theme.MjRadius
+import mahjong.app.theme.TableSkin
 import mahjong.app.ui.ActionKind
 import mahjong.app.ui.Avatar
 import mahjong.app.ui.DialogMessage
@@ -381,7 +383,7 @@ private fun LandscapeHud(
             }
             .background(
                 Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.30f),
+                    0f to colors.tableHud,
                     1f to Color.Transparent,
                 ),
             ),
@@ -413,6 +415,7 @@ private fun LandscapeHud(
                     label = "听牌提示",
                     active = showTing,
                     onClick = onToggleTing,
+                    width = 64.dp,
                 )
             }
             if (onToggleTingLock != null) {
@@ -421,6 +424,7 @@ private fun LandscapeHud(
                     label = if (tingLocked) "已听牌" else "听牌",
                     active = tingLocked,
                     onClick = onToggleTingLock,
+                    width = 52.dp,
                 )
             }
             if (onToggleAuto != null) {
@@ -429,6 +433,7 @@ private fun LandscapeHud(
                     label = "托管",
                     active = autoPlaying,
                     onClick = onToggleAuto,
+                    width = 44.dp,
                 )
             }
         }
@@ -445,14 +450,16 @@ private fun LandscapeHud(
 }
 
 @Composable
-private fun HudChip(label: String, active: Boolean, onClick: () -> Unit) {
+private fun HudChip(label: String, active: Boolean, onClick: () -> Unit, width: Dp) {
     val colors = LocalMjColors.current
     val type = LocalMjType.current
     Box(
         Modifier
+            // 固定外框：激活只换底色不换尺寸，听牌↔已听牌 文案变化也不让按钮跳动。
+            .width(width)
             .height(24.dp)
             .clip(RoundedCornerShape(999.dp))
-            .background(if (active) colors.tableGold else Color.Transparent)
+            .background(if (active) colors.tableGold else colors.hudChipFill)
             .border(1.dp, colors.tableLine, RoundedCornerShape(999.dp))
             .clickable { onClick() }
             .padding(horizontal = 9.dp),
@@ -597,7 +604,7 @@ private fun TopSeat(
     Row(
         Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(colors.table3.copy(alpha = if (isCurrent) 0.62f else 0.40f))
+            .background(if (isCurrent) colors.seatFillActive else colors.seatFill)
             .border(
                 1.dp,
                 if (isCurrent) colors.tableGold.copy(alpha = 0.80f) else colors.tableLine,
@@ -703,7 +710,7 @@ private fun SeatTag(seat: SeatUi, isCurrent: Boolean, cardW: Dp, compact: Boolea
         Modifier
             .width(cardW)
             .clip(RoundedCornerShape(14.dp))
-            .background(colors.table3.copy(alpha = if (isCurrent) 0.62f else 0.40f))
+            .background(if (isCurrent) colors.seatFillActive else colors.seatFill)
             .border(
                 1.dp,
                 if (isCurrent) colors.tableGold.copy(alpha = 0.80f) else colors.tableLine,
@@ -1021,6 +1028,10 @@ private fun RiverGrid(
 @Composable
 private fun CenterInfo(table: TableUi) {
     val colors = LocalMjColors.current
+    if (colors.skin == TableSkin.WOOD) {
+        WoodCenterDisc(table)
+        return
+    }
     val type = LocalMjType.current
     Column(
         modifier = Modifier
@@ -1061,6 +1072,47 @@ private fun CenterInfo(table: TableUi) {
     }
 }
 
+/** 暖木中央盘：44×44、圆角 12、1dp 描边；风位/牌数/「余张」三行字号 8.5 / 16 / 8.5。 */
+@Composable
+private fun WoodCenterDisc(table: TableUi) {
+    val colors = LocalMjColors.current
+    val type = LocalMjType.current
+    Column(
+        modifier = Modifier
+            .size(44.dp)
+            .drawBehind {
+                val radius = CornerRadius(12.dp.toPx())
+                drawRoundRect(colors.tableCore, cornerRadius = radius)
+                drawRoundRect(
+                    color = colors.tableLine,
+                    cornerRadius = radius,
+                    style = Stroke(1.dp.toPx()),
+                )
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        MjText(
+            WindNames.getOrElse(table.roundWind) { "东" },
+            type.caption.copy(fontSize = 8.5.sp, lineHeight = 10.sp),
+            colors.onTable2,
+            maxLines = 1,
+        )
+        MjText(
+            "${table.wallRemaining}",
+            type.h2.copy(fontSize = 16.sp, lineHeight = 17.sp),
+            colors.onTable,
+            maxLines = 1,
+        )
+        MjText(
+            "余张",
+            type.caption.copy(fontSize = 8.5.sp, lineHeight = 10.sp),
+            colors.onTable2,
+            maxLines = 1,
+        )
+    }
+}
+
 // ------------------------------------------------------------ 底部：操作 / 副露 / 手牌
 
 @Composable
@@ -1097,7 +1149,7 @@ private fun BottomBand(
             .background(
                 Brush.verticalGradient(
                     0f to Color.Transparent,
-                    1f to Color.Black.copy(alpha = 0.26f),
+                    1f to colors.bandShade,
                 ),
             ),
     ) {

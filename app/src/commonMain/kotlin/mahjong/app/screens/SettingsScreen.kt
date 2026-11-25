@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -183,16 +184,22 @@ fun SettingsScreen(
                     Spacer(Modifier.height(14.dp))
                     MjText("牌桌皮肤", type.bodyStrong, colors.ink)
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TableSkin.entries.forEach { skin ->
-                            SkinSwatch(
-                                skin = skin,
-                                selected = settings.skin == skin,
-                                dark = colors.isDark,
-                                modifier = Modifier.weight(1f),
-                                onClick = { onChange(settings.copy(skin = skin)) },
-                            )
+                    // 八款主题按由浅到深两行排列，每行四款。
+                    val skinRows = TableSkin.entries.chunked(4)
+                    skinRows.forEachIndexed { rowIndex, rowSkins ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            rowSkins.forEach { skin ->
+                                SkinSwatch(
+                                    skin = skin,
+                                    selected = settings.skin == skin,
+                                    dark = colors.isDark,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onChange(settings.copy(skin = skin)) },
+                                )
+                            }
+                            repeat(4 - rowSkins.size) { Spacer(Modifier.weight(1f)) }
                         }
+                        if (rowIndex < skinRows.lastIndex) Spacer(Modifier.height(10.dp))
                     }
                     Spacer(Modifier.height(14.dp))
                     MjText("牌面大小", type.bodyStrong, colors.ink)
@@ -511,14 +518,20 @@ private fun SkinSwatch(
                 .fillMaxWidth()
                 .height(34.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(preview.table2),
+                .background(
+                    Brush.radialGradient(
+                        listOf(preview.table1, preview.table2, preview.table3),
+                    )
+                )
+                .border(2.dp, preview.wood1, RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Box(
                 Modifier
-                    .size(14.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(preview.tileFace),
+                    .size(width = 11.dp, height = 15.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(preview.tileBack)
+                    .border(0.8.dp, preview.tileBackLine, RoundedCornerShape(3.dp)),
             )
         }
         Spacer(Modifier.height(6.dp))

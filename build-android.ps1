@@ -1,10 +1,12 @@
 # 安卓构建入口（Windows）
 #
-# 背景：本机用户目录含中文（狂客），JDK 17 启动器按系统 GBK 解码 @argfile，
-# 会把 worker classpath 弄成乱码，导致 :core:jvmTest 之类的任务失败。
-# 这里自动做两件事，不需要手工准备：
-#   1. 把项目映射到一个纯 ASCII 的 junction 路径上，再通过该路径调用 gradlew；
-#   2. 把 GRADLE_USER_HOME 指到 ASCII 目录，避免缓存路径里出现中文。
+# 背景：项目路径或 Windows 用户目录含中文时，JDK 17 启动器按系统 GBK 解码
+# @argfile，会把 worker classpath 弄成乱码，导致 :core:jvmTest 之类的任务失败。
+# 这里自动做两件事，不需要手工准备，也不依赖任何固定用户名：
+#   1. 把项目映射到一个纯 ASCII 的 junction 路径上（运行时不失效就复用，失效则重建），
+#      再通过该路径调用 gradlew；
+#   2. GRADLE_USER_HOME 默认取当前用户 ~/.gradle（已设置同名环境变量时优先沿用），
+#      启动时校验并打印最终使用的路径。
 #
 # 用法：
 #   .\build-android.ps1                 # 打 debug APK
@@ -39,37 +41,67 @@ function Test-Ascii([string] $text) {
 
 $asciiRoot = $projectRoot
 if (-not (Test-Ascii $projectRoot)) {
-    $linkPath = 'C:\Users\Public\mahjong-app'
-    $existing = Get-Item -LiteralPath $linkPath -ErrorAction SilentlyContinue
-    if ($existing) {
-        $target = $null
-        if ($existing.LinkType -eq 'Junction' -or $existing.LinkType -eq 'SymbolicLink') {
+    # 映射位置不写死用户名：优先 $env:PUBLIC，其次 $env:LOCALAPPDATA。
+    $candidates = @(
+        (Join-Path $env:PUBLIC 'mahjong-app'),
+        (Join-Path $env:LOCALAPPDATA 'mahjong-app')
+    ) | Where-Object { $_ }
+
+    $asciiRoot = $null
+    foreach ($linkPath in $candidates) {
+        $existing = Get-Item -LiteralPath $linkPath -Force -ErrorAction SilentlyContinue
+        if ($existing -and ($existing.LinkType -eq 'Junction' -or $existing.LinkType -eq 'SymbolicLink')) {
             $target = $existing.Target
             if ($target -is [array]) { $target = $target[0] }
+            $resolved = $null
+            if ($target) {
+                try { $resolved = (Resolve-Path -LiteralPath $target -ErrorAction Stop).Path } catch { }
+            }
+            if ($resolved -and $resolved -eq $projectRoot) {
+                Write-Host "[build] 复用既有 ASCII 映射: $linkPath -> $projectRoot"
+                $asciiRoot = $linkPath
+                break
+            }
+            # 映射失效（目标已不存在）或指向别处：只删链接本身，不动目标目录内容。
+            Write-Host "[build] ASCII 映射失效或指向别处，重建: $linkPath"
+            try { [System.IO.Directory]::Delete($linkPath, $false) } catch { }
+        } elseif ($existing) {
+            # 普通目录：不覆盖用户数据，换下一个候选路径。
+            Write-Host "[build] 路径已被普通目录占用，跳过: $linkPath"
+            continue
         }
-        if ($target -and ((Resolve-Path -LiteralPath $target).Path -eq $projectRoot)) {
-            Write-Host "[build] 复用既有 ASCII 映射: $linkPath -> $projectRoot"
-        } elseif (-not $target -and $existing.PSIsContainer) {
-            # 已存在普通目录且不是映射，不能覆盖
-            throw "$linkPath 已被占用（不是指向本项目的映射），请先删除后再运行。"
-        } else {
-            Remove-Item -LiteralPath $linkPath -Force -Recurse -ErrorAction SilentlyContinue
-            New-Item -ItemType Junction -Path $linkPath -Target $projectRoot | Out-Null
-            Write-Host "[build] 重建 ASCII 映射: $linkPath -> $projectRoot"
+
+        try {
+            New-Item -ItemType Junction -Path $linkPath -Target $projectRoot -ErrorAction Stop | Out-Null
+            Write-Host "[build] 创建 ASCII 映射: $linkPath -> $projectRoot"
+            $asciiRoot = $linkPath
+            break
+        } catch {
+            Write-Host "[build] 无法在此创建映射，换下一个候选: $linkPath ($($_.Exception.Message))"
         }
-    } else {
-        New-Item -ItemType Junction -Path $linkPath -Target $projectRoot | Out-Null
-        Write-Host "[build] 创建 ASCII 映射: $linkPath -> $projectRoot"
     }
-    $asciiRoot = $linkPath
+    if (-not $asciiRoot) {
+        throw '无法创建可用的 ASCII 路径映射，请检查 $env:PUBLIC / $env:LOCALAPPDATA 的写权限。'
+    }
 }
 
 # ---------------------------------------------------------------- 环境变量
 
-$gradleHome = 'C:\Users\Public\gradlehome'
-if (-not (Test-Path -LiteralPath $gradleHome)) {
-    New-Item -ItemType Directory -Path $gradleHome -Force | Out-Null
+# 不写死用户目录：显式设置的 GRADLE_USER_HOME 可用则沿用；
+# 未设置或目录不存在时，回退到当前用户 ~/.gradle。
+$userGradleHome = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.gradle'
+$gradleHome = $env:GRADLE_USER_HOME
+if (-not $gradleHome -or -not (Test-Path -LiteralPath $gradleHome -PathType Container)) {
+    if ($gradleHome) {
+        Write-Host "[build] GRADLE_USER_HOME 不可用，回退到当前用户目录: $gradleHome"
+    }
+    $gradleHome = $userGradleHome
 }
+if (-not (Test-Path -LiteralPath $gradleHome -PathType Container)) {
+    New-Item -ItemType Directory -Path $gradleHome -Force | Out-Null
+    Write-Host "[build] 已创建 GRADLE_USER_HOME: $gradleHome"
+}
+$gradleHome = (Resolve-Path -LiteralPath $gradleHome).Path
 $env:GRADLE_USER_HOME = $gradleHome
 
 if (-not $env:JAVA_HOME -or -not (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {

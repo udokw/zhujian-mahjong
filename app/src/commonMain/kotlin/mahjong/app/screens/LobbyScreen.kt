@@ -583,7 +583,7 @@ private fun TablePreview(modifier: Modifier = Modifier) {
             }
         }
         MjText(
-            if (colors.isDark) "夜间 · 经典桌" else "日间 · 经典桌",
+            "${if (colors.isDark) "夜间" else "日间"} · ${colors.skin.label}桌",
             type.caption.copy(fontSize = 9.sp),
             colors.onTable2,
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 8.dp),

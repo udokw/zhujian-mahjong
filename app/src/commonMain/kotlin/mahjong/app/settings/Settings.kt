@@ -1,6 +1,12 @@
 package mahjong.app.settings
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import mahjong.app.keyValueStore
 import mahjong.app.platformDefaultServerUrl
@@ -22,9 +28,27 @@ enum class AiSpeed(val label: String, val thinkMs: Long, val claimMs: Long) {
     FAST("快", 420L, 320L),
 }
 
+/**
+ * 牌桌皮肤的反序列化兜底：旧版本存过 BAMBOO / INK，这两个 id 已下线。
+ * 读到未知值时只把皮肤回落到经典，其余设置照常读出，避免整个设置对象被重置或启动白屏。
+ */
+object TableSkinSerializer : KSerializer<TableSkin> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("mahjong.app.theme.TableSkin", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: TableSkin) = encoder.encodeString(value.name)
+
+    override fun deserialize(decoder: Decoder): TableSkin {
+        val raw = decoder.decodeString()
+        return TableSkin.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
+            ?: TableSkin.CLASSIC
+    }
+}
+
 @Serializable
 data class AppSettings(
     val theme: ThemeMode = ThemeMode.SYSTEM,
+    @Serializable(with = TableSkinSerializer::class)
     val skin: TableSkin = TableSkin.CLASSIC,
     val tileScale: TileScale = TileScale.STANDARD,
     val aiLevelId: String = AiLevel.NORMAL.id,
@@ -81,6 +105,8 @@ object SettingsRepository {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
+        // 枚举被删除/改名时回落到默认值，避免整份设置解析失败。
+        coerceInputValues = true
     }
 
     fun load(): AppSettings {

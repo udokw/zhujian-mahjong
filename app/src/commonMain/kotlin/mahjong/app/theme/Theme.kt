@@ -18,15 +18,21 @@ enum class ThemeMode(val label: String) {
     NIGHT("夜间"),
 }
 
+/**
+ * 牌桌主题。名称直接对应 [themeSpecs] 里的四款主题；CLASSIC / WOOD 两个旧枚举名
+ * 保留下来只为兼容已保存的设置（旧「经典」= 竹间，旧「暖木」= 檀木）。
+ */
 enum class TableSkin(val label: String) {
-    CLASSIC("经典"),
-    BAMBOO("竹青"),
-    INK("墨玉"),
+    CLASSIC("竹间"),
+    QINGCI("青瓷"),
+    WOOD("檀木"),
+    FEICUI("翡翠"),
 }
 
 @Immutable
 data class MjColors(
     val isDark: Boolean,
+    val skin: TableSkin = TableSkin.CLASSIC,
     val bg: Color,
     val surface: Color,
     val surface2: Color,
@@ -55,6 +61,16 @@ data class MjColors(
     val tableLine: Color,
     val tableGold: Color,
     val tableGoldInk: Color,
+    // 台面工艺令牌（暖木）：中央盘、木框、HUD/手牌带压底、毡纹与席位面板。
+    val tableCore: Color,
+    val tableRim: Color,
+    val tableRimGlow: Color,
+    val tableHud: Color,
+    val bandShade: Color,
+    val feltStripe: Color,
+    val seatFill: Color,
+    val seatFillActive: Color,
+    val hudChipFill: Color,
     val wood1: Color,
     val wood2: Color,
     val woodGrain: Color,
@@ -83,62 +99,22 @@ private val dayBase = MjColors(
     table1 = c(0x2E735C), table2 = c(0x22594A), table3 = c(0x174337),
     onTable = c(0xF2F7F4), onTable2 = c(0xB9CEC4), tableLine = Color(0x24FFFFFF),
     tableGold = c(0xE8C97A), tableGoldInk = c(0x2A2110),
+    // 经典皮肤沿用旧观感：HUD/手牌带仍是纯黑压底，席位面板继续用 table3 半透明。
+    tableCore = c(0x174337), tableRim = c(0x7A5232), tableRimGlow = Color(0x38FFFFFF),
+    tableHud = Color(0x4D000000), bandShade = Color(0x42000000), feltStripe = Color(0x04FFFFFF),
+    seatFill = Color(0x66174337), seatFillActive = Color(0x9E174337L), hudChipFill = Color.Transparent,
     wood1 = c(0x7A5232), wood2 = c(0x402A1A), woodGrain = c(0x9C6F45),
     tileFace = c(0xFFFFFF), tileEdge = c(0xDCE2EC), tileInner = c(0xEDF1F6),
     tileInk = c(0x1D2129), tileRed = c(0xC63C3C), tileBlue = c(0x2F6FE4), tileGreen = c(0x1B7F53),
     tileBack = c(0xE9EFF9), tileBackLine = c(0xC9D6EA),
 )
 
-private val nightBase = MjColors(
-    isDark = true,
-    // 夜间主题：深檀木底 + 青玉主色，和日间共用同一套语义色位。
-    bg = c(0x12100C), surface = c(0x1B1712), surface2 = c(0x241F18), surface3 = c(0x2E2820),
-    line = c(0x332C22), lineStrong = c(0x463C2D),
-    ink = c(0xF0E9DA), ink2 = c(0xB3A992), ink3 = c(0x948B76), disabled = c(0x615B4C),
-    primary = c(0x2F8B6A), primaryDeep = c(0x7FC7A8), primarySoft = c(0x152A22), onPrimary = c(0xFFFFFF),
-    green = c(0x4CC79A), greenSoft = c(0x102B24), red = c(0xEE6A6A), redSoft = c(0x38191B),
-    gold = c(0xE5B863), goldSoft = c(0x2E2413),
-    table1 = c(0x16443A), table2 = c(0x0E332B), table3 = c(0x082019),
-    onTable = c(0xEEF5F1), onTable2 = c(0xA9C2B7), tableLine = Color(0x1FFFFFFF),
-    tableGold = c(0xE8C97A), tableGoldInk = c(0x2A2110),
-    wood1 = c(0x3E2C1E), wood2 = c(0x1C130D), woodGrain = c(0x5E4530),
-    tileFace = c(0xF4F1E8), tileEdge = c(0xC7C1AF), tileInner = c(0xE6E1D2),
-    tileInk = c(0x1A211D), tileRed = c(0xB94A3E), tileBlue = c(0x38679A), tileGreen = c(0x2F7A5C),
-    tileBack = c(0x1D2A24), tileBackLine = c(0x3E5A4C),
-)
-
-private fun Color.darken(amount: Float): Color = Color(
-    red = red * (1f - amount),
-    green = green * (1f - amount),
-    blue = blue * (1f - amount),
-    alpha = alpha,
-)
-
-private fun MjColors.withSkin(skin: TableSkin): MjColors {
-    val t1: Color
-    val t2: Color
-    val t3: Color
-    val gold: Color
-    when (skin) {
-        TableSkin.CLASSIC -> return this
-        TableSkin.BAMBOO -> {
-            t1 = c(0x2E4B42); t2 = c(0x213A33); t3 = c(0x142622); gold = c(0xC9D9C0)
-        }
-        TableSkin.INK -> {
-            t1 = c(0x232A28); t2 = c(0x171D1B); t3 = c(0x0B0F0E); gold = c(0xC9A227)
-        }
-    }
-    val shade = if (isDark) 0.12f else 0f
-    return copy(
-        table1 = t1.darken(shade),
-        table2 = t2.darken(shade),
-        table3 = t3.darken(shade),
-        tableGold = gold.darken(shade),
-    )
-}
-
+/**
+ * 两端唯一的取色入口：先按主题取种子，再推导出整套语义色。
+ * 所有主题定义都在 [themeSpecs]，Android / iOS 共用，不存在平台分支。
+ */
 fun mjColors(isDark: Boolean, skin: TableSkin): MjColors =
-    (if (isDark) nightBase else dayBase).withSkin(skin)
+    deriveColors(themeSpec(skin), isDark)
 
 @Immutable
 data class MjType(
