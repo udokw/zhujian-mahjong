@@ -106,6 +106,32 @@ class GuangdongScoringTest {
         assertTrue(result.fanItems.any { it.name == "抢杠" })
     }
 
+    // ---------------------------------------------------------------- 广东不设组合龙/全不靠
+
+    @Test
+    fun knittedStraightIsNotAWinningShapeInGuangdong() {
+        // 147m 258p 369s + 222m + 红中一对：国标为组合龙 12 番，广东番型表无此项，
+        // 且 9 张核心牌不是面子，无法按普通牌型计番，应判为不能和。
+        val hand = m(1, 4, 7) + p(2, 5, 8) + s(3, 6, 9) + m(2, 2, 2) + listOf(Tiles.RED, Tiles.RED)
+        assertEquals(14, hand.size)
+        assertNull(GuangdongScorer.score(hand, emptyList(), ctx(Tiles.RED), discardConfig))
+
+        val tuidaohu = RuleConfig.guangdongTuidaohu().copy(buyHorseEnabled = false)
+        assertNull(GuangdongScorer.score(hand, emptyList(), ctx(Tiles.RED, selfDraw = true), tuidaohu))
+    }
+
+    @Test
+    fun knittedHandsAreNotWinsInGuangdong() {
+        val lesser = m(1, 4, 7) + p(2, 5, 8) + s(3, 6, 9) +
+            listOf(Tiles.EAST, Tiles.SOUTH, Tiles.WEST, Tiles.NORTH, Tiles.RED)
+        val greater = m(1, 4, 7) + p(2, 5) + s(3, 6) +
+            listOf(Tiles.EAST, Tiles.SOUTH, Tiles.WEST, Tiles.NORTH, Tiles.RED, Tiles.GREEN, Tiles.WHITE)
+        assertEquals(14, lesser.size)
+        assertEquals(14, greater.size)
+        assertNull(GuangdongScorer.score(lesser, emptyList(), ctx(Tiles.RED), discardConfig))
+        assertNull(GuangdongScorer.score(greater, emptyList(), ctx(Tiles.WHITE), discardConfig))
+    }
+
     // ---------------------------------------------------------------- 工具
 
     private fun ctx(

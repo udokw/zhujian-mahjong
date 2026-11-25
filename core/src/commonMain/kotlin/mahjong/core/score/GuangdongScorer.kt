@@ -32,11 +32,15 @@ object GuangdongScorer {
 
         val patterns = ArrayList<Pattern>()
         val special = HandAnalyzer.specialHand(tiles, melds.size)
-        if (special != null) {
-            patterns.add(specialPattern(special, tiles))
+        val specialPattern = special?.let { specialPattern(it, tiles) }
+        if (specialPattern != null) {
+            patterns.add(specialPattern)
         } else {
-            val shapePatterns = HandAnalyzer.winShapes(tiles, melds).mapNotNull { primaryPattern(it, ctx) }
-            patterns.addAll(shapePatterns)
+            val shapes = HandAnalyzer.winShapes(tiles, melds)
+            // 广东番型表不设组合龙/全不靠/七星不靠，且这三类没有常规面子结构，
+            // 因此不构成和牌（不臆造番值，也不退化成鸡胡）。
+            if (shapes.isEmpty()) return null
+            patterns.addAll(shapes.mapNotNull { primaryPattern(it, ctx) })
         }
         val primary = patterns.maxByOrNull { it.fan }
             ?: Pattern("gd_chicken", "鸡胡", 0).takeIf { config.allowChickenHand }
@@ -77,7 +81,14 @@ object GuangdongScorer {
         )
     }
 
-    private fun specialPattern(special: SpecialHand, tiles: List<Int>): Pattern = when (special) {
+    /**
+     * 广东（推倒胡 / 鸡平胡）特殊牌型番值。
+     *
+     * 广东番型表只认十三幺、九莲宝灯、连七对、七对（含字一色/清一色七对/混一色七对），
+     * **不含组合龙、全不靠、七星不靠**（依据 `docs/research/02-mahjong-rules-mcr-guangdong.md` §3.3）。
+     * 返回 null 表示「本规则集不设此番」：调用方按常规牌型处理，无面子结构则不能和。
+     */
+    private fun specialPattern(special: SpecialHand, tiles: List<Int>): Pattern? = when (special) {
         SpecialHand.THIRTEEN_ORPHANS -> Pattern("thirteen_orphans", "十三幺", 6)
         SpecialHand.NINE_GATES -> Pattern("nine_gates", "九莲宝灯", 6)
         SpecialHand.SEVEN_SHIFTED_PAIRS -> Pattern("seven_shifted", "连七对", 6)
@@ -92,11 +103,11 @@ object GuangdongScorer {
             }
         }
 
-        SpecialHand.KNITTED_STRAIGHT -> Pattern("knitted_straight", "组合龙", 4)
-
+        // 推倒胡/鸡平胡无此牌型，禁止凭空给番。
+        SpecialHand.KNITTED_STRAIGHT,
         SpecialHand.GREATER_HONORS_AND_KNITTED,
         SpecialHand.LESSER_HONORS_AND_KNITTED,
-        -> Pattern("knitted", "全不靠", 4)
+        -> null
     }
 
     private fun primaryPattern(shape: HandShape, ctx: WinContext): Pattern? {
