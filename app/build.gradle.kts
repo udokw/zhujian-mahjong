@@ -58,7 +58,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 26
-        versionName = "1.0.25"
+        versionName = "1.0.24"
         // 调试注入（adb --es mj_debug）默认关闭：只有本地显式加 -PmjDebugScenario=true
         // 构建的包才带这个能力，随包发布的 debug APK 不再暴露任何注入入口。
         val debugScenario = providers.gradleProperty("mjDebugScenario").orNull?.toBoolean() == true
