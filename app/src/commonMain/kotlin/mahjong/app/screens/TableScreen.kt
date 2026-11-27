@@ -399,13 +399,7 @@ private fun LandscapeHud(
             .onGloballyPositioned {
                 // 圆心定义的上界：这一栏的底边（根坐标）。
                 onHudBottom(it.localToRoot(Offset.Zero).y + it.size.height)
-            }
-            .background(
-                Brush.verticalGradient(
-                    0f to colors.tableHud,
-                    1f to Color.Transparent,
-                ),
-            ),
+            },
     ) {
         Row(
             Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -1151,13 +1145,7 @@ private fun BottomBand(
     val colors = LocalMjColors.current
     Column(
         Modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    0f to Color.Transparent,
-                    1f to colors.bandShade,
-                ),
-            ),
+            .fillMaxWidth(),
     ) {
         ActionRow(
             table = table,
