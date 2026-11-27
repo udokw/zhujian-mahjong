@@ -15,6 +15,9 @@ import kotlin.math.roundToInt
  */
 enum class FeltPattern { WEAVE, DIAG, CRACKLE, LINEN, LACQUER, SAND, GRID, RATTAN, SCAN }
 
+/** 无木框主题的桌沿材质：瓷（釉面渐变 + 高光带 + 开片）/ 石（颗粒 + 倒角）。 */
+enum class EdgeStyle { NONE, CERAMIC, STONE }
+
 /**
  * 台面材质参数：密度、透明度、木框、内嵌高光、牌边与圆角全部显式声明，
  * 渲染层不再按主题写 if/else，样张与真机共用同一组可核对数值。
@@ -34,10 +37,13 @@ data class TableMaterial(
     val alpha2: Float = alpha1,
     /** 织纹线宽。 */
     val lineWidth: Dp = 1.dp,
-    /** 木框厚度；0 表示无木框，改用主题表里的 5dp 实体桌边（同族色）。 */
+    /** 木框厚度；0 表示无木框，改用 [edgeWidth] 的实体桌沿。 */
     val rim: Dp,
     /** true 才画实色木框 + 内嵌高光。 */
     val rimSolid: Boolean,
+    /** 无木框主题的桌沿材质与厚度（青瓷 12dp 瓷沿、松石 10dp 石沿）。 */
+    val edgeStyle: EdgeStyle = EdgeStyle.NONE,
+    val edgeWidth: Dp = 0.dp,
     /** 内嵌 1dp 线（ARGB），深色桌面用白。 */
     val inner: Long,
     /** 浅色桌面用的内嵌线（深墨）。 */
@@ -74,6 +80,8 @@ data class SkinPalette(
     val coreInk2: Long? = null,
     /** 无木框主题的实体桌边色（同族深浅色）；null 表示没有桌边。 */
     val edge: Long? = null,
+    /** 桌沿内侧色：瓷沿为月白、石沿为深石绿，与 [edge] 组成厚度渐变。 */
+    val edge2: Long? = null,
     val panel: Long? = null,
     val band: Long? = null,
     val line: Long? = null,
@@ -151,9 +159,6 @@ private val TILE_NIGHT = TileTokens(
     red = 0xFFB94A3EL, blue = 0xFF38679AL, green = 0xFF2F7A5CL, ink = 0xFF1A211DL,
 )
 
-/** 无木框主题（青瓷 / 松石）的实体桌边厚度：不在主题表里按款配，统一 6dp。 */
-val RimlessEdgeWidth: Dp = 6.dp
-
 // ------------------------------------------------------------ 九套材质
 
 /**
@@ -174,11 +179,12 @@ private val DIAG_MATERIAL = TableMaterial(
     discRadius = 12.dp, seatRadius = 10.dp, tileEdge = 1.4.dp, tileCorner = 8.3.dp,
 )
 
-/** 青瓷：冰裂开片 0°/60°/120°，间距 9/13/17dp，无框、1dp 内线收边（浅桌转深墨）。 */
+/** 青瓷：冰裂开片 0°/60°/120°，间距 9/13/17dp；12dp 瓷质桌沿（奶油白→月白釉面）。 */
 private val CRACKLE_MATERIAL = TableMaterial(
     pattern = FeltPattern.CRACKLE, pitch = 9.dp, pitch2 = 13.dp, pitch3 = 17.dp,
     alpha1 = 0.05f, alpha2 = 0.05f, lineWidth = 1.dp,
-    rim = 0.dp, rimSolid = false, inner = 0x3DFFFFFFL, innerLight = 0x380F1F19L,
+    rim = 0.dp, rimSolid = false, edgeStyle = EdgeStyle.CERAMIC, edgeWidth = 12.dp,
+    inner = 0x3DFFFFFFL, innerLight = 0x380F1F19L,
     discRadius = 0.dp, seatRadius = 10.dp, tileEdge = 1.0.dp, tileCorner = 6.7.dp,
 )
 
@@ -204,10 +210,11 @@ private val SAND_MATERIAL = TableMaterial(
     discRadius = 12.dp, seatRadius = 10.dp, tileEdge = 1.1.dp, tileCorner = 6.7.dp,
 )
 
-/** 松石：9dp 0/90 瓷砖格（5%），无框 1dp 白 22% 内线，中央盘切八角。 */
+/** 松石：9dp 0/90 瓷砖格（5%），10dp 石绿石材桌沿（斜切倒角），中央盘切八角。 */
 private val GRID_MATERIAL = TableMaterial(
     pattern = FeltPattern.GRID, pitch = 9.dp, alpha1 = 0.05f, alpha2 = 0.05f,
-    lineWidth = 1.dp, rim = 0.dp, rimSolid = false, inner = 0x38FFFFFFL,
+    lineWidth = 1.dp, rim = 0.dp, rimSolid = false, edgeStyle = EdgeStyle.STONE, edgeWidth = 10.dp,
+    inner = 0x38FFFFFFL,
     discRadius = 0.dp, discOctagon = true, seatRadius = 10.dp,
     tileEdge = 1.2.dp, tileCorner = 5.dp,
 )
@@ -269,20 +276,20 @@ val themeSpecs: List<ThemeSpec> = listOf(
     ThemeSpec(
         id = TableSkin.QINGCI,
         name = "青瓷",
-        tagline = "月白开片瓷面，6dp 月白瓷边收口。冰裂纹三向 9/13/17dp。",
+        tagline = "月白开片瓷面，12dp 奶油白到月白的釉面桌沿，一道高光带。冰裂纹三向 9/13/17dp。",
         material = CRACKLE_MATERIAL,
         day = SkinPalette(
             t1 = 0xFF6E9C8BL, t2 = 0xFF5A8879L, t3 = 0xFF48705FL, core = 0xFF7FA394L,
             rim = 0xFF587F70L, hud = 0x9E060E0CL, hudInk = 0xFFF2F7F4L, hudInk2 = 0xFFBFD6CBL,
             onTable = 0xFF0F1F19L, onTable2 = 0xFF223A32L,
-            edge = 0xFFC6D8CEL,
+            edge = 0xFFF4EBD9L, edge2 = 0xFFD6E4DBL,
             panel = LIGHT_PANEL, band = LIGHT_BAND, line = LIGHT_LINE,
         ),
         night = SkinPalette(
             t1 = 0xFF4A7164L, t2 = 0xFF3D6256L, t3 = 0xFF2E4E44L, core = 0xFF54796BL,
             rim = 0xFF2A463DL, hud = 0xAD030807L, hudInk = 0xFFE4EEE8L, hudInk2 = 0xFFA9C6BAL,
             onTable = 0xFFE4EEE8L, onTable2 = 0xFFA9C6BAL,
-            edge = 0xFF8FAC9FL,
+            edge = 0xFFE3D8C2L, edge2 = 0xFFAFC8BDL,
         ),
     ),
     ThemeSpec(
@@ -337,19 +344,19 @@ val themeSpecs: List<ThemeSpec> = listOf(
     ThemeSpec(
         id = TableSkin.TURQUOISE,
         name = "松石",
-        tagline = "松石绿瓷砖格，9dp 0/90 格子最硬朗。6dp 石绿桌边，中央盘切八角。",
+        tagline = "松石绿瓷砖格，9dp 0/90 格子最硬朗。10dp 石绿石材桌沿，斜切倒角。",
         material = GRID_MATERIAL,
         day = SkinPalette(
             t1 = 0xFF1E756DL, t2 = 0xFF17665FL, t3 = 0xFF114F49L, core = 0xFF0E443EL,
             rim = 0xFF0C3C37L, hud = 0x94040E0DL, hudInk = 0xFFEFF8F5L, hudInk2 = 0xFFB7D6CFL,
             onTable = 0xFFEFF8F5L, onTable2 = 0xFFB7D6CFL,
-            edge = 0xFF96C6B7L,
+            edge = 0xFF7FBFAFL, edge2 = 0xFF2B665DL,
         ),
         night = SkinPalette(
             t1 = 0xFF186863L, t2 = 0xFF125551L, t3 = 0xFF0D423FL, core = 0xFF0B3733L,
             rim = 0xFF082C29L, hud = 0xB3020908L, hudInk = 0xFFE8F4F1L, hudInk2 = 0xFFA9C6C0L,
             onTable = 0xFFE8F4F1L, onTable2 = 0xFFA9C6C0L,
-            edge = 0xFF3E9689L,
+            edge = 0xFF5C9E90L, edge2 = 0xFF1B4F49L,
         ),
     ),
     ThemeSpec(
@@ -493,6 +500,7 @@ private fun buildColors(spec: ThemeSpec, isDark: Boolean): MjColors {
         coreInk2 = Color(palette.coreInk2 ?: palette.onTable2),
         tableRim = c(palette.rim),
         tableEdge = c(palette.edge ?: palette.rim),
+        tableEdge2 = c(palette.edge2 ?: palette.edge ?: palette.rim),
         tableRimGlow = Color(innerArgb),
         tableHud = Color(palette.hud),
         hudInk = c(palette.hudInk),

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>青瓷 / 松石 桌沿 1:1 视觉稿</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 2400px; background: #0e1210; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; color: #e8efe9; }
+  .sec { position: relative; }
+  .label { padding: 18px 32px 10px; font-size: 30px; letter-spacing: 2px; color: #cfe0d6; }
+  .label small { font-size: 20px; opacity: .55; margin-left: 16px; letter-spacing: 0; }
+  canvas { display: block; }
+  .zoomrow { display: flex; gap: 0; }
+  .zoomrow .cell { position: relative; }
+  .zoomrow .cap { position: absolute; left: 14px; bottom: 10px; font-size: 18px; color: #b9cdc3; opacity: .8; }
+</style>
+</head>
+<body>
+<div class="sec">
+  <div class="label">青瓷 · 瓷质桌沿 12dp（夜间配色）<small>奶油白 → 月白釉面 · 2.5dp 高光带 · 开片 · 圆润内转角</small></div>
+  <canvas id="q_full" width="2400" height="1080"></canvas>
+  <div class="zoomrow">
+    <div class="cell"><canvas id="q_tl" width="600" height="320"></canvas><div class="cap">左上角 ×2.5</div></div>
+    <div class="cell"><canvas id="q_tr" width="600" height="320"></canvas><div class="cap">右上角 ×2.5</div></div>
+    <div class="cell"><canvas id="q_bl" width="600" height="320"></canvas><div class="cap">左下角 ×2.5</div></div>
+    <div class="cell"><canvas id="q_br" width="600" height="320"></canvas><div class="cap">右下角 ×2.5</div></div>
+  </div>
+</div>
+<div class="sec">
+  <div class="label">松石 · 石绿石材桌沿 10dp（夜间配色）<small>浅石绿 → 深石绿 · 斜切倒角 · 细颗粒 · 外缘提亮 + 内侧阴影</small></div>
+  <canvas id="s_full" width="2400" height="1080"></canvas>
+  <div class="zoomrow">
+    <div class="cell"><canvas id="s_tl" width="600" height="320"></canvas><div class="cap">左上角 ×2.5</div></div>
+    <div class="cell"><canvas id="s_tr" width="600" height="320"></canvas><div class="cap">右上角 ×2.5</div></div>
+    <div class="cell"><canvas id="s_bl" width="600" height="320"></canvas><div class="cap">左下角 ×2.5</div></div>
+    <div class="cell"><canvas id="s_br" width="600" height="320"></canvas><div class="cap">右下角 ×2.5</div></div>
+  </div>
+</div>
+<script>
+const DP = 2.625; // 420dpi
+const W = 2400, H = 1080;
+
+// 与真机同一套值：App 主题设为「夜间」，取 ThemeSkins 的 night 调色板
+const THEMES = {
+  qingci: {
+    style: 'ceramic',
+    edge: 12 * DP,
+    edgeA: '#E3D8C2',   // 外：奶油白
+    edgeB: '#AFC8BD',   // 内：月白
+    t1: '#4A7164', t2: '#3D6256', t3: '#2E4E44',
+    onTable: '#E4EEE8',
+    pattern: 'crackle',
+    feltR: 16 * DP,
+  },
+  turquoise: {
+    style: 'stone',
+    edge: 10 * DP,
+    edgeA: '#5C9E90',   // 外：提亮石绿
+    edgeB: '#1B4F49',   // 内：深石绿
+    t1: '#186863', t2: '#125551', t3: '#0D423F',
+    onTable: '#E8F4F1',
+    pattern: 'grid',
+    feltR: 14 * DP,
+  },
+};
+
+function lerp(a, b, t) {
+  const pa = hex(a), pb = hex(b);
+  return `rgb(${Math.round(pa[0]+(pb[0]-pa[0])*t)},${Math.round(pa[1]+(pb[1]-pa[1])*t)},${Math.round(pa[2]+(pb[2]-pa[2])*t)})`;
+}
+function hex(h) { return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)]; }
+function rgba(h, a) { const c = hex(h); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+
+// 任意角度的等距线族（与 Compose drawAngledLines 同口径：spacing 为垂直间距）
+function angledLines(ctx, x, y, w, h, deg, spacing, color, width) {
+  if (spacing <= 0) return;
+  const a = deg * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a);
+  const nx = -dy, ny = dx;
+  const cx = x + w/2, cy = y + h/2;
+  const len = Math.hypot(w, h);
+  const extent = (Math.abs(w*nx) + Math.abs(h*ny)) / 2;
+  ctx.strokeStyle = color; ctx.lineWidth = width;
+  ctx.beginPath();
+  for (let t = -extent; t <= extent; t += spacing) {
+    const px = cx + nx*t, py = cy + ny*t;
+    ctx.moveTo(px - dx*len/2, py - dy*len/2);
+    ctx.lineTo(px + dx*len/2, py + dy*len/2);
+  }
+  ctx.stroke();
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  const p = new Path2D();
+  p.roundRect(x, y, w, h, r);
+  return p;
+}
+
+function paint(ctx, cfg, ox, oy, zoom) {
+  // 统一坐标：在 2400×1080 的桌面上绘制，再按 zoom/offset 变换
+  ctx.save();
+  ctx.setTransform(zoom, 0, 0, zoom, ox, oy);
+  const e = cfg.edge, fr = cfg.feltR;
+
+  // 1) 桌沿厚度：四边各一条垂直渐变（外亮内暗），转角按 min(dx,dy) 斜接，
+  //    用三角裁剪补色，既没有描边色阶也没有拼接缝——就是一块有厚度的料。
+  const eA = cfg.edgeA, eB = cfg.edgeB;
+  const lg = (x0, y0, x1, y1) => {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, eA); g.addColorStop(1, eB);
+    return g;
+  };
+  const gLeft = lg(0, 0, e, 0), gRight = lg(W, 0, W - e, 0);
+  const gTop = lg(0, 0, 0, e), gBottom = lg(0, H, 0, H - e);
+  // 环底：先铺内色，毡面圆角外侧那圈转角楔形不露房间底
+  ctx.fillStyle = eB;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = gLeft;  ctx.fillRect(0, 0, e, H);
+  ctx.fillStyle = gRight; ctx.fillRect(W - e, 0, e, H);
+  ctx.fillStyle = gTop;   ctx.fillRect(0, 0, W, e);
+  ctx.fillStyle = gBottom; ctx.fillRect(0, H - e, W, e);
+  // 转角斜接：把与侧边渐变一致的那半块三角形补回来
+  const tri = (pts, brush) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    ctx.lineTo(pts[1][0], pts[1][1]);
+    ctx.lineTo(pts[2][0], pts[2][1]);
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = brush;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  };
+  tri([[0, 0], [e, e], [0, e]], gLeft);
+  tri([[W, 0], [W - e, e], [W, e]], gRight);
+  tri([[0, H], [e, H - e], [0, H - e]], gLeft);
+  tri([[W, H], [W - e, H - e], [W, H - e]], gRight);
+
+  // 2) 桌沿材质细节（裁到环内）
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  const inner = new Path2D();
+  inner.roundRect(e, e, W - e*2, H - e*2, fr);
+  ctx.clip(inner, 'evenodd');
+
+  if (cfg.style === 'ceramic') {
+    // 开片：三向淡裂，间距与 App 的 9/13/17dp 同口径
+    angledLines(ctx, 0, 0, W, H, 0, 26*DP, rgba('#233830', 0.05), 1.5);
+    angledLines(ctx, 0, 0, W, H, 62, 34*DP, rgba('#233830', 0.045), 1.4);
+    angledLines(ctx, 0, 0, W, H, 118, 42*DP, rgba('#233830', 0.04), 1.4);
+    // 釉面纵向微变：上亮下柔
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, 'rgba(255,255,255,0.10)');
+    g.addColorStop(1, 'rgba(0,0,0,0.05)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    // 石材细颗粒：确定性散点，亮/暗各半，铺满整屏后由环带裁剪
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 24000; i++) {
+      const x = rnd() * W, y = rnd() * H;
+      const r = 1.0 + rnd() * 2.2;
+      ctx.fillStyle = rnd() > 0.5 ? rgba('#E4F5EE', 0.09) : rgba('#05201C', 0.10);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // 3) 毡面
+  ctx.save();
+  const felt = roundRectPath(ctx, e, e, W - e*2, H - e*2, fr);
+  ctx.clip(felt);
+  const g = ctx.createRadialGradient(W/2, H*0.36, 0, W/2, H*0.36, Math.max(W, H)*0.95);
+  g.addColorStop(0, cfg.t1); g.addColorStop(0.55, cfg.t2); g.addColorStop(1, cfg.t3);
+  ctx.fillStyle = g; ctx.fillRect(e, e, W - e*2, H - e*2);
+  // 顶部柔光
+  const sheen = ctx.createLinearGradient(0, e, 0, e + H*0.5);
+  sheen.addColorStop(0, rgba(cfg.onTable, 0.05)); sheen.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sheen; ctx.fillRect(e, e, W - e*2, H - e*2);
+  // 织纹
+  if (cfg.pattern === 'crackle') {
+    angledLines(ctx, e, e, W-e*2, H-e*2, 0, 9*DP, rgba('#FFFFFF', 0.05), 2.2);
+    angledLines(ctx, e, e, W-e*2, H-e*2, 60, 13*DP, rgba('#FFFFFF', 0.05), 2.2);
+    angledLines(ctx, e, e, W-e*2, H-e*2, 120, 17*DP, rgba('#FFFFFF', 0.05), 2.2);
+  } else {
+    angledLines(ctx, e, e, W-e*2, H-e*2, 0, 9*DP, rgba('#FFFFFF', 0.05), 2.4);
+    angledLines(ctx, e, e, W-e*2, H-e*2, 90, 9*DP, rgba('#FFFFFF', 0.05), 2.4);
+  }
+  ctx.restore();
+
+  // 4) 外缘提亮
+  ctx.strokeStyle = 'rgba(255,255,255,0.50)';
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.roundRect(1.2, 1.2, W - 2.4, H - 2.4, fr * 1.2 / e);
+  ctx.stroke();
+
+  // 5) 材质高光 / 倒角（圆角随内缩过渡，转角处也是连贯的弧）
+  const ring = (insetDp, color, widthDp) => {
+    const s = insetDp * DP;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = widthDp * DP;
+    ctx.beginPath();
+    ctx.roundRect(s, s, W - s*2, H - s*2, fr * s / e);
+    ctx.stroke();
+  };
+  if (cfg.style === 'ceramic') {
+    ring(3.0, 'rgba(255,255,255,0.42)', 2.4);   // 釉面高光带
+    ring(6.4, 'rgba(255,255,255,0.14)', 1.1);   // 釉面次高光
+  } else {
+    ring(2.2, 'rgba(255,255,255,0.18)', 1.2);   // 倒角上的细反光
+    ring(6.6, 'rgba(0,0,0,0.22)', 1.2);         // 倒角下的暗折
+  }
+
+  // 6) 内侧阴影收口（压在毡面边缘）
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(e, e, W - e*2, H - e*2, fr); ctx.clip();
+  const shadowW = cfg.style === 'ceramic' ? 2.6*DP : 2.2*DP;
+  const sh = ctx.createLinearGradient(0, e, 0, e + shadowW*2.4);
+  sh.addColorStop(0, rgba('#0A1C16', 0.34)); sh.addColorStop(0.45, rgba('#0A1C16', 0.13)); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sh; ctx.fillRect(e, e, W - e*2, shadowW*2.4);
+  const shb = ctx.createLinearGradient(0, H - e, 0, H - e - shadowW*2.4);
+  shb.addColorStop(0, rgba('#0A1C16', 0.34)); shb.addColorStop(0.45, rgba('#0A1C16', 0.13)); shb.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shb; ctx.fillRect(e, H - e - shadowW*2.4, W - e*2, shadowW*2.4);
+  const shl = ctx.createLinearGradient(e, 0, e + shadowW*2.4, 0);
+  shl.addColorStop(0, rgba('#0A1C16', 0.34)); shl.addColorStop(0.45, rgba('#0A1C16', 0.13)); shl.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shl; ctx.fillRect(e, e, shadowW*2.4, H - e*2);
+  const shr = ctx.createLinearGradient(W - e, 0, W - e - shadowW*2.4, 0);
+  shr.addColorStop(0, rgba('#0A1C16', 0.34)); shr.addColorStop(0.45, rgba('#0A1C16', 0.13)); shr.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shr; ctx.fillRect(W - e - shadowW*2.4, e, shadowW*2.4, H - e*2);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawZoom(id, cfg, corner) {
+  const cv = document.getElementById(id);
+  const ctx = cv.getContext('2d');
+  const zoom = 2.5;
+  const tileW = cv.width, tileH = cv.height;
+  // 角点 (0,0) 落在方框内侧 70px 处，保证整条桌沿与转角都在画面里
+  const pad = 70;
+  let ox = pad, oy = pad;
+  if (corner === 'tr' || corner === 'br') ox = tileW - pad - W*zoom;
+  if (corner === 'bl' || corner === 'br') oy = tileH - pad - H*zoom;
+  paint(ctx, cfg, ox, oy, zoom);
+}
+
+function main() {
+  for (const [key, cfg] of Object.entries(THEMES)) {
+    const cv = document.getElementById(key === 'qingci' ? 'q_full' : 's_full');
+    paint(cv.getContext('2d'), cfg, 0, 0, 1);
+    const pre = key === 'qingci' ? 'q' : 's';
+    for (const c of ['tl', 'tr', 'bl', 'br']) drawZoom(`${pre}_${c}`, cfg, c);
+  }
+}
+main();
+</script>
+</body>
+</html>

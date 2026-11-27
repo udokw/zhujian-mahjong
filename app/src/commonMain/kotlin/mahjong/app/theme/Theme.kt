@@ -74,6 +74,8 @@ data class MjColors(
     val tableRim: Color,
     /** 无木框主题的实体桌边（同族深浅色，如青瓷月白、松石石绿）。 */
     val tableEdge: Color,
+    /** 实体桌边的内侧色：与 [tableEdge] 组成厚度渐变（瓷沿奶油白→月白、石沿浅石绿→深石绿）。 */
+    val tableEdge2: Color,
     val tableRimGlow: Color,
     val tableHud: Color,
     val hudInk: Color,

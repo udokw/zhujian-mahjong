@@ -10,15 +10,16 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
+import mahjong.app.theme.EdgeStyle
 import mahjong.app.theme.FeltPattern
 import mahjong.app.theme.MjColors
-import mahjong.app.theme.RimlessEdgeWidth
 import mahjong.app.theme.TableMaterial
 import kotlin.math.PI
 import kotlin.math.abs
@@ -63,12 +64,29 @@ fun Modifier.drawTableFelt(
         compact -> min(tableH * 0.10f, material.rim.toPx())
         else -> material.rim.toPx()
     }
-    // 无木框主题（青瓷 / 松石）也要有能看出厚度的实体桌边：6dp 同族色平板，
-    // 外缘亮线 + 内侧阴影线，圆角与桌面一致，不再只是一条半透明内线。
-    val edgePx = if (rimPx > 0f) 0f else if (compact) {
-        min(tableH * 0.09f, RimlessEdgeWidth.toPx())
+    // 无木框主题（青瓷 / 松石）的实体桌沿：厚度由主题表 edgeWidth 给出，
+    // 青瓷 12dp 瓷沿、松石 10dp 石沿；设置页缩略图按高度比例收一点。
+    val edgePx = when {
+        rimPx > 0f || material.edgeWidth <= 0.dp -> 0f
+        compact -> min(tableH * 0.09f, material.edgeWidth.toPx())
+        else -> material.edgeWidth.toPx()
+    }
+
+    // 毡面几何：木框 / 实体桌沿共用一套；桌沿的内侧转角也按这个圆角走，
+    // 保证「瓷盘托着绒面」的转角是连续的弧，不会出现方形内角。
+    val bandPx = max(rimPx, edgePx)
+    val feltLeft = left + bandPx
+    val feltTop = top + bandPx
+    val feltW = tableW - bandPx * 2f
+    val feltH = tableH - bandPx * 2f
+    val feltRadius = if (bandPx > 0f) {
+        if (compact) (outerRadius - bandPx).coerceAtLeast(2f) else max(bandPx + 4.dp.toPx(), 12.dp.toPx())
     } else {
-        RimlessEdgeWidth.toPx()
+        outerRadius
+    }
+    val feltRect = Rect(Offset(feltLeft, feltTop), Size(feltW, feltH))
+    val feltPath = Path().apply {
+        addRoundRect(RoundRect(feltRect, feltRadius, feltRadius))
     }
 
     // 1) 房间底：只有缩略图需要；真机铺满整屏，不画任何房间色，保证四边都是桌面色。
@@ -114,33 +132,11 @@ fun Modifier.drawTableFelt(
             style = Stroke(width = dp1),
         )
     } else if (edgePx > 0f) {
-        // 实体石/瓷桌边：平涂同族色 + 外缘 1dp 亮线。
-        drawRoundRect(
-            color = colors.tableEdge,
-            topLeft = Offset(left, top),
-            size = Size(tableW, tableH),
-            cornerRadius = CornerRadius(outerRadius),
-        )
-        drawRoundRect(
-            color = lerp(colors.tableEdge, Color.White, 0.45f),
-            topLeft = Offset(left + dp1 * 0.5f, top + dp1 * 0.5f),
-            size = Size(tableW - dp1, tableH - dp1),
-            cornerRadius = CornerRadius(outerRadius),
-            style = Stroke(width = dp1),
-        )
+        // 实体桌沿：整块料 + 四边垂直渐变 + 转角斜接 + 材质纹理，厚度肉眼可见。
+        drawSolidEdgeBase(colors, material, left, top, tableW, tableH, edgePx, feltRect, feltRadius, outerRadius)
     }
 
     // 3) 毡面：从木框 / 实体桌边内开始，大半径径向光按 1.15 的口径铺开。
-    val bandPx = max(rimPx, edgePx)
-    val feltLeft = left + bandPx
-    val feltTop = top + bandPx
-    val feltW = tableW - bandPx * 2f
-    val feltH = tableH - bandPx * 2f
-    val feltRadius = if (bandPx > 0f) {
-        if (compact) (outerRadius - bandPx).coerceAtLeast(2f) else max(bandPx + 4.dp.toPx(), 12.dp.toPx())
-    } else {
-        outerRadius
-    }
     val centerY = if (centerYPx >= 0f) centerYPx else top + tableH * 0.36f
     drawRoundRect(
         brush = Brush.radialGradient(
@@ -153,9 +149,6 @@ fun Modifier.drawTableFelt(
         cornerRadius = CornerRadius(feltRadius),
     )
 
-    val feltPath = Path().apply {
-        addRoundRect(RoundRect(Rect(Offset(feltLeft, feltTop), Size(feltW, feltH)), feltRadius, feltRadius))
-    }
     clipPath(feltPath) {
         // 绒面顶部柔光（1.15 的灯打在桌布上的那层），只在毡面内。
         drawRect(
@@ -206,13 +199,253 @@ fun Modifier.drawTableFelt(
             style = Stroke(width = dp1),
         )
     } else if (edgePx > 0f) {
-        // 无框：内侧一道阴影线收口，让 6dp 桌边显出厚度。
+        // 无框：外缘提亮 + 材质高光/倒角 + 内侧方向性阴影，靠这三笔立起体积。
+        drawSolidEdgeTop(
+            colors = colors, material = material,
+            left = left, top = top, tableW = tableW, tableH = tableH, edgePx = edgePx,
+            feltRect = feltRect, feltRadius = feltRadius, feltPath = feltPath,
+        )
+    }
+}
+
+/**
+ * 实体桌沿（青瓷瓷沿 / 松石石沿）的底色与材质。
+ *
+ * 做法与设计稿一致：四条边各铺一条「外亮内暗」的垂直渐变，转角用三角斜接补色，
+ * 得到一块连续的、有厚度的料；再在环带内撒材质纹理（瓷沿开片 / 石沿细颗粒）。
+ * 环底先铺内色，毡面圆角外侧的转角楔形因此不会露出房间底色。
+ */
+private fun DrawScope.drawSolidEdgeBase(
+    colors: MjColors,
+    material: TableMaterial,
+    left: Float,
+    top: Float,
+    tableW: Float,
+    tableH: Float,
+    edgePx: Float,
+    feltRect: Rect,
+    feltRadius: Float,
+    outerRadius: Float,
+) {
+    if (outerRadius > 0f) {
+        // 设置页缩略图：桌沿外缘也收成圆角，跟房间底一致。
+        val outline = Path().apply {
+            addRoundRect(RoundRect(Rect(Offset(left, top), Size(tableW, tableH)), outerRadius, outerRadius))
+        }
+        clipPath(outline) {
+            drawSolidEdgeFill(colors, material, left, top, tableW, tableH, edgePx, feltRect, feltRadius)
+        }
+        return
+    }
+    drawSolidEdgeFill(colors, material, left, top, tableW, tableH, edgePx, feltRect, feltRadius)
+}
+
+private fun DrawScope.drawSolidEdgeFill(
+    colors: MjColors,
+    material: TableMaterial,
+    left: Float,
+    top: Float,
+    tableW: Float,
+    tableH: Float,
+    edgePx: Float,
+    feltRect: Rect,
+    feltRadius: Float,
+) {
+    val outer = colors.tableEdge
+    val inner = colors.tableEdge2
+    val e = edgePx
+    drawRect(color = inner, topLeft = Offset(left, top), size = Size(tableW, tableH))
+    val gLeft = Brush.linearGradient(listOf(outer, inner), Offset(left, top), Offset(left + e, top))
+    val gRight = Brush.linearGradient(listOf(outer, inner), Offset(left + tableW, top), Offset(left + tableW - e, top))
+    val gTop = Brush.linearGradient(listOf(outer, inner), Offset(left, top), Offset(left, top + e))
+    val gBottom = Brush.linearGradient(listOf(outer, inner), Offset(left, top + tableH), Offset(left, top + tableH - e))
+    drawRect(gLeft, Offset(left, top), Size(e, tableH))
+    drawRect(gRight, Offset(left + tableW - e, top), Size(e, tableH))
+    drawRect(gTop, Offset(left, top), Size(tableW, e))
+    drawRect(gBottom, Offset(left, top + tableH - e), Size(tableW, e))
+
+    // 转角斜接：把与侧边渐变一致的那半块三角形补回来，避免竖边/横边硬接。
+    fun miter(a: Offset, b: Offset, c: Offset, brush: Brush) {
+        val tri = Path().apply {
+            moveTo(a.x, a.y)
+            lineTo(b.x, b.y)
+            lineTo(c.x, c.y)
+            close()
+        }
+        clipPath(tri) { drawRect(brush, Offset(left, top), Size(tableW, tableH)) }
+    }
+    miter(Offset(left, top), Offset(left + e, top + e), Offset(left, top + e), gLeft)
+    miter(Offset(left + tableW, top), Offset(left + tableW - e, top + e), Offset(left + tableW, top + e), gRight)
+    miter(Offset(left, top + tableH), Offset(left + e, top + tableH - e), Offset(left, top + tableH - e), gLeft)
+    miter(
+        Offset(left + tableW, top + tableH),
+        Offset(left + tableW - e, top + tableH - e),
+        Offset(left + tableW, top + tableH - e),
+        gRight,
+    )
+
+    // 材质纹理只落在环带内，毡面不受影响。
+    val ring = Path().apply {
+        fillType = PathFillType.EvenOdd
+        addRect(Rect(Offset(left, top), Size(tableW, tableH)))
+        addRoundRect(RoundRect(feltRect, feltRadius, feltRadius))
+    }
+    clipPath(ring) {
+        drawEdgeTexture(material, outer, left, top, e, tableW, tableH)
+    }
+}
+
+/** 桌沿材质：瓷沿细开片（0/62/118°），石沿石绿细颗粒；调用方已裁到环带内。 */
+private fun DrawScope.drawEdgeTexture(
+    material: TableMaterial,
+    outer: Color,
+    left: Float,
+    top: Float,
+    edgePx: Float,
+    tableW: Float,
+    tableH: Float,
+) {
+    when (material.edgeStyle) {
+        EdgeStyle.CERAMIC -> {
+            // 釉面开片比毡面更淡，只是让瓷沿有一点手工窑变的痕迹。
+            val crack = lerp(outer, Color(0xFF233830), 0.62f)
+            drawAngledLines(0f, 26.dp.toPx(), crack.copy(alpha = 0.07f), 0.55.dp.toPx())
+            drawAngledLines(62f, 34.dp.toPx(), crack.copy(alpha = 0.055f), 0.5.dp.toPx())
+            drawAngledLines(118f, 42.dp.toPx(), crack.copy(alpha = 0.05f), 0.5.dp.toPx())
+        }
+
+        EdgeStyle.STONE -> {
+            // 确定性散点（线性同余）：沿外圈周长均布、再往内压深度，
+            // 保证颗粒疏密一致，且每次绘制完全一样。
+            var seed = 7L
+            fun rnd(): Float {
+                seed = (seed * 16807L) % 2147483647L
+                return seed / 2147483647f
+            }
+            val light = Color(0xFFE4F5EE).copy(alpha = 0.10f)
+            val dark = Color(0xFF05201C).copy(alpha = 0.12f)
+            val ringArea = tableW * tableH - (tableW - edgePx * 2f).coerceAtLeast(0f) *
+                (tableH - edgePx * 2f).coerceAtLeast(0f)
+            val cell = 4.2.dp.toPx()
+            val count = (ringArea / (cell * cell)).toInt().coerceIn(60, 2600)
+            val per = 2f * (tableW + tableH)
+            val minR = 0.45.dp.toPx()
+            val maxR = 1.15.dp.toPx()
+            repeat(count) {
+                val depth = rnd() * edgePx
+                val t = rnd() * per
+                val px: Float
+                val py: Float
+                when {
+                    t < tableW -> {
+                        px = t
+                        py = depth
+                    }
+                    t < tableW + tableH -> {
+                        px = tableW - depth
+                        py = t - tableW
+                    }
+                    t < tableW * 2f + tableH -> {
+                        px = tableW - (t - tableW - tableH)
+                        py = tableH - depth
+                    }
+                    else -> {
+                        px = depth
+                        py = tableH - (t - tableW * 2f - tableH)
+                    }
+                }
+                drawCircle(
+                    color = if (rnd() > 0.5f) light else dark,
+                    radius = minR + rnd() * (maxR - minR),
+                    center = Offset(left + px, top + py),
+                )
+            }
+        }
+
+        EdgeStyle.NONE -> Unit
+    }
+}
+
+/**
+ * 实体桌沿的收口三笔：外缘提亮、材质高光/倒角、毡面内侧方向性阴影。
+ * 青瓷是高光带 + 次高光（釉面），松石是细反光 + 斜切倒角暗折（石材）。
+ */
+private fun DrawScope.drawSolidEdgeTop(
+    colors: MjColors,
+    material: TableMaterial,
+    left: Float,
+    top: Float,
+    tableW: Float,
+    tableH: Float,
+    edgePx: Float,
+    feltRect: Rect,
+    feltRadius: Float,
+    feltPath: Path,
+) {
+    // 收口线的圆角随内缩从 0 过渡到毡面圆角，转角处是连贯的弧。
+    fun ring(inset: Float, color: Color, width: Float) {
         drawRoundRect(
-            color = lerp(colors.tableEdge, Color.Black, 0.45f),
-            topLeft = Offset(feltLeft, feltTop),
-            size = Size(feltW, feltH),
-            cornerRadius = CornerRadius(feltRadius),
-            style = Stroke(width = 1.5.dp.toPx()),
+            color = color,
+            topLeft = Offset(left + inset, top + inset),
+            size = Size(tableW - inset * 2f, tableH - inset * 2f),
+            cornerRadius = CornerRadius((feltRadius * inset / edgePx).coerceAtLeast(0f)),
+            style = Stroke(width = width),
+        )
+    }
+    ring(0.45.dp.toPx(), Color.White.copy(alpha = 0.50f), 0.9.dp.toPx())
+    when (material.edgeStyle) {
+        EdgeStyle.CERAMIC -> {
+            ring(3.dp.toPx(), Color.White.copy(alpha = 0.42f), 2.4.dp.toPx())
+            ring(6.4.dp.toPx(), Color.White.copy(alpha = 0.14f), 1.1.dp.toPx())
+        }
+        EdgeStyle.STONE -> {
+            ring(2.2.dp.toPx(), Color.White.copy(alpha = 0.18f), 1.2.dp.toPx())
+            ring(6.6.dp.toPx(), Color.Black.copy(alpha = 0.22f), 1.2.dp.toPx())
+        }
+        EdgeStyle.NONE -> Unit
+    }
+
+    // 毡面四周一圈方向性压暗：桌沿像一块料压住绒面，绒面是嵌进去的。
+    val depth = if (material.edgeStyle == EdgeStyle.CERAMIC) 6.2.dp.toPx() else 5.3.dp.toPx()
+    val shade = Color(0xFF0A1C16)
+    val near = shade.copy(alpha = 0.34f)
+    val far = shade.copy(alpha = 0.13f)
+    clipPath(feltPath) {
+        drawRect(
+            brush = Brush.linearGradient(
+                0f to near, 0.45f to far, 1f to Color.Transparent,
+                start = Offset(feltRect.left, feltRect.top),
+                end = Offset(feltRect.left, feltRect.top + depth),
+            ),
+            topLeft = Offset(feltRect.left, feltRect.top),
+            size = Size(feltRect.width, depth),
+        )
+        drawRect(
+            brush = Brush.linearGradient(
+                0f to near, 0.45f to far, 1f to Color.Transparent,
+                start = Offset(feltRect.left, feltRect.bottom),
+                end = Offset(feltRect.left, feltRect.bottom - depth),
+            ),
+            topLeft = Offset(feltRect.left, feltRect.bottom - depth),
+            size = Size(feltRect.width, depth),
+        )
+        drawRect(
+            brush = Brush.linearGradient(
+                0f to near, 0.45f to far, 1f to Color.Transparent,
+                start = Offset(feltRect.left, feltRect.top),
+                end = Offset(feltRect.left + depth, feltRect.top),
+            ),
+            topLeft = Offset(feltRect.left, feltRect.top),
+            size = Size(depth, feltRect.height),
+        )
+        drawRect(
+            brush = Brush.linearGradient(
+                0f to near, 0.45f to far, 1f to Color.Transparent,
+                start = Offset(feltRect.right, feltRect.top),
+                end = Offset(feltRect.right - depth, feltRect.top),
+            ),
+            topLeft = Offset(feltRect.right - depth, feltRect.top),
+            size = Size(depth, feltRect.height),
         )
     }
 }
