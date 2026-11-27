@@ -87,6 +87,7 @@ import mahjong.app.theme.LocalMjType
 import mahjong.app.theme.LocalReduceMotion
 import mahjong.app.theme.MjMotion
 import mahjong.app.theme.MjRadius
+import mahjong.app.theme.RimlessEdgeWidth
 import mahjong.app.ui.ActionKind
 import mahjong.app.ui.Avatar
 import mahjong.app.ui.DialogMessage
@@ -179,7 +180,12 @@ fun TableScreen(
     // 四边木框也不会被牌压掉。iPhone 横屏左右各 44pt 安全区只影响内容，不影响桌面。
     val rootDensity = LocalDensity.current
     val safeInsets = WindowInsets.safeDrawing
-    val rimDp = if (colors.material.rimSolid) colors.material.rim else 0.dp
+    // 桌沿：有木框按框厚，青瓷/松石按 6dp 实体桌边；内容至少让到这个厚度。
+    val rimDp = if (colors.material.rimSolid && colors.material.rim > 0.dp) {
+        colors.material.rim
+    } else {
+        RimlessEdgeWidth
+    }
     val tableMargin = 6.dp
     val railDp = tableMargin + rimDp
     val padLeft = maxOf(with(rootDensity) { safeInsets.getLeft(rootDensity, LayoutDirection.Ltr).toDp() }, railDp)

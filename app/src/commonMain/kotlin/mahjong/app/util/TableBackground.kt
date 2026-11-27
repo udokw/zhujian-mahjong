@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import mahjong.app.theme.FeltPattern
 import mahjong.app.theme.MjColors
+import mahjong.app.theme.RimlessEdgeWidth
 import mahjong.app.theme.TableMaterial
 import kotlin.math.PI
 import kotlin.math.abs
@@ -28,16 +29,15 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * 牌桌底：完全按主题表里的 [mahjong.app.theme.TableMaterial] 绘制台面工艺。
+ * 牌桌底：整屏只有这一层桌面，木框、内线、织纹都直接画在它上面。
  *
- * 桌面不再是铺满屏幕的一块布，而是一张有厚度的实体桌：
- * 1) 整屏先铺「房间」底色（比毡面更暗的同色系），四周自然留出桌沿；
- * 2) 桌面圆角矩形从 [edgeInsets] 内缩 6dp 开始，木框按主题的 4~12dp 真实围一圈，
+ * 1) 整屏先铺「房间」底色（比毡面更暗的同色系，平涂），四周自然留出桌沿；
+ * 2) 桌面圆角矩形只按物理屏幕内缩 6dp，木框按主题的 4~12dp 真实围一圈，
  *    外缘 1dp 亮线压边、内缘 1dp 高光收口，毡面在木框内开始；
- * 3) 无框主题同样有圆角桌面边界 + 清晰的 1dp 内线，不再无限铺满；
- * 4) 毡面内缘加一圈柔和内阴影制造下沉厚度，织纹按规格密度画满。
+ * 3) 无木框主题（青瓷 / 松石）也有 6dp 实体桌边：同族色平板 + 外缘亮线 + 内侧阴影线；
+ * 4) 毡面只有主题自身的径向渐变 + 规格织纹，不叠内阴影、四周压暗或任何半透明遮罩。
  *
- * 桌面按物理屏幕铺满（只内缩 6dp），不吃安全区：iPhone 横屏的刘海侧安全区
+ * 桌面按物理屏幕铺满，不吃安全区：iPhone 横屏的刘海侧安全区
  * 由内容层让开，桌面本身不能被往中间挤，否则两侧会露出黑边。
  */
 fun Modifier.drawTableFelt(
@@ -61,17 +61,18 @@ fun Modifier.drawTableFelt(
         compact -> min(tableH * 0.10f, material.rim.toPx())
         else -> material.rim.toPx()
     }
+    // 无木框主题（青瓷 / 松石）也要有能看出厚度的实体桌边：6dp 同族色平板，
+    // 外缘亮线 + 内侧阴影线，圆角与桌面一致，不再只是一条半透明内线。
+    val edgePx = if (rimPx > 0f) 0f else if (compact) {
+        min(tableH * 0.09f, RimlessEdgeWidth.toPx())
+    } else {
+        RimlessEdgeWidth.toPx()
+    }
 
-    // 1) 房间底：取桌沿同族的深色（木框与毡面混一点），不是纯黑；
+    // 1) 房间底：取桌沿同族的深色（木框与毡面混一点），平涂不加渐变；
     //    即使桌面边缘露出 6dp，也读作桌沿投下的阴影。
     val room = lerp(lerp(colors.tableRim, colors.table3, 0.35f), Color.Black, 0.42f)
-    drawRect(
-        brush = Brush.verticalGradient(
-            0f to lerp(room, Color.White, 0.05f),
-            0.55f to room,
-            1f to lerp(room, Color.Black, 0.22f),
-        ),
-    )
+    drawRect(color = room)
 
     // 2) 木框：实色压边 + 上下轻微明暗，外缘 1dp 亮线把桌沿和房间分开。
     if (rimPx > 0f) {
@@ -96,14 +97,30 @@ fun Modifier.drawTableFelt(
             cornerRadius = CornerRadius(outerRadius),
             style = Stroke(width = dp1),
         )
+    } else if (edgePx > 0f) {
+        // 实体石/瓷桌边：平涂同族色 + 外缘 1dp 亮线，厚度 5dp。
+        drawRoundRect(
+            color = colors.tableEdge,
+            topLeft = Offset(left, top),
+            size = Size(tableW, tableH),
+            cornerRadius = CornerRadius(outerRadius),
+        )
+        drawRoundRect(
+            color = lerp(colors.tableEdge, Color.White, 0.45f),
+            topLeft = Offset(left + dp1 * 0.5f, top + dp1 * 0.5f),
+            size = Size(tableW - dp1, tableH - dp1),
+            cornerRadius = CornerRadius(outerRadius),
+            style = Stroke(width = dp1),
+        )
     }
 
-    // 3) 毡面：从木框内开始，圆心跟实测桌心走，未测量时回落 38%。
-    val feltLeft = left + rimPx
-    val feltTop = top + rimPx
-    val feltW = tableW - rimPx * 2f
-    val feltH = tableH - rimPx * 2f
-    val feltRadius = if (rimPx > 0f) (outerRadius - rimPx).coerceAtLeast(2f) else outerRadius
+    // 3) 毡面：从木框 / 实体桌边内开始，圆心跟实测桌心走，未测量时回落 38%。
+    val bandPx = max(rimPx, edgePx)
+    val feltLeft = left + bandPx
+    val feltTop = top + bandPx
+    val feltW = tableW - bandPx * 2f
+    val feltH = tableH - bandPx * 2f
+    val feltRadius = if (bandPx > 0f) (outerRadius - bandPx).coerceAtLeast(2f) else outerRadius
     val centerY = if (centerYPx >= 0f) centerYPx else top + tableH * 0.38f
     drawRoundRect(
         brush = Brush.radialGradient(
@@ -132,35 +149,6 @@ fun Modifier.drawTableFelt(
             }
         }
         drawFeltTexture(material, colors.feltLine1, colors.feltLine2)
-
-        // 内阴影：毡面贴着木框的一圈压暗，做出下沉厚度。
-        val shadow = min(feltW, feltH) * 0.055f
-        if (shadow > 0f) {
-            drawRoundRect(
-                color = Color.Black.copy(alpha = 0.10f),
-                topLeft = Offset(feltLeft, feltTop),
-                size = Size(feltW, feltH),
-                cornerRadius = CornerRadius(feltRadius),
-                style = Stroke(width = shadow * 2f),
-            )
-            drawRoundRect(
-                color = Color.Black.copy(alpha = 0.07f),
-                topLeft = Offset(feltLeft, feltTop),
-                size = Size(feltW, feltH),
-                cornerRadius = CornerRadius(feltRadius),
-                style = Stroke(width = shadow * 0.7f),
-            )
-        }
-
-        // 上下压暗：顶部 13%、底部 17%，中间不叠第二层遮罩。
-        drawRect(
-            brush = Brush.verticalGradient(
-                0f to Color.Black.copy(alpha = 0.13f),
-                0.34f to Color.Transparent,
-                0.68f to Color.Transparent,
-                1f to Color.Black.copy(alpha = 0.17f),
-            ),
-        )
     }
 
     // 4) 内嵌线：有实木框时压在毡面边缘；经典多一道金线 + 内缩 3dp 的白线。
@@ -181,17 +169,23 @@ fun Modifier.drawTableFelt(
             cornerRadius = CornerRadius((feltRadius - inner).coerceAtLeast(2f)),
             style = Stroke(width = dp1),
         )
-    } else {
-        // 有框：1dp 白/墨高光压在木框与毡面交界；无框：内缩 1dp 收一道清晰内线。
-        val inset = if (rimPx > 0f) rimPx else dp1
+    } else if (rimPx > 0f) {
+        // 有框：1dp 白/墨高光压在木框与毡面交界。
         drawRoundRect(
             color = colors.tableRimGlow,
-            topLeft = Offset(left + inset, top + inset),
-            size = Size(tableW - inset * 2f, tableH - inset * 2f),
-            cornerRadius = CornerRadius(
-                if (rimPx > 0f) feltRadius else (outerRadius - dp1).coerceAtLeast(2f),
-            ),
+            topLeft = Offset(left + rimPx, top + rimPx),
+            size = Size(tableW - rimPx * 2f, tableH - rimPx * 2f),
+            cornerRadius = CornerRadius(feltRadius),
             style = Stroke(width = dp1),
+        )
+    } else if (edgePx > 0f) {
+        // 无框：内侧一道阴影线收口，让 6dp 桌边显出厚度。
+        drawRoundRect(
+            color = lerp(colors.tableEdge, Color.Black, 0.45f),
+            topLeft = Offset(feltLeft, feltTop),
+            size = Size(feltW, feltH),
+            cornerRadius = CornerRadius(feltRadius),
+            style = Stroke(width = 1.5.dp.toPx()),
         )
     }
 }

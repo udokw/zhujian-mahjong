@@ -72,6 +72,8 @@ data class MjColors(
     val coreInk: Color,
     val coreInk2: Color,
     val tableRim: Color,
+    /** 无木框主题的实体桌边（同族深浅色，如青瓷月白、松石石绿）。 */
+    val tableEdge: Color,
     val tableRimGlow: Color,
     val tableHud: Color,
     val hudInk: Color,
