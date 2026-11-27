@@ -37,23 +37,22 @@ import kotlin.math.sin
  * 3) 无框主题同样有圆角桌面边界 + 清晰的 1dp 内线，不再无限铺满；
  * 4) 毡面内缘加一圈柔和内阴影制造下沉厚度，织纹按规格密度画满。
  *
- * [edgeInsets] 传系统安全区（状态栏 / 手势条 / 刘海）的实际 dp 像素，
- * 保证桌沿落在安全区内，不会被设备圆角或系统栏吃掉。
+ * 桌面按物理屏幕铺满（只内缩 6dp），不吃安全区：iPhone 横屏的刘海侧安全区
+ * 由内容层让开，桌面本身不能被往中间挤，否则两侧会露出黑边。
  */
 fun Modifier.drawTableFelt(
     colors: MjColors,
     centerYPx: Float = -1f,
-    edgeInsets: Rect = Rect.Zero,
 ): Modifier = drawBehind {
     val material = colors.material
     val dp1 = 1.dp.toPx()
     // 小尺寸（设置页缩略图）整体按比例收边，避免 9dp 木框吃掉整块毡面。
     val compact = size.height < 120.dp.toPx()
     val margin = if (compact) size.height * 0.05f else 6.dp.toPx()
-    val left = edgeInsets.left + margin
-    val top = edgeInsets.top + margin
-    val tableW = size.width - edgeInsets.left - edgeInsets.right - margin * 2f
-    val tableH = size.height - edgeInsets.top - edgeInsets.bottom - margin * 2f
+    val left = margin
+    val top = margin
+    val tableW = size.width - margin * 2f
+    val tableH = size.height - margin * 2f
     if (tableW <= dp1 || tableH <= dp1) return@drawBehind
 
     val outerRadius = if (compact) min(tableH * 0.16f, 8.dp.toPx()) else 14.dp.toPx()
@@ -63,13 +62,14 @@ fun Modifier.drawTableFelt(
         else -> material.rim.toPx()
     }
 
-    // 1) 房间底：毡面边缘再压暗，桌面自然浮出来。
-    val room = lerp(colors.table3, Color.Black, 0.72f)
+    // 1) 房间底：取桌沿同族的深色（木框与毡面混一点），不是纯黑；
+    //    即使桌面边缘露出 6dp，也读作桌沿投下的阴影。
+    val room = lerp(lerp(colors.tableRim, colors.table3, 0.35f), Color.Black, 0.42f)
     drawRect(
         brush = Brush.verticalGradient(
-            0f to lerp(room, Color.White, 0.06f),
+            0f to lerp(room, Color.White, 0.05f),
             0.55f to room,
-            1f to lerp(room, Color.Black, 0.40f),
+            1f to lerp(room, Color.Black, 0.22f),
         ),
     )
 

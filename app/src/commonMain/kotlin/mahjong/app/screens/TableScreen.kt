@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -52,7 +51,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -176,20 +174,20 @@ fun TableScreen(
     val advice = table.plans.firstOrNull()
     val recommend = if (table.canDiscard) advice?.discard else null
 
-    // 桌沿：桌面从安全区内缩 6dp 开始，木框厚度按主题表；内容再让出桌沿，
-    // 保证四边木框都露在牌与手牌之外，不被系统栏或手牌压掉。
+    // 桌面（含木框）按物理屏幕铺满，只在绘制层内缩 6dp，不吃安全区；
+    // 内容层再让开安全区与桌沿：牌墙、HUD、手牌不会被刘海/圆角/系统栏遮住，
+    // 四边木框也不会被牌压掉。iPhone 横屏左右各 44pt 安全区只影响内容，不影响桌面。
     val rootDensity = LocalDensity.current
     val safeInsets = WindowInsets.safeDrawing
-    val edgeInsets = Rect(
-        safeInsets.getLeft(rootDensity, LayoutDirection.Ltr).toFloat(),
-        safeInsets.getTop(rootDensity).toFloat(),
-        safeInsets.getRight(rootDensity, LayoutDirection.Ltr).toFloat(),
-        safeInsets.getBottom(rootDensity).toFloat(),
-    )
     val rimDp = if (colors.material.rimSolid) colors.material.rim else 0.dp
     val tableMargin = 6.dp
+    val railDp = tableMargin + rimDp
+    val padLeft = maxOf(with(rootDensity) { safeInsets.getLeft(rootDensity, LayoutDirection.Ltr).toDp() }, railDp)
+    val padRight = maxOf(with(rootDensity) { safeInsets.getRight(rootDensity, LayoutDirection.Ltr).toDp() }, railDp)
+    val padTop = maxOf(with(rootDensity) { safeInsets.getTop(rootDensity).toDp() }, railDp + 4.dp)
+    val padBottom = maxOf(with(rootDensity) { safeInsets.getBottom(rootDensity).toDp() }, railDp + 10.dp)
 
-    BoxWithConstraints(Modifier.fillMaxSize().drawTableFelt(colors, centerYPx, edgeInsets)) {
+    BoxWithConstraints(Modifier.fillMaxSize().drawTableFelt(colors, centerYPx)) {
         val tight = maxHeight < 390.dp
         // 根容器尺寸：牌河换算桌布圆心时要用，先取出来避免在嵌套作用域里被遮住。
         val rootWidth = maxWidth
@@ -202,12 +200,7 @@ fun TableScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = tableMargin)
-                .padding(
-                    top = tableMargin + rimDp + 4.dp,
-                    bottom = tableMargin + rimDp + 10.dp,
-                ),
+                .padding(start = padLeft, end = padRight, top = padTop, bottom = padBottom),
         ) {
             LandscapeHud(
                 table = table,
