@@ -841,6 +841,8 @@ class OnlineGameSession(
 
     fun claim(option: ClaimOption, chiTiles: List<Int>?) {
         val window = latestWindow
+        // 点下即收提示，不等服务端下一帧；服务端状态回来后会按窗口重建。
+        table = table?.copy(claim = null)
         when (option) {
             ClaimOption.Hu -> {
                 feedback(2)

@@ -388,6 +388,8 @@ class LocalGameSession(
             ClaimOption.Pass -> feedback(0)
             else -> feedback(1)
         }
+        // 选定即收提示：按下的那一刻就消失，不等下一帧 publish。
+        table = table?.copy(claim = null)
         pending?.complete(action)
     }
 
@@ -461,7 +463,13 @@ class LocalGameSession(
                     val action = withTimeoutOrNull(CLAIM_WINDOW_MS) { awaitHuman() }
                         ?: legal.filterIsInstance<Action.Pass>().firstOrNull()
                     claimDeadline = null
-                    if (action == null) break
+                    // 响应窗口一关（点过 / 超时 / 已失效）先收掉中心提示，再落子；
+                    // 落子万一被引擎拒绝，碰吃杠也不会继续挂在桌面上。
+                    table = table?.copy(claim = null)
+                    if (action == null) {
+                        publish()
+                        continue
+                    }
                     applyAction(action)
                 } else {
                     claimDeadline = null
@@ -669,7 +677,8 @@ class LocalGameSession(
         } else {
             me.hand
         }
-        val isClaimTurn = legal.isNotEmpty() && legal.none { it is Action.Discard }
+        val isClaimTurn = claimDeadline != null && legal.isNotEmpty() &&
+            legal.none { it is Action.Discard }
         val claim = if (isClaimTurn) buildClaim(legal) else null
         val canDiscard = legal.any { it is Action.Discard }
         val kongs = legal.mapNotNull { action ->
