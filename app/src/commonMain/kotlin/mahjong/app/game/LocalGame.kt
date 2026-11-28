@@ -512,6 +512,12 @@ class LocalGameSession(
     private fun applyAction(action: Action) {
         if (game.isOver) return
         val events = runCatching { game.apply(action) }.getOrElse { return }
+        // 碰/吃/杠横幅只留到本人那一手：这一家出牌成功就立刻收起，
+        // 不等下家动作，也不靠下一次 publish 顺带刷掉。
+        if (action is Action.Discard && banner?.seat == action.player) {
+            bannerJob?.cancel()
+            banner = null
+        }
         handleEvents(events)
         publish(game.legalActions(meSeat))
     }
@@ -596,7 +602,11 @@ class LocalGameSession(
         bannerJob = scope.launch {
             // 胡牌节拍按规范 560ms；碰/杠等提示保留稍长的可读时间。
             delay(if (banner.kind == BannerKind.HU) 560 else 1_250)
-            if (this@LocalGameSession.banner == banner) this@LocalGameSession.banner = null
+            if (this@LocalGameSession.banner == banner) {
+                this@LocalGameSession.banner = null
+                // 到点就收：表格状态要跟着刷新，否则横幅会挂到下一次 publish 才消失。
+                if (table?.banner == banner) table = table?.copy(banner = null)
+            }
         }
     }
 

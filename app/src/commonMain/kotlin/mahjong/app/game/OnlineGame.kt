@@ -1402,6 +1402,13 @@ class OnlineGameSession(
                     myDiscards += event.tile
                 }
                 if (event.seat == mySeat) lastDrawn = null
+                // 碰/吃/杠横幅只留到本人那一手：这一家出牌成功就立刻收起。
+                val b = banner
+                if (b != null && b.seat == event.seat && b.kind == BannerKind.MELD) {
+                    bannerJob?.cancel()
+                    banner = null
+                    table = table?.copy(banner = null)
+                }
                 event.tile?.let { playDiscard(it, event.seat) }
             }
 
