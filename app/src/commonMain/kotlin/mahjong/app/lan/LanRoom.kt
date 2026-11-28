@@ -811,7 +811,11 @@ class Room(
                 actions = actions.toList(),
                 discardable = legal.filterIsInstance<Action.Discard>().map { it.tile }.distinct().sorted(),
             ),
-            window = if (isClaim && legal.isNotEmpty()) buildWindow(seat, legal, st) else null,
+            window = if (isClaim && legal.isNotEmpty() && seat == currentGame.actor) {
+                buildWindow(seat, legal, st)
+            } else {
+                null
+            },
             tingLocked = seats[seat]?.tingLocked ?: false,
         )
     }
@@ -858,6 +862,9 @@ class Room(
         if (st.phase != Phase.AWAIT_CLAIM && st.phase != Phase.AWAIT_ROB_KONG) return
         for (seat in 0..3) {
             if (seat in windowNotified) continue
+            // 只问当前该表态的那一家：胡 > 杠 > 碰 > 吃 的顺序由引擎排好，
+            // 避免吃牌的人先被弹窗、点完才发现别人能胡。
+            if (seat != currentGame.actor) continue
             val legal = currentGame.legalActions(seat)
             if (legal.isEmpty()) continue
             val window = buildWindow(seat, legal, st) ?: continue

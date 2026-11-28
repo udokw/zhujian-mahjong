@@ -276,9 +276,14 @@ class MahjongGame(
     // ------------------------------------------------------------ 吃碰杠胡响应
 
     private fun openClaimWindow(discard: DiscardInfo) {
+        // 争夺顺序：胡 > 杠 > 碰 > 吃；同级按逆时针座次。
+        // 先问优先级高的座位，能胡的人先表态，不会让吃牌的人先被要求点「吃」。
         val claimants = (1..3)
             .map { (discard.player + it) % 4 }
             .filter { claimActionsWithoutPass(it, discard).isNotEmpty() }
+            .sortedWith(
+                compareBy({ seatClaimTier(it, discard) }, { (it - discard.player + 4) % 4 }),
+            )
         if (claimants.isEmpty()) {
             advanceAfterDiscard()
             return
@@ -311,10 +316,36 @@ class MahjongGame(
         val legal = claimActions(seat, lastDiscard!!)
         require(legal.any { sameAction(it, action) }) { "illegal claim action: $action" }
         claimResponses[seat] = action
+        if (action is Action.Hu) {
+            // 有人胡就立刻结束这一手的争夺，不再等吃/碰/杠表态；
+            // 只有「一炮多响」才把剩余座位收窄到其他也能胡的人。
+            val huSeats = pendingClaims.filter { s ->
+                claimActionsWithoutPass(s, lastDiscard!!).any { it is Action.Hu }
+            }
+            if (!config.multipleWinnersOnDiscard || huSeats.all { it in claimResponses }) {
+                if (config.multipleWinnersOnDiscard) pendingClaims = huSeats
+                resolveClaims()
+            } else {
+                pendingClaims = huSeats
+            }
+            return
+        }
         if (pendingClaims.all { it in claimResponses }) {
             resolveClaims()
         }
     }
+
+    /** 该座位在这一张牌上能拿到的最高优先级：0 胡 / 1 杠 / 2 碰 / 3 吃。 */
+    private fun seatClaimTier(seat: Int, discard: DiscardInfo): Int =
+        claimActionsWithoutPass(seat, discard).minOfOrNull {
+            when (it) {
+                is Action.Hu -> 0
+                is Action.ExposedKong -> 1
+                is Action.Peng -> 2
+                is Action.Chi -> 3
+                else -> 4
+            }
+        } ?: 4
 
     private fun resolveClaims() {
         val discard = lastDiscard!!
